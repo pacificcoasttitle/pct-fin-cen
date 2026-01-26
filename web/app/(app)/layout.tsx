@@ -61,6 +61,7 @@ const navItems: NavItem[] = [
     icon: <BarChart3 className="h-5 w-5" />,
     children: [
       { label: "Overview", href: "/app/admin/overview" },
+      { label: "Companies", href: "/app/admin/companies" },
       { label: "Reports", href: "/app/admin/reports" },
       { label: "Filings", href: "/app/admin/filings" },
       { label: "Users", href: "/app/admin/users" },
