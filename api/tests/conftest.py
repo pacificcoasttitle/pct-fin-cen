@@ -39,7 +39,7 @@ def override_get_db():
 def setup_test_db():
     """Create test database tables once per session."""
     # Import models to register them with Base
-    from app.models import Report, ReportParty, PartyLink, Document, AuditLog  # noqa: F401
+    from app.models import Report, ReportParty, PartyLink, Document, AuditLog, NotificationEvent, FilingSubmission  # noqa: F401
     
     # Create all tables
     Base.metadata.create_all(bind=engine)
@@ -49,7 +49,11 @@ def setup_test_db():
     
     # Remove test database file if SQLite
     if "sqlite" in TEST_DATABASE_URL and os.path.exists("./test.db"):
-        os.remove("./test.db")
+        try:
+            os.remove("./test.db")
+        except PermissionError:
+            # On Windows, the file may still be locked
+            pass
 
 
 @pytest.fixture

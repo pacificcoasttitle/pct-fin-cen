@@ -26,8 +26,12 @@ class ReadyCheckResponse(BaseModel):
 
 class FileResponse(BaseModel):
     """Schema for filing response."""
+    ok: bool
     report_id: UUID
-    status: str
-    confirmation_number: str
-    filed_at: datetime
+    status: str  # accepted, rejected, needs_review
+    receipt_id: Optional[str] = None
+    filed_at: Optional[datetime] = None
+    rejection_code: Optional[str] = None
+    rejection_message: Optional[str] = None
     message: str
+    is_demo: bool = False

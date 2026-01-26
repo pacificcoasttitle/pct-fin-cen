@@ -15,6 +15,7 @@ class Settings:
         self.CORS_ORIGINS: List[str] = self._parse_cors_origins()
         self.APP_VERSION: str = os.getenv("APP_VERSION", "1.0.0")
         self.ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
+        self.DEMO_SECRET: str = os.getenv("DEMO_SECRET", "")
     
     def _parse_cors_origins(self) -> List[str]:
         """Parse CORS_ORIGINS from comma-separated string."""

@@ -67,4 +67,5 @@ class PartySubmitResponse(BaseModel):
     party_id: UUID
     status: str
     submitted_at: datetime
+    confirmation_id: str
     message: str

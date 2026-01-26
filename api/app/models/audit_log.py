@@ -4,9 +4,10 @@ AuditLog model - tracks all actions for compliance and debugging.
 import uuid
 from datetime import datetime
 from sqlalchemy import Column, String, DateTime, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID, JSONB, INET
+from sqlalchemy.dialects.postgresql import UUID
 
 from app.database import Base
+from app.db_types import JSONBType
 
 
 class AuditLog(Base):
@@ -49,14 +50,14 @@ class AuditLog(Base):
         comment="report.created, party.submitted, document.uploaded, etc."
     )
     details = Column(
-        JSONB, 
+        JSONBType, 
         nullable=True, 
         default=dict,
         comment="Additional action details"
     )
     
-    # Request context
-    ip_address = Column(INET, nullable=True, comment="Client IP address")
+    # Request context (use String for cross-database compatibility)
+    ip_address = Column(String(45), nullable=True, comment="Client IP address")
     
     # Timestamp
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)

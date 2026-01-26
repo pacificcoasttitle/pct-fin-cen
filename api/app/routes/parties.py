@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import PartyLink, ReportParty, AuditLog
 from app.schemas.party import PartyResponse, PartySave, PartySubmitResponse, ReportSummary
+from app.services.notifications import log_notification
 
 router = APIRouter(prefix="/party", tags=["party"])
 
@@ -89,9 +90,9 @@ def save_party_data(
         raise HTTPException(status_code=400, detail="Party has already submitted")
     
     # Merge party data (preserve existing, update provided)
-    existing_data = party.party_data or {}
+    # Use a new dict to ensure SQLAlchemy detects the change
+    existing_data = dict(party.party_data or {})
     existing_data.update(party_save.party_data)
-    
     party.party_data = existing_data
     party.status = "in_progress"
     party.updated_at = datetime.utcnow()
@@ -163,6 +164,10 @@ def submit_party_data(
     link.status = "used"
     link.submitted_at = datetime.utcnow()
     
+    # Generate stable confirmation ID
+    submitted_at = link.submitted_at
+    confirmation_id = f"PCT-{submitted_at.strftime('%Y')}-{str(party.id)[-5:].upper()}"
+    
     # Audit log
     audit = AuditLog(
         report_id=report.id,
@@ -172,15 +177,37 @@ def submit_party_data(
             "party_id": str(party.id),
             "party_role": party.party_role,
             "display_name": party.display_name,
+            "confirmation_id": confirmation_id,
         },
         ip_address=get_client_ip(request),
     )
     db.add(audit)
+    
+    # Log notification event for party submission
+    property_address = report.property_address_text or "Property"
+    log_notification(
+        db,
+        type="party_submitted",
+        report_id=report.id,
+        party_id=party.id,
+        party_token=token,
+        to_email=party_data.get("email"),
+        subject="Thank you — your information has been received",
+        body_preview=f"Your information for {property_address} has been successfully submitted. Confirmation: {confirmation_id}",
+        meta={
+            "confirmation_id": confirmation_id,
+            "submitted_at": submitted_at.isoformat(),
+            "party_role": party.party_role,
+            "display_name": party.display_name,
+        },
+    )
+    
     db.commit()
     
     return PartySubmitResponse(
         party_id=party.id,
         status="submitted",
-        submitted_at=link.submitted_at,
+        submitted_at=submitted_at,
+        confirmation_id=confirmation_id,
         message="Thank you! Your information has been submitted successfully.",
     )

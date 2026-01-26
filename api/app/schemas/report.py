@@ -34,6 +34,9 @@ class ReportResponse(BaseModel):
     closing_date: Optional[date]
     filing_deadline: Optional[date]
     wizard_step: int
+    filing_status: Optional[str] = None
+    filed_at: Optional[datetime] = None
+    receipt_id: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -58,6 +61,10 @@ class ReportDetailResponse(BaseModel):
     wizard_data: Optional[Dict[str, Any]]
     determination: Optional[Dict[str, Any]]
     parties: List[ReportPartyBrief]
+    filing_status: Optional[str] = None
+    filed_at: Optional[datetime] = None
+    receipt_id: Optional[str] = None
+    filing_payload: Optional[Dict[str, Any]] = None
     created_at: datetime
     updated_at: datetime
 

@@ -20,11 +20,16 @@ from app.models import Report, ReportParty, PartyLink, AuditLog
 from app.services.determination import determine_reportability
 
 
-def create_demo_reports():
-    """Create 6 demo reports for testing."""
-    db = SessionLocal()
+def create_demo_reports(db=None):
+    """Create 6 demo reports for testing.
     
-    try:
+    Args:
+        db: Optional SQLAlchemy session. If not provided, creates a new one.
+    """
+    close_db = False
+    if db is None:
+        db = SessionLocal()
+        close_db = True
         # Clear existing demo data (optional - comment out to keep)
         print("Clearing existing reports...")
         db.query(AuditLog).delete()
@@ -32,7 +37,8 @@ def create_demo_reports():
         db.query(ReportParty).delete()
         db.query(Report).delete()
         db.commit()
-        
+    
+    try:
         reports_created = []
         
         # ===== EXEMPT REPORTS =====
@@ -315,7 +321,8 @@ def create_demo_reports():
         print(f"❌ Error creating demo data: {e}")
         raise
     finally:
-        db.close()
+        if close_db:
+            db.close()
 
 
 if __name__ == "__main__":

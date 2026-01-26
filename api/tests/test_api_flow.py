@@ -89,7 +89,7 @@ class TestFullAPIFlow:
         
         party_link = links_data["links"][0]
         token = party_link["token"]
-        assert party_link["link_url"].endswith(f"/party/{token}")
+        assert party_link["link_url"].endswith(f"/p/{token}")
         
         # Verify report status updated
         get_response = client.get(f"/reports/{report_id}")
@@ -135,14 +135,14 @@ class TestFullAPIFlow:
         file_response = client.post(f"/reports/{report_id}/file")
         assert file_response.status_code == 200
         file_data = file_response.json()
-        assert file_data["status"] == "filed"
-        assert file_data["confirmation_number"].startswith("RRER-")
+        assert file_data["status"] == "accepted"  # Filing submission status
+        assert file_data["receipt_id"].startswith("RER-DEMO-")
         
         # ===== STEP 10: Verify Final State =====
         final_response = client.get(f"/reports/{report_id}")
         final_report = final_response.json()
-        assert final_report["status"] == "filed"
-        assert "filing" in final_report["determination"]
+        assert final_report["status"] == "filed"  # Report status
+        assert final_report["filing_status"] == "filed_mock"  # Filing status on report
         
         # Cannot file again
         re_file_response = client.post(f"/reports/{report_id}/file")

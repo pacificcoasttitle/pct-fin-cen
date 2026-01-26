@@ -4,10 +4,11 @@ ReportParty model - parties involved in a report (transferees, transferors, etc.
 import uuid
 from datetime import datetime
 from sqlalchemy import Column, String, DateTime, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
 from app.database import Base
+from app.db_types import JSONBType
 
 
 class ReportParty(Base):
@@ -46,7 +47,7 @@ class ReportParty(Base):
     
     # Full party data (flexible schema)
     party_data = Column(
-        JSONB, 
+        JSONBType, 
         nullable=True, 
         default=dict,
         comment="Full party information: name, address, ID documents, etc."

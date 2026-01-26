@@ -24,6 +24,12 @@ from app.schemas.party import PartyLinkCreate, PartyLinkResponse, PartyLinkItem,
 from app.schemas.common import ReadyCheckResponse, FileResponse, MissingItem
 from app.services.determination import determine_reportability
 from app.services.filing import MockFilingProvider
+from app.services.notifications import log_notification
+from app.services.filing_lifecycle import (
+    enqueue_submission,
+    perform_mock_submit,
+    get_or_create_submission,
+)
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 settings = get_settings()
@@ -117,6 +123,10 @@ def get_report(
         wizard_data=report.wizard_data,
         determination=report.determination,
         parties=[ReportPartyBrief.model_validate(p) for p in report.parties],
+        filing_status=report.filing_status,
+        filed_at=report.filed_at,
+        receipt_id=report.receipt_id,
+        filing_payload=report.filing_payload,
         created_at=report.created_at,
         updated_at=report.updated_at,
     )
@@ -138,7 +148,8 @@ def update_wizard(
         raise HTTPException(status_code=400, detail="Cannot modify filed report")
     
     # Merge wizard data (preserve existing steps, update provided)
-    existing_data = report.wizard_data or {}
+    # Use a new dict to ensure SQLAlchemy detects the change
+    existing_data = dict(report.wizard_data or {})
     existing_data.update(wizard_update.wizard_data)
     
     report.wizard_step = wizard_update.wizard_step
@@ -256,7 +267,7 @@ def create_party_links(
         
         # Build full URL
         base_url = settings.APP_BASE_URL.rstrip("/")
-        link_url = f"{base_url}/party/{link.token}"
+        link_url = f"{base_url}/p/{link.token}"
         
         links_created.append(PartyLinkItem(
             party_id=party.id,
@@ -267,6 +278,25 @@ def create_party_links(
             link_url=link_url,
             expires_at=expires_at,
         ))
+        
+        # Log notification event for party invite
+        property_address = report.property_address_text or "Property"
+        log_notification(
+            db,
+            type="party_invite",
+            report_id=report.id,
+            party_id=party.id,
+            party_token=link.token,
+            to_email=None,  # Email not known yet
+            subject=f"Action Required: Information needed for {property_address}",
+            body_preview=f"You have been invited to provide information for a FinCEN Real Estate Report. Property: {property_address}. Role: {party.party_role}.",
+            meta={
+                "link": link_url,
+                "role": party.party_role,
+                "party_name": party.display_name,
+                "expires_at": expires_at.isoformat(),
+            },
+        )
     
     # Update report status
     report.status = "collecting"
@@ -363,84 +393,140 @@ def ready_check(
     )
 
 
-@router.post("/{report_id}/file", response_model=FileResponse)
+def perform_ready_check(report: Report) -> tuple[bool, list]:
+    """
+    Internal ready check for filing validation.
+    Returns (is_ready, list of error messages).
+    """
+    errors = []
+    
+    # Check report is reportable
+    if not report.determination:
+        errors.append("Report determination not complete")
+    elif report.determination.get("final_result") != "reportable":
+        errors.append("Report is not marked as reportable")
+    
+    # Check required fields
+    if not report.property_address_text:
+        errors.append("Property address is required")
+    
+    if not report.closing_date:
+        errors.append("Closing date is required")
+    
+    # Check all required parties have submitted
+    parties = report.parties
+    if not parties:
+        errors.append("At least one party is required")
+    else:
+        for party in parties:
+            if party.status != "submitted":
+                errors.append(f"Party '{party.display_name or party.party_role}' has not submitted")
+    
+    return len(errors) == 0, errors
+
+
+@router.post("/{report_id}/file")
 def file_report(
     report_id: UUID,
     request: Request,
     db: Session = Depends(get_db),
 ):
-    """File report to FinCEN (MOCK provider)."""
+    """
+    File report to FinCEN.
+    
+    In staging environment: Performs mock filing with submission lifecycle.
+    Outcome is determined by demo_outcome setting (default: accept).
+    
+    Returns:
+    - 200 for accepted filings
+    - 400 for rejected filings
+    - 202 for needs_review filings
+    - 501 in non-staging environments
+    """
+    # Check environment - only allow mock filing in staging/test
+    if settings.ENVIRONMENT not in ("staging", "test"):
+        raise HTTPException(
+            status_code=501,
+            detail="Live FinCEN filing not enabled. This feature is only available in staging environment."
+        )
+    
+    # Get report
     report = db.query(Report).filter(Report.id == report_id).first()
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
     
-    if report.status == "filed":
-        raise HTTPException(status_code=400, detail="Report already filed")
+    # Check existing submission status
+    submission = get_or_create_submission(db, report_id)
+    if submission.status == "accepted":
+        raise HTTPException(status_code=400, detail="Report already filed and accepted")
     
     if report.status == "exempt":
         raise HTTPException(status_code=400, detail="Exempt reports cannot be filed")
     
-    # Prepare report data for filing
-    report_data = {
-        "property_address": report.property_address_text,
-        "closing_date": report.closing_date.isoformat() if report.closing_date else None,
-        "parties": [
-            {
-                "party_role": p.party_role,
-                "entity_type": p.entity_type,
-                "display_name": p.display_name,
-                "status": p.status,
-                "party_data": p.party_data,
-            }
-            for p in report.parties
-        ],
-    }
-    
-    # Validate
-    validation = MockFilingProvider.validate_for_filing(report_data)
-    if not validation["is_valid"]:
+    # Perform ready check
+    is_ready, errors = perform_ready_check(report)
+    if not is_ready:
         raise HTTPException(
             status_code=400,
-            detail={"message": "Validation failed", "errors": validation["errors"]}
+            detail={
+                "message": "Report is not ready for filing",
+                "errors": errors,
+            }
         )
     
-    # File (mock)
-    result = MockFilingProvider.file_report(report_data)
-    
-    if not result["success"]:
-        raise HTTPException(status_code=500, detail="Filing failed")
-    
-    # Update report
-    report.status = "filed"
-    report.updated_at = datetime.utcnow()
-    
-    # Store filing info in determination
-    filing_info = report.determination or {}
-    filing_info["filing"] = {
-        "confirmation_number": result["confirmation_number"],
-        "filed_at": result["filed_at"].isoformat(),
-        "provider": result["provider"],
+    # Create payload snapshot (safe summary)
+    payload_snapshot = {
+        "property_address": report.property_address_text,
+        "closing_date": report.closing_date.isoformat() if report.closing_date else None,
+        "parties_count": len(report.parties),
+        "party_roles": [p.party_role for p in report.parties],
     }
-    report.determination = filing_info
     
-    # Audit log
-    audit = AuditLog(
-        report_id=report.id,
-        actor_type="api",
-        action="report.filed",
-        details={
-            "confirmation_number": result["confirmation_number"],
-            "provider": result["provider"],
-        },
-        ip_address=get_client_ip(request),
-    )
-    db.add(audit)
+    client_ip = get_client_ip(request)
+    
+    # Enqueue the submission
+    enqueue_submission(db, report_id, payload_snapshot, client_ip)
+    
+    # Perform mock submission (transitions to final state)
+    outcome, submission = perform_mock_submit(db, report_id, client_ip)
+    
     db.commit()
     
-    return FileResponse(
-        report_id=report.id,
-        status="filed",
-        confirmation_number=result["confirmation_number"],
-        filed_at=result["filed_at"],
-        message=result["message"],
-    )
+    # Return appropriate response based on outcome
+    if outcome == "accepted":
+        return FileResponse(
+            ok=True,
+            report_id=report.id,
+            status="accepted",
+            receipt_id=submission.receipt_id,
+            filed_at=submission.updated_at,
+            message="Filed successfully (demo)",
+            is_demo=True,
+        )
+    elif outcome == "rejected":
+        # Return 400 for rejected
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "ok": False,
+                "status": "rejected",
+                "report_id": str(report.id),
+                "rejection_code": submission.rejection_code,
+                "rejection_message": submission.rejection_message,
+                "message": f"Filing rejected: {submission.rejection_code}",
+                "is_demo": True,
+            }
+        )
+    else:  # needs_review
+        # Return 202 for needs_review
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=202,
+            content={
+                "ok": True,
+                "status": "needs_review",
+                "report_id": str(report.id),
+                "message": "Requires internal review (demo)",
+                "is_demo": True,
+            }
+        )

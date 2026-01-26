@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.database import get_db
-from app.routes import reports_router, parties_router
+from app.routes import reports_router, parties_router, demo_router, admin_router
 
 settings = get_settings()
 
@@ -31,6 +31,8 @@ app.add_middleware(
 # Include routers
 app.include_router(reports_router)
 app.include_router(parties_router)
+app.include_router(demo_router)
+app.include_router(admin_router)
 
 
 @app.get("/")
@@ -79,14 +81,24 @@ async def db_check(db: Session = Depends(get_db)):
         result = db.execute(text("SELECT 1 as check_value"))
         row = result.fetchone()
         
-        # Get database info (safe query)
-        db_version = db.execute(text("SELECT version()")).fetchone()
+        # Get database info (safe query - handle SQLite which doesn't have version())
+        db_version = "unknown"
+        try:
+            version_result = db.execute(text("SELECT version()")).fetchone()
+            db_version = version_result[0] if version_result else "unknown"
+        except Exception:
+            # SQLite doesn't support version() - use sqlite_version() instead
+            try:
+                version_result = db.execute(text("SELECT sqlite_version()")).fetchone()
+                db_version = f"SQLite {version_result[0]}" if version_result else "SQLite"
+            except Exception:
+                db_version = "unknown"
         
         return {
             "status": "ok",
             "database": "connected",
             "check_value": row[0] if row else None,
-            "db_version": db_version[0] if db_version else "unknown",
+            "db_version": db_version,
             "environment": settings.ENVIRONMENT,
         }
     except Exception as e:

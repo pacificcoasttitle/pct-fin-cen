@@ -91,6 +91,63 @@ make dev
 | GET | `/version` | Version info |
 | GET | `/db-check` | DB connectivity (staging only) |
 | GET | `/docs` | Swagger UI documentation |
+| POST | `/demo/reset` | Reset demo data (staging only, requires secret) |
+| POST | `/demo/create-report` | Create demo report (staging only, requires secret) |
+
+## Demo Endpoints (Staging Only)
+
+Demo endpoints are protected by two security layers:
+1. **Environment check**: Only works when `ENVIRONMENT=staging`
+2. **Secret header**: Requires `X-DEMO-SECRET` header matching `DEMO_SECRET` env var
+
+If either check fails, endpoints return `404 Not Found` (not `401` or `403`) to avoid discovery.
+
+### Configuration
+
+Add to your environment variables:
+
+```bash
+ENVIRONMENT=staging
+DEMO_SECRET=your-secure-random-secret
+```
+
+### POST /demo/reset
+
+Clears all data and re-seeds with 6 demo reports (3 exempt, 3 reportable).
+
+```bash
+curl -X POST "$API_BASE_URL/demo/reset" \
+  -H "X-DEMO-SECRET: $DEMO_SECRET"
+```
+
+Response:
+```json
+{
+  "ok": true,
+  "reports_created": 6,
+  "timestamp": "2026-01-26T12:00:00.000000",
+  "environment": "staging"
+}
+```
+
+### POST /demo/create-report
+
+Creates a single demo report and returns the wizard URL.
+
+```bash
+curl -X POST "$API_BASE_URL/demo/create-report" \
+  -H "X-DEMO-SECRET: $DEMO_SECRET"
+```
+
+Response:
+```json
+{
+  "ok": true,
+  "report_id": "550e8400-e29b-41d4-a716-446655440000",
+  "wizard_url": "https://your-app.vercel.app/app/reports/550e8400-e29b-41d4-a716-446655440000/wizard",
+  "timestamp": "2026-01-26T12:00:00.000000"
+}
+```
 
 ## Database Models
 
@@ -153,6 +210,7 @@ APP_BASE_URL=https://pct-fin-cen.vercel.app
 CORS_ORIGINS=https://pct-fin-cen.vercel.app,http://localhost:3000
 APP_VERSION=1.0.0
 ENVIRONMENT=staging
+DEMO_SECRET=<secure random string for demo endpoint access>
 ```
 
 ### Migrations on Deploy
