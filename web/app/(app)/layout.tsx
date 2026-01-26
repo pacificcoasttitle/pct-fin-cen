@@ -16,6 +16,7 @@ import {
   X,
   BarChart3,
   Search,
+  Inbox,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -36,7 +37,7 @@ interface NavItem {
   label: string
   href: string
   icon: React.ReactNode
-  children?: { label: string; href: string }[]
+  children?: { label: string; href: string; badge?: string }[]
 }
 
 const navItems: NavItem[] = [
@@ -61,6 +62,7 @@ const navItems: NavItem[] = [
     icon: <BarChart3 className="h-5 w-5" />,
     children: [
       { label: "Overview", href: "/app/admin/overview" },
+      { label: "Requests", href: "/app/admin/requests", badge: "8" },
       { label: "Companies", href: "/app/admin/companies" },
       { label: "Reports", href: "/app/admin/reports" },
       { label: "Filings", href: "/app/admin/filings" },
@@ -157,14 +159,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                           key={child.href}
                           href={child.href}
                           className={cn(
-                            "block px-3 py-2 rounded-lg text-sm transition-colors",
+                            "flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors",
                             pathname === child.href
                               ? "bg-slate-800 text-white"
                               : "text-slate-400 hover:text-white hover:bg-slate-800/50"
                           )}
                           onClick={() => setSidebarOpen(false)}
                         >
-                          {child.label}
+                          <span>{child.label}</span>
+                          {child.badge && (
+                            <span className="px-1.5 py-0.5 text-xs font-medium bg-amber-500 text-white rounded-full">
+                              {child.badge}
+                            </span>
+                          )}
                         </Link>
                       ))}
                     </div>
