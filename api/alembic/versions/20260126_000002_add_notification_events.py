@@ -1,7 +1,7 @@
 """add notification_events table
 
 Revision ID: 20260126_000002
-Revises: 20260126_000001_init
+Revises: init
 Create Date: 2026-01-26 12:00:00.000000
 
 """
@@ -13,7 +13,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = '20260126_000002'
-down_revision: Union[str, None] = '20260126_000001_init'
+down_revision: Union[str, None] = 'init'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
