@@ -17,6 +17,7 @@ import {
   BarChart3,
   Search,
   Inbox,
+  DollarSign,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -66,6 +67,7 @@ const navItems: NavItem[] = [
       { label: "Companies", href: "/app/admin/companies" },
       { label: "Reports", href: "/app/admin/reports" },
       { label: "Filings", href: "/app/admin/filings" },
+      { label: "Billing", href: "/app/admin/billing" },
       { label: "Users", href: "/app/admin/users" },
       { label: "Notifications", href: "/app/admin/notifications" },
     ],
