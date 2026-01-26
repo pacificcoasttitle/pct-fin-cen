@@ -3,37 +3,99 @@ import { NextRequest, NextResponse } from "next/server"
 /**
  * Demo login endpoint.
  * 
- * Validates credentials against environment variables:
- * - DEMO_LOGIN_EMAIL (server-side) or NEXT_PUBLIC_DEMO_LOGIN_EMAIL (fallback)
- * - DEMO_LOGIN_PASSWORD (server-side) or NEXT_PUBLIC_DEMO_LOGIN_PASSWORD (fallback)
+ * For the demo, we accept specific demo email addresses without password.
+ * Each email maps to a specific role and company.
  * 
- * On success, sets httpOnly cookie for session.
+ * Demo accounts:
+ * - admin@pctfincen.com → PCT Admin (internal staff)
+ * - staff@pctfincen.com → PCT Staff (internal staff)
+ * - admin@demotitle.com → Client Admin (Demo Title & Escrow)
+ * - user@demotitle.com → Client User (Demo Title & Escrow)
  */
+
+interface DemoUser {
+  id: string
+  email: string
+  name: string
+  role: "pct_admin" | "pct_staff" | "client_admin" | "client_user"
+  companyId: string | null
+  companyName: string
+}
+
+// Demo users configuration
+const DEMO_USERS: Record<string, DemoUser> = {
+  "admin@pctfincen.com": {
+    id: "demo-pct-admin",
+    email: "admin@pctfincen.com",
+    name: "Sarah Mitchell",
+    role: "pct_admin",
+    companyId: null,
+    companyName: "PCT FinCEN",
+  },
+  "staff@pctfincen.com": {
+    id: "demo-pct-staff",
+    email: "staff@pctfincen.com",
+    name: "Emily Chen",
+    role: "pct_staff",
+    companyId: null,
+    companyName: "PCT FinCEN",
+  },
+  "admin@demotitle.com": {
+    id: "demo-client-admin",
+    email: "admin@demotitle.com",
+    name: "Demo Client Admin",
+    role: "client_admin",
+    companyId: "demo-client-company",
+    companyName: "Demo Title & Escrow",
+  },
+  "user@demotitle.com": {
+    id: "demo-client-user",
+    email: "user@demotitle.com",
+    name: "Demo Client User",
+    role: "client_user",
+    companyId: "demo-client-company",
+    companyName: "Demo Title & Escrow",
+  },
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const { email, password } = await request.json()
+    const { email } = await request.json()
 
-    // Get credentials from server-side env vars (preferred) or public fallback
-    const validEmail = process.env.DEMO_LOGIN_EMAIL || process.env.NEXT_PUBLIC_DEMO_LOGIN_EMAIL
-    const validPassword = process.env.DEMO_LOGIN_PASSWORD || process.env.NEXT_PUBLIC_DEMO_LOGIN_PASSWORD
+    // Normalize email
+    const normalizedEmail = email?.toLowerCase().trim()
 
-    // Check if demo login is configured
-    if (!validEmail || !validPassword) {
-      return NextResponse.json(
-        { ok: false, message: "Demo login not configured" },
-        { status: 500 }
-      )
-    }
+    // Check if this is a valid demo user
+    const demoUser = DEMO_USERS[normalizedEmail]
 
-    // Validate credentials
-    if (email === validEmail && password === validPassword) {
-      const response = NextResponse.json({ ok: true })
+    if (demoUser) {
+      const response = NextResponse.json({ 
+        ok: true,
+        user: {
+          id: demoUser.id,
+          email: demoUser.email,
+          name: demoUser.name,
+          role: demoUser.role,
+          companyId: demoUser.companyId,
+          companyName: demoUser.companyName,
+        }
+      })
 
       // Determine if we're in production/staging (secure cookies)
       const isProduction = process.env.NODE_ENV === "production"
 
-      // Set session cookie
-      response.cookies.set("pct_demo_session", "1", {
+      // Encode user data for cookie (simple base64 for demo)
+      const sessionData = Buffer.from(JSON.stringify({
+        id: demoUser.id,
+        email: demoUser.email,
+        name: demoUser.name,
+        role: demoUser.role,
+        companyId: demoUser.companyId,
+        companyName: demoUser.companyName,
+      })).toString("base64")
+
+      // Set session cookie with user data
+      response.cookies.set("pct_demo_session", sessionData, {
         httpOnly: true,
         sameSite: "lax",
         secure: isProduction,
@@ -44,8 +106,27 @@ export async function POST(request: NextRequest) {
       return response
     }
 
+    // Fallback: Check legacy env var credentials
+    const validEmail = process.env.DEMO_LOGIN_EMAIL || process.env.NEXT_PUBLIC_DEMO_LOGIN_EMAIL
+    const validPassword = process.env.DEMO_LOGIN_PASSWORD || process.env.NEXT_PUBLIC_DEMO_LOGIN_PASSWORD
+
+    if (validEmail && normalizedEmail === validEmail.toLowerCase()) {
+      const response = NextResponse.json({ ok: true })
+      const isProduction = process.env.NODE_ENV === "production"
+
+      response.cookies.set("pct_demo_session", "1", {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: isProduction,
+        path: "/",
+        maxAge: 60 * 60 * 8,
+      })
+
+      return response
+    }
+
     return NextResponse.json(
-      { ok: false, message: "Invalid email or password" },
+      { ok: false, message: "Invalid email. Use a demo account email." },
       { status: 401 }
     )
   } catch {

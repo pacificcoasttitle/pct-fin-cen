@@ -10,11 +10,16 @@ import type { NextRequest } from "next/server"
  * - /p/* is public (party portal)
  * - / and marketing routes are public
  * - /api/* is not affected
+ * 
+ * Session cookie can be:
+ * - "1" (legacy simple auth)
+ * - Base64-encoded JSON with user data (new multi-user auth)
  */
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const sessionCookie = request.cookies.get("pct_demo_session")
-  const isLoggedIn = sessionCookie?.value === "1"
+  // Check for both legacy "1" value and new base64-encoded user data
+  const isLoggedIn = sessionCookie?.value && sessionCookie.value.length > 0
 
   // Protect /app/* routes
   if (pathname.startsWith("/app")) {
