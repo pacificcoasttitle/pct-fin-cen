@@ -1,12 +1,14 @@
 """
 PCT FinCEN API - FastAPI Backend
 """
-import os
 from datetime import datetime
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from app.config import get_settings
+from app.database import get_db
 
 settings = get_settings()
 
@@ -50,3 +52,43 @@ async def version():
         "environment": settings.ENVIRONMENT,
         "timestamp": datetime.utcnow().isoformat(),
     }
+
+
+@app.get("/db-check")
+async def db_check(db: Session = Depends(get_db)):
+    """
+    Database connectivity check (staging/development only).
+    
+    Runs a simple SELECT 1 to verify database connectivity.
+    Returns error details in non-production environments.
+    """
+    # Only allow in non-production environments
+    if settings.ENVIRONMENT == "production":
+        raise HTTPException(
+            status_code=403, 
+            detail="Endpoint disabled in production"
+        )
+    
+    try:
+        # Simple connectivity check
+        result = db.execute(text("SELECT 1 as check_value"))
+        row = result.fetchone()
+        
+        # Get database info (safe query)
+        db_version = db.execute(text("SELECT version()")).fetchone()
+        
+        return {
+            "status": "ok",
+            "database": "connected",
+            "check_value": row[0] if row else None,
+            "db_version": db_version[0] if db_version else "unknown",
+            "environment": settings.ENVIRONMENT,
+        }
+    except Exception as e:
+        # Return error details in staging
+        return {
+            "status": "error",
+            "database": "disconnected",
+            "error": str(e),
+            "environment": settings.ENVIRONMENT,
+        }

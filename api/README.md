@@ -2,41 +2,61 @@
 
 FastAPI backend for the Pacific Coast Title FinCEN BOIR Questionnaire application.
 
+## Project Structure
+
+```
+api/
+├── alembic/              # Database migrations
+│   ├── versions/         # Migration scripts
+│   └── env.py           # Alembic environment config
+├── app/
+│   ├── models/          # SQLAlchemy models
+│   │   ├── report.py
+│   │   ├── report_party.py
+│   │   ├── party_link.py
+│   │   ├── document.py
+│   │   └── audit_log.py
+│   ├── config.py        # Settings from env vars
+│   ├── database.py      # DB connection setup
+│   └── main.py          # FastAPI app
+├── tests/               # Pytest tests
+├── alembic.ini          # Alembic configuration
+├── Makefile             # CLI shortcuts
+├── requirements.txt     # Python dependencies
+└── build.sh             # Render build script
+```
+
 ## Local Development
 
 ### Prerequisites
 
 - Python 3.11+
-- pip
+- PostgreSQL (or use SQLite for testing)
 
 ### Setup
 
-1. Create a virtual environment:
+1. Create and activate virtual environment:
 
 ```bash
 cd api
 python -m venv venv
-```
 
-2. Activate the virtual environment:
-
-**Windows (PowerShell):**
-```powershell
+# Windows PowerShell
 .\venv\Scripts\Activate.ps1
-```
 
-**macOS/Linux:**
-```bash
+# macOS/Linux
 source venv/bin/activate
 ```
 
-3. Install dependencies:
+2. Install dependencies:
 
 ```bash
 pip install -r requirements.txt
+# or
+make install
 ```
 
-4. Create a `.env` file (optional for local development):
+3. Set environment variables (create `.env` file):
 
 ```bash
 DATABASE_URL=postgresql://user:password@localhost:5432/fincen_db
@@ -46,39 +66,95 @@ APP_VERSION=1.0.0
 ENVIRONMENT=development
 ```
 
-### Running Locally
+4. Run migrations:
+
+```bash
+alembic upgrade head
+# or
+make migrate
+```
+
+5. Start the server:
 
 ```bash
 uvicorn app.main:app --reload --port 8000
+# or
+make dev
 ```
 
-The API will be available at:
-- API: http://localhost:8000
-- Docs: http://localhost:8000/docs
-- Health: http://localhost:8000/health
-
-## Endpoints
+## API Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/` | API information |
 | GET | `/health` | Health check |
 | GET | `/version` | Version info |
+| GET | `/db-check` | DB connectivity (staging only) |
+| GET | `/docs` | Swagger UI documentation |
+
+## Database Models
+
+### Reports
+Core entity for FinCEN RRER filings. Tracks wizard progress, determination results, and filing status.
+
+### Report Parties
+Parties involved in a report (transferees, transferors, beneficial owners).
+
+### Party Links
+Secure, time-limited links for party self-service data collection.
+
+### Documents
+Uploaded documents (ID photos, etc.) associated with parties.
+
+### Audit Log
+Compliance audit trail - all actions logged for 5-year retention.
+
+## Testing
+
+```bash
+# Run all tests
+pytest tests/ -v
+# or
+make test
+
+# Run with coverage
+make test-cov
+```
+
+## Migrations
+
+```bash
+# Apply all pending migrations
+make migrate
+
+# Create new migration
+make migrate-new msg="add new field"
+
+# View migration history
+make migrate-history
+
+# Rollback last migration
+make migrate-down
+```
 
 ## Deployment (Render)
 
-This API is deployed on Render with the following configuration:
+### Configuration
 
 - **Root Directory:** `api`
-- **Build Command:** `pip install -r requirements.txt`
+- **Build Command:** `./build.sh`
 - **Start Command:** `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
 
-### Environment Variables (Render)
+### Environment Variables
 
 ```
 DATABASE_URL=<postgres connection string>
 APP_BASE_URL=https://pct-fin-cen.vercel.app
 CORS_ORIGINS=https://pct-fin-cen.vercel.app,http://localhost:3000
 APP_VERSION=1.0.0
-ENVIRONMENT=production
+ENVIRONMENT=staging
 ```
+
+### Migrations on Deploy
+
+The `build.sh` script automatically runs `alembic upgrade head` on every deployment, ensuring the database schema is always up to date.
