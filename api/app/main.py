@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.database import get_db
+from app.routes import reports_router, parties_router
 
 settings = get_settings()
 
@@ -26,6 +27,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include routers
+app.include_router(reports_router)
+app.include_router(parties_router)
 
 
 @app.get("/")
