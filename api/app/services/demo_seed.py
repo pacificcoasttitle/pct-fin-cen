@@ -4,25 +4,184 @@ Demo seed service for staging environment.
 Provides functions to reset and seed demo data safely.
 """
 from datetime import datetime, timedelta
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, List, Optional
 from sqlalchemy.orm import Session
 
-from app.models import Report, ReportParty, PartyLink, Document, AuditLog, FilingSubmission
+from app.models import (
+    Report, ReportParty, PartyLink, Document, AuditLog, FilingSubmission,
+    NotificationEvent, Company, User, SubmissionRequest, BillingEvent, Invoice,
+)
 
 
 def reset_demo_data(db: Session) -> None:
     """
     Delete all demo data in correct FK order to avoid constraint errors.
     
-    Order: documents → party_links → filing_submissions → report_parties → audit_log → reports
+    Order: billing_events → invoices → submission_requests → documents → party_links → 
+           filing_submissions → report_parties → audit_log → reports → users → companies
+    
+    Note: We preserve the PCT company and its users since those are foundational.
     """
+    # Delete billing/invoices first
+    db.query(BillingEvent).delete()
+    db.query(Invoice).delete()
+    
+    # Delete submission requests (they reference reports)
+    db.query(SubmissionRequest).delete()
+    
+    # Delete report-related data
+    db.query(NotificationEvent).delete()
     db.query(Document).delete()
     db.query(PartyLink).delete()
     db.query(FilingSubmission).delete()
     db.query(ReportParty).delete()
     db.query(AuditLog).delete()
     db.query(Report).delete()
+    
+    # Note: We don't delete Companies or Users - those are foundational
     db.flush()
+
+
+def seed_pct_company(db: Session) -> Company:
+    """
+    Seed Pacific Coast Title as the internal company.
+    
+    This is idempotent - if PCT already exists, returns the existing record.
+    """
+    pct = db.query(Company).filter(Company.code == "PCT").first()
+    if not pct:
+        pct = Company(
+            name="Pacific Coast Title Company",
+            code="PCT",
+            company_type="internal",
+            billing_email="billing@pacificcoasttitle.com",
+            billing_contact_name="Accounting Department",
+            phone="(555) 123-4567",
+            address={
+                "street": "1234 Title Way",
+                "city": "Los Angeles",
+                "state": "CA",
+                "zip": "90001",
+            },
+            status="active",
+            settings={
+                "default_filing_fee_cents": 15000,  # $150 per filing
+                "expedite_fee_cents": 7500,  # $75 expedite fee
+            },
+        )
+        db.add(pct)
+        db.flush()
+    return pct
+
+
+def seed_demo_users(db: Session, pct_company: Optional[Company] = None) -> List[User]:
+    """
+    Seed demo users for PCT.
+    
+    PCT internal staff have company_id = NULL (they're not a client).
+    This is idempotent - only creates users that don't exist.
+    """
+    users = []
+    demo_users = [
+        {
+            "email": "admin@pctfincen.com",
+            "name": "Demo Admin",
+            "role": "pct_admin",
+            "company_id": None,  # PCT staff have NULL company_id
+        },
+        {
+            "email": "staff@pctfincen.com",
+            "name": "Demo Staff",
+            "role": "pct_staff",
+            "company_id": None,
+        },
+    ]
+    
+    for user_data in demo_users:
+        user = db.query(User).filter(User.email == user_data["email"]).first()
+        if not user:
+            user = User(**user_data)
+            db.add(user)
+        users.append(user)
+    
+    db.flush()
+    return users
+
+
+def seed_demo_client_company(db: Session) -> Tuple[Company, List[User]]:
+    """
+    Seed a demo client company with users for testing multi-tenancy.
+    
+    Returns: (company, users)
+    """
+    # Create demo client company
+    client = db.query(Company).filter(Company.code == "DEMO").first()
+    if not client:
+        client = Company(
+            name="Demo Title & Escrow",
+            code="DEMO",
+            company_type="client",
+            billing_email="billing@demotitle.com",
+            billing_contact_name="Jane Billing",
+            phone="(555) 987-6543",
+            address={
+                "street": "100 Escrow Blvd",
+                "city": "San Diego",
+                "state": "CA",
+                "zip": "92101",
+            },
+            status="active",
+        )
+        db.add(client)
+        db.flush()
+    
+    # Create client users
+    client_users = []
+    client_user_data = [
+        {
+            "email": "admin@demotitle.com",
+            "name": "Client Admin",
+            "role": "client_admin",
+            "company_id": client.id,
+        },
+        {
+            "email": "user@demotitle.com",
+            "name": "Client User",
+            "role": "client_user",
+            "company_id": client.id,
+        },
+    ]
+    
+    for user_data in client_user_data:
+        user = db.query(User).filter(User.email == user_data["email"]).first()
+        if not user:
+            user = User(**user_data)
+            db.add(user)
+        client_users.append(user)
+    
+    db.flush()
+    return client, client_users
+
+
+def seed_foundation_data(db: Session) -> Dict[str, Any]:
+    """
+    Seed all foundation data: PCT company, demo users, demo client.
+    
+    Call this once after migration to set up the base data.
+    Returns dict with created entities.
+    """
+    pct = seed_pct_company(db)
+    pct_users = seed_demo_users(db, pct)
+    demo_client, client_users = seed_demo_client_company(db)
+    
+    db.commit()
+    
+    return {
+        "pct_company": pct,
+        "pct_users": pct_users,
+        "demo_client": demo_client,
+        "client_users": client_users,
+    }
 
 
 def seed_demo_reports(db: Session) -> int:

@@ -38,8 +38,12 @@ def override_get_db():
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_db():
     """Create test database tables once per session."""
-    # Import models to register them with Base
-    from app.models import Report, ReportParty, PartyLink, Document, AuditLog, NotificationEvent, FilingSubmission  # noqa: F401
+    # Import ALL models to register them with Base
+    from app.models import (  # noqa: F401
+        Report, ReportParty, PartyLink, Document, AuditLog, 
+        NotificationEvent, FilingSubmission,
+        Company, User, SubmissionRequest, BillingEvent, Invoice,
+    )
     
     # Create all tables
     Base.metadata.create_all(bind=engine)
