@@ -35,8 +35,18 @@ import {
   Calendar,
   DollarSign,
   Users,
-  Shield
+  Shield,
+  Home,
+  Briefcase,
+  FileWarning,
+  ChevronRight,
+  ChevronLeft,
+  Sparkles,
+  Check,
+  User,
+  Landmark
 } from "lucide-react"
+import { cn } from "@/lib/utils"
 import {
   type DeterminationState,
   type DeterminationResult,
@@ -215,20 +225,32 @@ function AddressFields({
 function SectionHeader({ 
   title, 
   description, 
-  step 
+  step,
+  icon: Icon
 }: { 
   title: string
   description?: string
-  step: string 
+  step: string
+  icon?: React.ComponentType<{ className?: string }>
 }) {
   return (
-    <CardHeader className="border-b bg-muted/30">
-      <div>
-        <Badge variant="outline" className="mb-2">{step}</Badge>
-        <CardTitle className="text-xl">{title}</CardTitle>
-        {description && (
-          <CardDescription className="mt-2">{description}</CardDescription>
+    <CardHeader className="relative border-b bg-gradient-to-br from-background via-background to-muted/30 pb-6">
+      {/* Accent bar at top */}
+      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary via-primary/80 to-primary/60" />
+      
+      <div className="flex items-start gap-4 pt-2">
+        {Icon && (
+          <div className="p-2.5 rounded-xl bg-primary/10 text-primary shrink-0">
+            <Icon className="h-5 w-5" />
+          </div>
         )}
+        <div className="flex-1">
+          <Badge variant="outline" className="mb-2 bg-background/50 backdrop-blur-sm">{step}</Badge>
+          <CardTitle className="text-xl font-semibold">{title}</CardTitle>
+          {description && (
+            <CardDescription className="mt-2 text-muted-foreground">{description}</CardDescription>
+          )}
+        </div>
       </div>
     </CardHeader>
   )
@@ -573,60 +595,120 @@ export function RRERQuestionnaire({ initialData, onChange, saveStatus }: RRERQue
 
   return (
     <TooltipProvider>
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-gradient-to-b from-muted/30 via-background to-background">
         {/* Header */}
-        <header className="bg-primary text-primary-foreground py-4 px-4 md:px-8 print:bg-white print:text-foreground">
+        <header className="bg-gradient-to-r from-primary via-primary to-primary/95 text-primary-foreground py-5 px-4 md:px-8 print:bg-white print:text-foreground shadow-lg shadow-primary/20">
           <div className="max-w-5xl mx-auto flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-accent flex items-center justify-center">
-                <Building2 className="w-6 h-6 text-accent-foreground" />
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-white/10 backdrop-blur-sm flex items-center justify-center border border-white/20">
+                <Building2 className="w-7 h-7" />
               </div>
               <div>
-                <h1 className="text-lg font-semibold">Pacific Coast Title Company</h1>
-                <p className="text-sm opacity-90">FinCEN RRER Compliance Tool</p>
+                <h1 className="text-lg font-bold tracking-tight">Pacific Coast Title Company</h1>
+                <p className="text-sm text-primary-foreground/80">FinCEN RRER Compliance Wizard</p>
               </div>
             </div>
-            <div className="flex items-center gap-2 text-sm opacity-90">
+            <div className="flex items-center gap-3">
               {lastSavedAt && (
-                <span className="hidden md:inline">Auto-saved {new Date(lastSavedAt).toLocaleTimeString()}</span>
+                <div className="hidden md:flex items-center gap-2 text-sm bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-full border border-white/20">
+                  <CheckCircle className="w-4 h-4 text-green-300" />
+                  <span className="text-primary-foreground/90">Saved {new Date(lastSavedAt).toLocaleTimeString()}</span>
+                </div>
               )}
             </div>
           </div>
         </header>
 
-        {/* Phase Tabs */}
-        <div className="bg-muted/50 border-b print:hidden">
+        {/* Enhanced Phase Tabs */}
+        <div className="bg-background/95 backdrop-blur-md border-b shadow-sm print:hidden sticky top-0 z-30">
           <div className="max-w-5xl mx-auto px-4 md:px-8">
-            <div className="flex gap-1 py-2">
-              <Button
-                variant={phase === "determination" ? "default" : "ghost"}
-                size="sm"
+            <div className="flex gap-2 py-3">
+              {/* Phase 1: Determination */}
+              <button
                 onClick={() => setPhase("determination")}
-                className="gap-2"
+                className={cn(
+                  "flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200",
+                  phase === "determination"
+                    ? "bg-primary text-primary-foreground shadow-md shadow-primary/25"
+                    : "hover:bg-muted text-muted-foreground hover:text-foreground"
+                )}
               >
-                <span className="w-5 h-5 rounded-full bg-primary-foreground/20 flex items-center justify-center text-xs">1</span>
-                Determination
-              </Button>
-              <Button
-                variant={phase === "collection" ? "default" : "ghost"}
-                size="sm"
+                <span className={cn(
+                  "w-7 h-7 rounded-full flex items-center justify-center text-sm font-semibold transition-colors",
+                  phase === "determination" 
+                    ? "bg-primary-foreground/20" 
+                    : determinationResult 
+                      ? "bg-green-100 text-green-700"
+                      : "bg-muted"
+                )}>
+                  {determinationResult ? <Check className="w-4 h-4" /> : "1"}
+                </span>
+                <span className="font-medium hidden sm:inline">Determination</span>
+              </button>
+
+              {/* Connector */}
+              <div className="flex items-center px-1">
+                <ChevronRight className={cn(
+                  "w-4 h-4 transition-colors",
+                  determinationResult?.isReportable ? "text-primary" : "text-muted-foreground/40"
+                )} />
+              </div>
+
+              {/* Phase 2: Collection */}
+              <button
                 onClick={() => determinationResult?.isReportable && setPhase("collection")}
                 disabled={!determinationResult?.isReportable}
-                className="gap-2"
+                className={cn(
+                  "flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200",
+                  phase === "collection"
+                    ? "bg-primary text-primary-foreground shadow-md shadow-primary/25"
+                    : determinationResult?.isReportable
+                      ? "hover:bg-muted text-muted-foreground hover:text-foreground"
+                      : "text-muted-foreground/40 cursor-not-allowed"
+                )}
               >
-                <span className="w-5 h-5 rounded-full bg-primary-foreground/20 flex items-center justify-center text-xs">2</span>
-                Collection
-              </Button>
-              <Button
-                variant={phase === "summary" ? "default" : "ghost"}
-                size="sm"
+                <span className={cn(
+                  "w-7 h-7 rounded-full flex items-center justify-center text-sm font-semibold",
+                  phase === "collection" 
+                    ? "bg-primary-foreground/20" 
+                    : phase === "summary" 
+                      ? "bg-green-100 text-green-700"
+                      : "bg-muted"
+                )}>
+                  {phase === "summary" ? <Check className="w-4 h-4" /> : "2"}
+                </span>
+                <span className="font-medium hidden sm:inline">Collection</span>
+              </button>
+
+              {/* Connector */}
+              <div className="flex items-center px-1">
+                <ChevronRight className={cn(
+                  "w-4 h-4 transition-colors",
+                  phase === "summary" ? "text-primary" : "text-muted-foreground/40"
+                )} />
+              </div>
+
+              {/* Phase 3: Summary */}
+              <button
                 onClick={() => determinationResult?.isReportable && setPhase("summary")}
                 disabled={!determinationResult?.isReportable}
-                className="gap-2"
+                className={cn(
+                  "flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200",
+                  phase === "summary"
+                    ? "bg-primary text-primary-foreground shadow-md shadow-primary/25"
+                    : determinationResult?.isReportable
+                      ? "hover:bg-muted text-muted-foreground hover:text-foreground"
+                      : "text-muted-foreground/40 cursor-not-allowed"
+                )}
               >
-                <span className="w-5 h-5 rounded-full bg-primary-foreground/20 flex items-center justify-center text-xs">3</span>
-                Summary
-              </Button>
+                <span className={cn(
+                  "w-7 h-7 rounded-full flex items-center justify-center text-sm font-semibold",
+                  phase === "summary" ? "bg-primary-foreground/20" : "bg-muted"
+                )}>
+                  3
+                </span>
+                <span className="font-medium hidden sm:inline">Summary</span>
+              </button>
             </div>
           </div>
         </div>
@@ -634,44 +716,84 @@ export function RRERQuestionnaire({ initialData, onChange, saveStatus }: RRERQue
         {/* Main Content */}
         <main className="max-w-5xl mx-auto px-4 md:px-8 py-8">
           {/* Determination ID and Progress */}
-          <div className="mb-6">
+          <div className="mb-8">
             <div className="flex items-center gap-2 mb-4 text-sm text-muted-foreground">
               <FileText className="w-4 h-4" />
-              <span>Determination ID: {determinationId}</span>
+              <span className="font-mono">ID: {determinationId}</span>
             </div>
             
             {phase === "determination" && (
               <div className="mb-6 print:hidden">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-muted-foreground">
-                    Step {relevantDeterminationSteps.indexOf(determinationStep) + 1} of {relevantDeterminationSteps.length}
-                  </span>
-                  <span className="text-sm font-medium text-muted-foreground">
-                    {Math.round(determinationProgress)}% Complete
-                  </span>
+                {/* Enhanced Progress Bar */}
+                <div className="relative">
+                  {/* Background track */}
+                  <div className="h-2 bg-muted rounded-full overflow-hidden">
+                    {/* Animated fill */}
+                    <div 
+                      className="h-full bg-gradient-to-r from-primary to-primary/80 rounded-full transition-all duration-500 ease-out"
+                      style={{ width: `${determinationProgress}%` }}
+                    />
+                  </div>
+                  
+                  {/* Progress indicator badge */}
+                  <div className="flex items-center justify-between mt-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">
+                        Step {relevantDeterminationSteps.indexOf(determinationStep) + 1}
+                      </span>
+                      <span className="text-sm text-muted-foreground">
+                        of {relevantDeterminationSteps.length}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                      <span className="text-sm font-semibold text-primary">
+                        {Math.round(determinationProgress)}%
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <Progress value={determinationProgress} className="h-2" />
               </div>
             )}
 
             {phase === "collection" && (
               <div className="mb-6 print:hidden">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-muted-foreground">
-                    Section {collectionSteps.indexOf(collectionStep) + 1} of {collectionSteps.length}
-                  </span>
-                  <span className="text-sm font-medium text-muted-foreground">
-                    {Math.round(collectionProgress)}% Complete
-                  </span>
+                {/* Enhanced Progress Bar */}
+                <div className="relative">
+                  {/* Background track */}
+                  <div className="h-2 bg-muted rounded-full overflow-hidden">
+                    {/* Animated fill */}
+                    <div 
+                      className="h-full bg-gradient-to-r from-primary to-primary/80 rounded-full transition-all duration-500 ease-out"
+                      style={{ width: `${collectionProgress}%` }}
+                    />
+                  </div>
+                  
+                  {/* Progress indicator badge */}
+                  <div className="flex items-center justify-between mt-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">
+                        Section {collectionSteps.indexOf(collectionStep) + 1}
+                      </span>
+                      <span className="text-sm text-muted-foreground">
+                        of {collectionSteps.length}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                      <span className="text-sm font-semibold text-primary">
+                        {Math.round(collectionProgress)}%
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <Progress value={collectionProgress} className="h-2" />
               </div>
             )}
           </div>
 
           {/* PHASE 1: DETERMINATION */}
           {phase === "determination" && (
-            <Card className="mb-6 border-2 shadow-sm">
+            <Card className="mb-6 border-0 shadow-xl shadow-black/5 overflow-hidden">
               {/* Property Type */}
               {determinationStep === "property" && (
                 <>
@@ -679,25 +801,79 @@ export function RRERQuestionnaire({ initialData, onChange, saveStatus }: RRERQue
                     step="Step 1: Property Type"
                     title="Is this a Residential Transaction?"
                     description="Residential includes: 1-4 Family Structure, Intent to Build 1-4 Family Structure, Condo/Townhome, or Co-op (per 1031.320(b))"
+                    icon={Home}
                   />
-                  <CardContent className="pt-6">
-                    <div className="flex flex-col sm:flex-row gap-4">
-                      <Button
-                        variant={determination.isResidential === "yes" ? "default" : "outline"}
-                        size="lg"
-                        className="flex-1 h-16 text-lg"
+                  <CardContent className="pt-8 pb-8">
+                    <div className="grid gap-4 sm:grid-cols-2 max-w-xl mx-auto">
+                      {/* Yes Option */}
+                      <button
                         onClick={() => setDetermination(prev => ({ ...prev, isResidential: "yes" }))}
+                        className={cn(
+                          "relative flex flex-col items-center p-6 rounded-2xl border-2 transition-all duration-200",
+                          "hover:shadow-lg hover:scale-[1.02]",
+                          determination.isResidential === "yes"
+                            ? "border-primary bg-primary/5 shadow-lg shadow-primary/10"
+                            : "border-muted hover:border-primary/50 hover:bg-muted/50"
+                        )}
                       >
-                        Yes
-                      </Button>
-                      <Button
-                        variant={determination.isResidential === "no" ? "default" : "outline"}
-                        size="lg"
-                        className="flex-1 h-16 text-lg"
+                        {/* Selection indicator */}
+                        <div className={cn(
+                          "absolute top-4 right-4 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all",
+                          determination.isResidential === "yes"
+                            ? "border-primary bg-primary"
+                            : "border-muted-foreground/30"
+                        )}>
+                          {determination.isResidential === "yes" && (
+                            <Check className="h-4 w-4 text-primary-foreground" />
+                          )}
+                        </div>
+                        
+                        <div className={cn(
+                          "w-14 h-14 rounded-2xl flex items-center justify-center mb-4 transition-colors",
+                          determination.isResidential === "yes"
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted text-muted-foreground"
+                        )}>
+                          <Home className="h-7 w-7" />
+                        </div>
+                        <span className="text-xl font-semibold">Yes</span>
+                        <span className="text-sm text-muted-foreground mt-1">Residential property</span>
+                      </button>
+
+                      {/* No Option */}
+                      <button
                         onClick={() => setDetermination(prev => ({ ...prev, isResidential: "no" }))}
+                        className={cn(
+                          "relative flex flex-col items-center p-6 rounded-2xl border-2 transition-all duration-200",
+                          "hover:shadow-lg hover:scale-[1.02]",
+                          determination.isResidential === "no"
+                            ? "border-primary bg-primary/5 shadow-lg shadow-primary/10"
+                            : "border-muted hover:border-primary/50 hover:bg-muted/50"
+                        )}
                       >
-                        No
-                      </Button>
+                        {/* Selection indicator */}
+                        <div className={cn(
+                          "absolute top-4 right-4 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all",
+                          determination.isResidential === "no"
+                            ? "border-primary bg-primary"
+                            : "border-muted-foreground/30"
+                        )}>
+                          {determination.isResidential === "no" && (
+                            <Check className="h-4 w-4 text-primary-foreground" />
+                          )}
+                        </div>
+                        
+                        <div className={cn(
+                          "w-14 h-14 rounded-2xl flex items-center justify-center mb-4 transition-colors",
+                          determination.isResidential === "no"
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted text-muted-foreground"
+                        )}>
+                          <Building2 className="h-7 w-7" />
+                        </div>
+                        <span className="text-xl font-semibold">No</span>
+                        <span className="text-sm text-muted-foreground mt-1">Commercial/Other</span>
+                      </button>
                     </div>
                   </CardContent>
                 </>
@@ -980,53 +1156,113 @@ export function RRERQuestionnaire({ initialData, onChange, saveStatus }: RRERQue
                   <SectionHeader 
                     step="Determination Complete"
                     title={determinationResult.isReportable ? "Reportable Transfer" : "Reporting NOT Required"}
+                    icon={determinationResult.isReportable ? FileWarning : CheckCircle2}
                   />
-                  <CardContent className="pt-6">
-                    <Alert variant={determinationResult.isReportable ? "destructive" : "default"} className={!determinationResult.isReportable ? "border-green-500 bg-green-50" : ""}>
-                      {determinationResult.isReportable ? (
-                        <AlertTriangle className="h-5 w-5" />
-                      ) : (
-                        <CheckCircle2 className="h-5 w-5 text-green-600" />
-                      )}
-                      <AlertTitle className="text-lg">
-                        {determinationResult.isReportable ? "REPORTABLE TRANSFER" : "Reporting NOT Required"}
-                      </AlertTitle>
-                      <AlertDescription className="mt-2">
-                        <p>{determinationResult.reason}</p>
-                        <p className="mt-2 font-medium">{determinationResult.documentation}</p>
-                        {determinationResult.exemptionsSelected && (
-                          <div className="mt-3">
-                            <p className="font-medium">Exemptions claimed:</p>
-                            <ul className="list-disc list-inside mt-1">
-                              {determinationResult.exemptionsSelected.map((ex, i) => (
-                                <li key={i} className="text-sm">{ex}</li>
-                              ))}
-                            </ul>
+                  <CardContent className="pt-8 pb-8">
+                    {/* Reportable Result - Dramatic Display */}
+                    {determinationResult.isReportable ? (
+                      <div className="relative overflow-hidden rounded-2xl border-2 border-amber-500/50 bg-gradient-to-br from-amber-50 to-orange-50 p-8">
+                        {/* Animated background pattern */}
+                        <div className="absolute inset-0 opacity-20">
+                          <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(251,146,60,0.4),transparent_50%)]" />
+                          <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_80%,rgba(234,88,12,0.3),transparent_50%)]" />
+                        </div>
+                        
+                        <div className="relative flex flex-col items-center text-center">
+                          <div className="w-20 h-20 rounded-full bg-gradient-to-br from-amber-500 to-orange-500 text-white flex items-center justify-center mb-6 shadow-xl shadow-amber-500/30">
+                            <FileWarning className="h-10 w-10" />
                           </div>
-                        )}
-                      </AlertDescription>
-                    </Alert>
+                          
+                          <h3 className="text-2xl font-bold text-amber-900 mb-3">
+                            FinCEN Report Required
+                          </h3>
+                          
+                          <p className="text-amber-800 max-w-lg">
+                            {determinationResult.reason}
+                          </p>
+                          
+                          <p className="text-amber-700 font-medium mt-3 max-w-lg">
+                            {determinationResult.documentation}
+                          </p>
+                          
+                          <div className="mt-6 flex items-center gap-2 text-sm text-amber-700 bg-amber-100/80 px-5 py-2.5 rounded-full border border-amber-200">
+                            <AlertTriangle className="h-4 w-4" />
+                            <span className="font-medium">Filing deadline: 30 days from closing</span>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Exempt Result - Clean and Reassuring */
+                      <div className="relative overflow-hidden rounded-2xl border-2 border-green-500/50 bg-gradient-to-br from-green-50 to-emerald-50 p-8">
+                        {/* Background pattern */}
+                        <div className="absolute inset-0 opacity-20">
+                          <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(34,197,94,0.4),transparent_50%)]" />
+                          <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_80%,rgba(16,185,129,0.3),transparent_50%)]" />
+                        </div>
+                        
+                        <div className="relative flex flex-col items-center text-center">
+                          <div className="w-20 h-20 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 text-white flex items-center justify-center mb-6 shadow-xl shadow-green-500/30">
+                            <CheckCircle className="h-10 w-10" />
+                          </div>
+                          
+                          <h3 className="text-2xl font-bold text-green-900 mb-3">
+                            No FinCEN Report Required
+                          </h3>
+                          
+                          <p className="text-green-800 max-w-lg mb-4">
+                            {determinationResult.reason}
+                          </p>
+                          
+                          {determinationResult.exemptionsSelected && determinationResult.exemptionsSelected.length > 0 && (
+                            <div className="bg-white/80 rounded-xl p-5 border border-green-200 max-w-lg w-full">
+                              <p className="text-sm font-semibold text-green-900 mb-2">Exemption Reason:</p>
+                              <ul className="text-sm text-green-700 space-y-1">
+                                {determinationResult.exemptionsSelected.map((ex, i) => (
+                                  <li key={i} className="flex items-start gap-2">
+                                    <Check className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
+                                    <span>{ex}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
 
                     {determinationResult.isReportable && (
-                      <div className="mt-6 p-4 bg-muted rounded-lg">
-                        <h4 className="font-semibold flex items-center gap-2">
-                          <Clock className="w-4 h-4" />
+                      <div className="mt-8 p-6 bg-gradient-to-br from-muted/50 to-muted rounded-2xl border">
+                        <h4 className="font-semibold flex items-center gap-2 text-lg">
+                          <Clock className="w-5 h-5 text-primary" />
                           Filing Deadline Information
                         </h4>
-                        <p className="text-sm text-muted-foreground mt-2">
+                        <p className="text-sm text-muted-foreground mt-3">
                           The RER must be filed by the later of:
                         </p>
-                        <ul className="text-sm mt-1 list-disc list-inside">
-                          <li>30 days after closing</li>
-                          <li>Last day of the month following closing</li>
+                        <ul className="text-sm mt-2 space-y-1">
+                          <li className="flex items-center gap-2">
+                            <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                            30 days after closing
+                          </li>
+                          <li className="flex items-center gap-2">
+                            <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                            Last day of the month following closing
+                          </li>
                         </ul>
                         <Button 
-                          className="mt-4 w-full" 
+                          className={cn(
+                            "mt-6 w-full gap-2",
+                            "bg-gradient-to-r from-primary to-primary/90",
+                            "hover:from-primary/90 hover:to-primary/80",
+                            "shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30",
+                            "transition-all duration-200"
+                          )}
                           size="lg"
                           onClick={startCollection}
                         >
+                          <Sparkles className="w-4 h-4" />
                           Proceed to Information Collection
-                          <ArrowRight className="w-4 h-4 ml-2" />
+                          <ArrowRight className="w-4 h-4" />
                         </Button>
                       </div>
                     )}
@@ -1089,23 +1325,32 @@ export function RRERQuestionnaire({ initialData, onChange, saveStatus }: RRERQue
 
               {/* Navigation for non-result steps */}
               {determinationStep !== "determination-result" && (
-                <CardFooter className="border-t bg-muted/30 flex justify-between print:hidden">
+                <CardFooter className="border-t bg-gradient-to-r from-muted/30 via-muted/50 to-muted/30 flex items-center justify-between py-5 print:hidden">
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     onClick={goToPreviousDeterminationStep}
                     disabled={relevantDeterminationSteps.indexOf(determinationStep) === 0}
-                    className="gap-2 bg-transparent"
+                    className="gap-2 hover:bg-background/80"
                   >
-                    <ArrowLeft className="w-4 h-4" />
+                    <ChevronLeft className="w-4 h-4" />
                     Back
                   </Button>
+                  
+                  {/* Step indicator */}
+                  <span className="text-sm text-muted-foreground hidden sm:block">
+                    Step {relevantDeterminationSteps.indexOf(determinationStep) + 1} of {relevantDeterminationSteps.length}
+                  </span>
+                  
                   <Button
                     onClick={goToNextDeterminationStep}
                     disabled={!canProceedDetermination}
-                    className="gap-2"
+                    className={cn(
+                      "gap-2 min-w-[130px]",
+                      canProceedDetermination && "shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30"
+                    )}
                   >
                     Continue
-                    <ArrowRight className="w-4 h-4" />
+                    <ChevronRight className="w-4 h-4" />
                   </Button>
                 </CardFooter>
               )}
@@ -1115,21 +1360,42 @@ export function RRERQuestionnaire({ initialData, onChange, saveStatus }: RRERQue
           {/* PHASE 2: COLLECTION */}
           {phase === "collection" && (
             <>
-              {/* Reportable Transfer Banner */}
-              <Alert variant="destructive" className="mb-6">
-                <AlertTriangle className="h-5 w-5" />
-                <AlertTitle>REPORTABLE TRANSFER</AlertTitle>
-                <AlertDescription>
-                  This transaction requires FinCEN Real Estate Report filing. Please collect all required information below.
+              {/* Reportable Transfer Banner - Premium */}
+              <div className="mb-8 relative overflow-hidden rounded-2xl border border-amber-500/30 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 p-5">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_0%_50%,rgba(251,146,60,0.15),transparent_50%)]" />
+                <div className="relative flex items-center gap-4">
+                  <div className="p-3 rounded-xl bg-amber-500 text-white shadow-lg shadow-amber-500/30">
+                    <FileWarning className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-bold text-amber-900 flex items-center gap-2">
+                      <span>REPORTABLE TRANSFER</span>
+                      <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300">
+                        Action Required
+                      </Badge>
+                    </h3>
+                    <p className="text-sm text-amber-800 mt-1">
+                      This transaction requires FinCEN Real Estate Report filing. Please collect all required information below.
+                    </p>
+                  </div>
                   {filingDeadline && (
-                    <span className="block mt-1 font-medium">
-                      Filing Deadline: {new Date(filingDeadline.deadline).toLocaleDateString()} ({filingDeadline.daysRemaining} days remaining)
-                    </span>
+                    <div className="hidden md:flex flex-col items-end text-right">
+                      <span className="text-xs text-amber-700 font-medium">Filing Deadline</span>
+                      <span className="text-lg font-bold text-amber-900">
+                        {new Date(filingDeadline.deadline).toLocaleDateString()}
+                      </span>
+                      <span className={cn(
+                        "text-xs font-medium mt-0.5",
+                        filingDeadline.daysRemaining <= 7 ? "text-red-600" : "text-amber-700"
+                      )}>
+                        {filingDeadline.daysRemaining} days remaining
+                      </span>
+                    </div>
                   )}
-                </AlertDescription>
-              </Alert>
+                </div>
+              </div>
 
-              <Card className="mb-6 border-2 shadow-sm">
+              <Card className="mb-6 border-0 shadow-xl shadow-black/5 overflow-hidden">
                 {/* Transaction & Property */}
                 {collectionStep === "transaction-property" && (
                   <>
@@ -3021,23 +3287,29 @@ export function RRERQuestionnaire({ initialData, onChange, saveStatus }: RRERQue
                 )}
 
                 {/* Collection Navigation */}
-                <CardFooter className="border-t bg-muted/30 flex justify-between print:hidden">
+                <CardFooter className="border-t bg-gradient-to-r from-muted/30 via-muted/50 to-muted/30 flex items-center justify-between py-5 print:hidden">
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     onClick={goToPreviousCollectionStep}
                     disabled={collectionSteps.indexOf(collectionStep) === 0}
-                    className="gap-2 bg-transparent"
+                    className="gap-2 hover:bg-background/80"
                   >
-                    <ArrowLeft className="w-4 h-4" />
+                    <ChevronLeft className="w-4 h-4" />
                     Back
                   </Button>
+                  
+                  {/* Step indicator */}
+                  <span className="text-sm text-muted-foreground hidden sm:block">
+                    Section {collectionSteps.indexOf(collectionStep) + 1} of {collectionSteps.length}
+                  </span>
+                  
                   <Button
                     onClick={goToNextCollectionStep}
                     disabled={collectionSteps.indexOf(collectionStep) === collectionSteps.length - 1}
-                    className="gap-2"
+                    className="gap-2 min-w-[130px] shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30"
                   >
                     Continue
-                    <ArrowRight className="w-4 h-4" />
+                    <ChevronRight className="w-4 h-4" />
                   </Button>
                 </CardFooter>
               </Card>
@@ -3047,18 +3319,21 @@ export function RRERQuestionnaire({ initialData, onChange, saveStatus }: RRERQue
           {/* PHASE 3: SUMMARY */}
           {phase === "summary" && (
             <>
-              <Card className="mb-6 border-2 shadow-sm">
+              <Card className="mb-6 border-0 shadow-xl shadow-black/5 overflow-hidden">
                 <SectionHeader 
                   step="Phase 3: Summary"
                   title="Filing Preparation Summary"
                   description="Review all collected information before filing."
+                  icon={FileText}
                 />
-                <CardContent className="pt-6 space-y-6">
-                  {/* Filing Deadline */}
+                <CardContent className="pt-8 space-y-6">
+                  {/* Filing Deadline - Enhanced */}
                   {filingDeadline && (
-                    <div className="p-4 bg-primary/10 rounded-lg">
-                      <h4 className="font-semibold flex items-center gap-2">
-                        <Calendar className="w-5 h-5" />
+                    <div className="p-6 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent rounded-2xl border border-primary/20">
+                      <h4 className="font-semibold flex items-center gap-2 text-lg">
+                        <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                          <Calendar className="w-5 h-5" />
+                        </div>
                         Filing Deadline
                       </h4>
                       <div className="mt-3 grid gap-2 text-sm">

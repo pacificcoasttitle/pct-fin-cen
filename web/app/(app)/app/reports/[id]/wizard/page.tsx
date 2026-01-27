@@ -230,43 +230,46 @@ export default function WizardPage() {
   } : undefined
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header Bar */}
-      <div className="sticky top-0 z-40 bg-card border-b border-border">
-        <div className="container mx-auto px-4 py-3 flex items-center justify-between">
+    <div className="min-h-screen bg-gradient-to-b from-muted/20 via-background to-background">
+      {/* Header Bar - Premium */}
+      <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-md border-b shadow-sm">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link href="/app/reports">
-              <Button variant="ghost" size="icon">
+            <Link href="/app/admin/reports">
+              <Button variant="ghost" size="icon" className="hover:bg-muted">
                 <ArrowLeft className="h-5 w-5" />
               </Button>
             </Link>
             <div>
-              <h1 className="font-semibold">
+              <h1 className="font-semibold text-lg">
                 {report?.property_address_text || "New Report"}
               </h1>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="flex items-center gap-3 text-sm text-muted-foreground mt-0.5">
                 <Badge 
                   variant={report?.filing_status === "filed_mock" ? "default" : "secondary"}
-                  className={report?.filing_status === "filed_mock" ? "bg-green-100 text-green-800" : ""}
+                  className={report?.filing_status === "filed_mock" 
+                    ? "bg-green-100 text-green-800 border-green-200" 
+                    : "bg-muted"
+                  }
                 >
                   {report?.filing_status === "filed_mock" ? "Filed (Demo)" : report?.status.replace(/_/g, " ")}
                 </Badge>
                 {saveStatus === "saving" && (
-                  <span className="flex items-center gap-1">
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    Saving...
+                  <span className="flex items-center gap-1.5 text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <span className="text-xs">Saving...</span>
                   </span>
                 )}
                 {saveStatus === "saved" && (
-                  <span className="flex items-center gap-1 text-green-600">
-                    <Check className="h-3 w-3" />
-                    Saved
+                  <span className="flex items-center gap-1.5 text-green-600">
+                    <Check className="h-3.5 w-3.5" />
+                    <span className="text-xs">Saved</span>
                   </span>
                 )}
                 {saveStatus === "error" && (
-                  <span className="flex items-center gap-1 text-destructive">
-                    <AlertTriangle className="h-3 w-3" />
-                    Save failed
+                  <span className="flex items-center gap-1.5 text-destructive">
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                    <span className="text-xs">Save failed</span>
                   </span>
                 )}
               </div>
@@ -297,16 +300,28 @@ export default function WizardPage() {
 
       {/* Action Buttons Section */}
       <div className="container mx-auto px-4 py-8 max-w-4xl">
-        <Separator className="my-8" />
+        {/* Section Divider */}
+        <div className="relative my-10">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-muted" />
+          </div>
+          <div className="relative flex justify-center">
+            <span className="bg-background px-4 text-sm text-muted-foreground flex items-center gap-2">
+              <ClipboardCheck className="h-4 w-4" />
+              Backend Actions
+            </span>
+          </div>
+        </div>
         
         <div className="space-y-6">
-          <h2 className="text-xl font-semibold">Backend Actions</h2>
-
           {/* Determine */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <ClipboardCheck className="h-5 w-5" />
+          <Card className="border-0 shadow-lg shadow-black/5 overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-blue-400 to-blue-500" />
+            <CardHeader className="relative">
+              <CardTitle className="flex items-center gap-3 text-base">
+                <div className="p-2 rounded-lg bg-blue-100 text-blue-600">
+                  <ClipboardCheck className="h-5 w-5" />
+                </div>
                 Run Determination
               </CardTitle>
               <CardDescription>
@@ -314,20 +329,24 @@ export default function WizardPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button onClick={handleDetermine} disabled={determining}>
+              <Button onClick={handleDetermine} disabled={determining} className="shadow-md">
                 {determining ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                 Determine
               </Button>
               {backendDetermination && (
-                <div className={`mt-4 p-4 rounded-lg border ${
+                <div className={`mt-4 p-5 rounded-xl border-2 ${
                   backendDetermination.reportable 
-                    ? "bg-amber-50 border-amber-200" 
-                    : "bg-green-50 border-green-200"
+                    ? "bg-gradient-to-br from-amber-50 to-orange-50 border-amber-300" 
+                    : "bg-gradient-to-br from-green-50 to-emerald-50 border-green-300"
                 }`}>
-                  <p className="font-medium">
+                  <p className={`font-semibold text-lg ${
+                    backendDetermination.reportable ? "text-amber-900" : "text-green-900"
+                  }`}>
                     {backendDetermination.reportable ? "Reportable" : "Exempt"}
                   </p>
-                  <p className="text-sm text-muted-foreground mt-1">
+                  <p className={`text-sm mt-1 ${
+                    backendDetermination.reportable ? "text-amber-800" : "text-green-800"
+                  }`}>
                     {backendDetermination.reason_text}
                   </p>
                 </div>
@@ -337,10 +356,13 @@ export default function WizardPage() {
 
           {/* Party Links */}
           {backendDetermination?.reportable && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Users className="h-5 w-5" />
+            <Card className="border-0 shadow-lg shadow-black/5 overflow-hidden">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 via-purple-400 to-purple-500" />
+              <CardHeader className="relative">
+                <CardTitle className="flex items-center gap-3 text-base">
+                  <div className="p-2 rounded-lg bg-purple-100 text-purple-600">
+                    <Users className="h-5 w-5" />
+                  </div>
                   Party Links
                 </CardTitle>
                 <CardDescription>
@@ -349,35 +371,64 @@ export default function WizardPage() {
               </CardHeader>
               <CardContent>
                 {partyLinks.length === 0 ? (
-                  <Button onClick={handleGenerateLinks} disabled={generatingLinks}>
+                  <Button onClick={handleGenerateLinks} disabled={generatingLinks} className="shadow-md">
                     {generatingLinks ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                     Generate Party Links
                   </Button>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     {partyLinks.map((link) => (
                       <div 
                         key={link.token}
-                        className="flex items-center justify-between p-3 rounded-lg border bg-muted/30"
+                        className="relative overflow-hidden rounded-xl border bg-gradient-to-br from-background to-muted/30 p-4"
                       >
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium capitalize">{link.party_role}</span>
-                            <Badge variant={link.status === "submitted" ? "default" : "secondary"}>
-                              {link.status}
-                            </Badge>
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                              link.party_role === "buyer" 
+                                ? "bg-blue-100 text-blue-600" 
+                                : link.party_role === "seller"
+                                  ? "bg-purple-100 text-purple-600"
+                                  : "bg-amber-100 text-amber-600"
+                            }`}>
+                              <Users className="h-5 w-5" />
+                            </div>
+                            <div>
+                              <p className="font-medium capitalize">{link.party_role}</p>
+                              <p className="text-xs text-muted-foreground">
+                                <Clock className="h-3 w-3 inline mr-1" />
+                                Expires: {new Date(link.expires_at).toLocaleDateString()}
+                              </p>
+                            </div>
                           </div>
-                          <p className="text-sm text-muted-foreground truncate mt-1">{link.url}</p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            <Clock className="h-3 w-3 inline mr-1" />
-                            Expires: {new Date(link.expires_at).toLocaleDateString()}
-                          </p>
+                          
+                          <Badge 
+                            variant="outline" 
+                            className={link.status === "submitted" 
+                              ? "bg-green-50 text-green-700 border-green-200" 
+                              : "bg-yellow-50 text-yellow-700 border-yellow-200"
+                            }
+                          >
+                            {link.status === "submitted" ? (
+                              <><CheckCircle2 className="h-3 w-3 mr-1" />Submitted</>
+                            ) : (
+                              <><Clock className="h-3 w-3 mr-1" />Pending</>
+                            )}
+                          </Badge>
                         </div>
-                        <div className="flex items-center gap-2 ml-4">
+                        
+                        {/* Copy link section */}
+                        <div className="mt-4 flex items-center gap-2">
+                          <input 
+                            value={link.url}
+                            readOnly
+                            className="flex-1 px-3 py-2 text-xs font-mono bg-muted/50 border rounded-lg truncate"
+                          />
                           <Button 
                             variant="outline" 
                             size="sm" 
                             onClick={() => copyToClipboard(link.url, link.token)}
+                            className="shrink-0"
                           >
                             {copied === link.token ? (
                               <Check className="h-4 w-4 text-green-600" />
