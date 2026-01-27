@@ -1,7 +1,8 @@
 import React from "react"
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
-import { Analytics } from '@vercel/analytics/next'
+// Analytics temporarily disabled - enable in Vercel dashboard first
+// import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] });
@@ -55,7 +56,7 @@ export default function RootLayout({
         <div className={isStaging ? "pt-6" : ""}>
           {children}
         </div>
-        <Analytics />
+        {/* <Analytics /> - Enable after setting up Vercel Analytics in dashboard */}
       </body>
     </html>
   )

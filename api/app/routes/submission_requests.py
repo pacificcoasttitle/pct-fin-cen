@@ -131,10 +131,23 @@ def create_submission_request(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
     
+    # For demo, get or create a default demo company
+    # In production, get from auth context
+    from app.models.company import Company
+    demo_company = db.query(Company).filter(Company.code == "DEMO").first()
+    if not demo_company:
+        # Create a minimal demo company if it doesn't exist
+        demo_company = Company(
+            name="Demo Company",
+            code="DEMO",
+            company_type="client",
+            status="active",
+        )
+        db.add(demo_company)
+        db.flush()
+    
     submission = SubmissionRequest(
-        # For demo, company_id and user_id are null
-        # In production, get from auth context
-        company_id=None,
+        company_id=demo_company.id,
         requested_by_user_id=None,
         status="pending",
         property_address=data.property_address.model_dump(),
