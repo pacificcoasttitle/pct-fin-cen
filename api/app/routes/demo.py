@@ -21,6 +21,7 @@ from app.models import Report, FilingSubmission
 from app.services.demo_seed import reset_demo_data, seed_demo_reports, create_single_demo_report
 from app.services.notifications import list_notifications, delete_all_notifications
 from app.services.filing_lifecycle import set_demo_outcome, get_or_create_submission
+from app.services.email_service import send_party_invite, SENDGRID_ENABLED, FRONTEND_URL
 
 
 class SetFilingOutcomeRequest(BaseModel):
@@ -243,3 +244,50 @@ async def demo_set_filing_outcome(
             status_code=500,
             detail=f"Failed to set filing outcome: {str(e)}"
         )
+
+
+class TestEmailRequest(BaseModel):
+    """Request body for test email."""
+    to_email: Optional[str] = None  # If None, uses a test address
+
+
+@router.post("/test-email")
+async def demo_test_email(
+    body: TestEmailRequest = TestEmailRequest(),
+    _: bool = Depends(verify_demo_access),
+):
+    """
+    Test email sending functionality.
+    
+    When SENDGRID_ENABLED=false:
+    - Returns what WOULD be sent (without actually sending)
+    
+    When SENDGRID_ENABLED=true:
+    - Sends a real test email via SendGrid
+    
+    Requires:
+    - ENVIRONMENT=staging
+    - X-DEMO-SECRET header matching DEMO_SECRET env var
+    
+    Returns 404 if requirements not met (to avoid discovery).
+    """
+    test_email = body.to_email or "test@example.com"
+    
+    result = send_party_invite(
+        to_email=test_email,
+        party_name="Test User",
+        party_role="buyer",
+        property_address="123 Test Street, Demo City, CA 90210",
+        portal_link=f"{FRONTEND_URL}/p/demo-test-token",
+        company_name="Pacific Coast Title Company",
+    )
+    
+    return {
+        "ok": result.success,
+        "sendgrid_enabled": SENDGRID_ENABLED,
+        "to_email": test_email,
+        "message_id": result.message_id,
+        "error": result.error,
+        "note": "Email disabled - only logging" if not SENDGRID_ENABLED else "Email sent via SendGrid",
+        "timestamp": datetime.utcnow().isoformat(),
+    }

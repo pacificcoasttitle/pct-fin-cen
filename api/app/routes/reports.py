@@ -24,7 +24,8 @@ from app.schemas.party import PartyLinkCreate, PartyLinkResponse, PartyLinkItem,
 from app.schemas.common import ReadyCheckResponse, FileResponse, MissingItem
 from app.services.determination import determine_reportability
 from app.services.filing import MockFilingProvider
-from app.services.notifications import log_notification
+from app.services.notifications import log_notification, send_party_invite_notification
+from app.services.email_service import FRONTEND_URL
 from app.services.filing_lifecycle import (
     enqueue_submission,
     perform_mock_submit,
@@ -243,6 +244,7 @@ def create_party_links(
     
     links_created = []
     expires_at = datetime.utcnow() + timedelta(days=party_links_in.expires_in_days)
+    property_address = report.property_address_text or "Property"
     
     for party_in in party_links_in.parties:
         # Create party
@@ -265,38 +267,56 @@ def create_party_links(
         db.add(link)
         db.flush()  # Get link token
         
-        # Build full URL
-        base_url = settings.APP_BASE_URL.rstrip("/")
-        link_url = f"{base_url}/p/{link.token}"
+        # Build full URL - use FRONTEND_URL for party portal
+        portal_base = FRONTEND_URL.rstrip("/")
+        link_url = f"{portal_base}/p/{link.token}"
+        
+        # Send invitation email if email provided
+        email_sent = False
+        if party_in.email:
+            send_party_invite_notification(
+                db=db,
+                report_id=report.id,
+                party_id=party.id,
+                party_token=link.token,
+                to_email=party_in.email,
+                party_name=party_in.display_name or "",
+                party_role=party_in.party_role,
+                property_address=property_address,
+                portal_link=link_url,
+                company_name="Pacific Coast Title Company",
+            )
+            email_sent = True
+        else:
+            # Log notification event without sending (no email provided)
+            log_notification(
+                db,
+                type="party_invite",
+                report_id=report.id,
+                party_id=party.id,
+                party_token=link.token,
+                to_email=None,
+                subject=f"Action Required: Information needed for {property_address}",
+                body_preview=f"You have been invited to provide information for a FinCEN Real Estate Report. Property: {property_address}. Role: {party.party_role}.",
+                meta={
+                    "link": link_url,
+                    "role": party.party_role,
+                    "party_name": party.display_name,
+                    "expires_at": expires_at.isoformat(),
+                },
+            )
         
         links_created.append(PartyLinkItem(
             party_id=party.id,
             party_role=party.party_role,
             entity_type=party.entity_type,
             display_name=party.display_name,
+            email=party_in.email,
             token=link.token,
             link_url=link_url,
             expires_at=expires_at,
+            email_sent=email_sent,
         ))
-        
-        # Log notification event for party invite
-        property_address = report.property_address_text or "Property"
-        log_notification(
-            db,
-            type="party_invite",
-            report_id=report.id,
-            party_id=party.id,
-            party_token=link.token,
-            to_email=None,  # Email not known yet
-            subject=f"Action Required: Information needed for {property_address}",
-            body_preview=f"You have been invited to provide information for a FinCEN Real Estate Report. Property: {property_address}. Role: {party.party_role}.",
-            meta={
-                "link": link_url,
-                "role": party.party_role,
-                "party_name": party.display_name,
-                "expires_at": expires_at.isoformat(),
-            },
-        )
     
     # Update report status
     report.status = "collecting"
@@ -307,7 +327,10 @@ def create_party_links(
         report_id=report.id,
         actor_type="api",
         action="party_links.created",
-        details={"parties_count": len(party_links_in.parties)},
+        details={
+            "parties_count": len(party_links_in.parties),
+            "emails_sent": sum(1 for l in links_created if l.email_sent),
+        },
         ip_address=get_client_ip(request),
     )
     db.add(audit)

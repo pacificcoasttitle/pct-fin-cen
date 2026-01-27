@@ -1,8 +1,8 @@
 """
-NotificationEvent model - tracks all notification events for demo outbox.
+NotificationEvent model - tracks all notification events for outbox + delivery.
 
-This is a demo-only feature for the notification outbox.
-No actual emails are sent; this records what WOULD be sent.
+Serves as the source of truth for all emails. Every email must have
+a record here FIRST before being sent via SendGrid.
 """
 import uuid
 from datetime import datetime
@@ -15,13 +15,19 @@ from app.db_types import JSONBType
 
 class NotificationEvent(Base):
     """
-    A notification event record (demo outbox).
+    A notification event record (outbox + delivery tracking).
     
     Types:
     - party_invite: When party invite links are generated
     - party_submitted: When a party submits their portal info
     - internal_alert: Internal alerts (e.g., deadline approaching)
     - filing_receipt: Filing confirmation receipts
+    
+    Delivery Status:
+    - pending: Logged but not yet sent
+    - sent: Successfully sent via SendGrid
+    - failed: Send attempt failed
+    - disabled: Email sending was disabled (SENDGRID_ENABLED=false)
     """
     __tablename__ = "notification_events"
 
@@ -55,9 +61,21 @@ class NotificationEvent(Base):
     
     # Additional metadata (links, receipt_id, etc.)
     meta = Column(JSONBType, nullable=True, default=dict)
+    
+    # Delivery tracking (NEW)
+    delivery_status = Column(
+        String(20),
+        nullable=True,
+        default="pending",
+        index=True,
+        comment="pending, sent, failed, disabled"
+    )
+    provider_message_id = Column(String(255), nullable=True, comment="SendGrid message ID")
+    sent_at = Column(DateTime, nullable=True)
+    error_message = Column(Text, nullable=True)
 
     def __repr__(self):
-        return f"<NotificationEvent {self.id} type={self.type}>"
+        return f"<NotificationEvent {self.id} type={self.type} delivery={self.delivery_status}>"
     
     def to_dict(self):
         """Convert to dictionary for API response."""
@@ -72,4 +90,8 @@ class NotificationEvent(Base):
             "subject": self.subject,
             "body_preview": self.body_preview,
             "meta": self.meta or {},
+            "delivery_status": self.delivery_status,
+            "provider_message_id": self.provider_message_id,
+            "sent_at": self.sent_at.isoformat() if self.sent_at else None,
+            "error_message": self.error_message,
         }

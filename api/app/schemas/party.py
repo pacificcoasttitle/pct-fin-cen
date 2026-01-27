@@ -12,6 +12,7 @@ class PartyInput(BaseModel):
     party_role: str = Field(..., pattern="^(transferee|transferor|beneficial_owner|reporting_person)$")
     entity_type: str = Field(..., pattern="^(individual|llc|corporation|trust|partnership|other)$")
     display_name: Optional[str] = None
+    email: Optional[str] = None  # Email to send invite to
 
 
 class PartyLinkCreate(BaseModel):
@@ -26,9 +27,11 @@ class PartyLinkItem(BaseModel):
     party_role: str
     entity_type: str
     display_name: Optional[str]
+    email: Optional[str] = None
     token: str
     link_url: str
     expires_at: datetime
+    email_sent: bool = False  # Whether invite email was sent
 
 
 class PartyLinkResponse(BaseModel):

@@ -49,6 +49,26 @@ interface NotificationEvent {
   subject: string | null
   body_preview: string | null
   meta: Record<string, unknown>
+  // Delivery tracking
+  delivery_status: string | null
+  provider_message_id: string | null
+  sent_at: string | null
+  error_message: string | null
+}
+
+// Delivery status badge helper
+function getDeliveryBadge(status: string | null) {
+  switch (status) {
+    case "sent":
+      return <Badge className="bg-green-100 text-green-700 border-green-200">✓ Sent</Badge>
+    case "failed":
+      return <Badge variant="destructive">✗ Failed</Badge>
+    case "disabled":
+      return <Badge variant="outline" className="text-slate-500">Disabled</Badge>
+    case "pending":
+    default:
+      return <Badge variant="secondary">Pending</Badge>
+  }
 }
 
 const TYPE_CONFIG: Record<string, { label: string; color: string; icon: typeof Mail }> = {
@@ -152,13 +172,13 @@ export default function AdminNotificationsPage() {
         <p className="text-slate-500">Demo outbox — no actual emails are sent</p>
       </div>
 
-      {/* Demo Notice */}
-      <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
-        <p className="text-sm text-amber-700 flex items-center gap-2">
+      {/* Info Notice */}
+      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <p className="text-sm text-blue-700 flex items-center gap-2">
           <span className="text-lg">📧</span>
           <span>
-            <strong>Demo Outbox</strong> — This shows what notifications WOULD be sent in production.
-            No actual emails are delivered.
+            <strong>Email Outbox</strong> — All notifications are logged here. Emails are sent via SendGrid 
+            when SENDGRID_ENABLED=true. Check the &quot;Delivery&quot; column for send status.
           </span>
         </p>
       </div>
@@ -313,6 +333,7 @@ export default function AdminNotificationsPage() {
                         <TableHead className="w-10"></TableHead>
                         <TableHead>Time</TableHead>
                         <TableHead>Type</TableHead>
+                        <TableHead>Delivery</TableHead>
                         <TableHead>To</TableHead>
                         <TableHead>Subject</TableHead>
                         <TableHead>Report</TableHead>
@@ -350,6 +371,9 @@ export default function AdminNotificationsPage() {
                                   </Badge>
                                 </TableCell>
                                 <TableCell>
+                                  {getDeliveryBadge(notif.delivery_status)}
+                                </TableCell>
+                                <TableCell>
                                   {notif.to_email ? (
                                     <span className="flex items-center gap-1.5">
                                       <User className="h-3.5 w-3.5 text-slate-400" />
@@ -374,8 +398,34 @@ export default function AdminNotificationsPage() {
                               </TableRow>
                               <CollapsibleContent asChild>
                                 <TableRow className="bg-slate-50">
-                                  <TableCell colSpan={6} className="p-4">
+                                  <TableCell colSpan={7} className="p-4">
                                     <div className="space-y-3">
+                                      {/* Delivery Details */}
+                                      {(notif.delivery_status === "sent" || notif.delivery_status === "failed") && (
+                                        <div className={`p-3 rounded border ${notif.delivery_status === "sent" ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
+                                          <p className="text-xs font-medium text-slate-500 uppercase mb-1">
+                                            Delivery Details
+                                          </p>
+                                          <div className="text-sm space-y-1">
+                                            {notif.sent_at && (
+                                              <p className="text-green-700">
+                                                ✓ Sent at: {new Date(notif.sent_at).toLocaleString()}
+                                              </p>
+                                            )}
+                                            {notif.provider_message_id && (
+                                              <p className="text-slate-600">
+                                                Message ID: <code className="text-xs bg-white px-1 rounded">{notif.provider_message_id}</code>
+                                              </p>
+                                            )}
+                                            {notif.error_message && (
+                                              <p className="text-red-700">
+                                                ✗ Error: {notif.error_message}
+                                              </p>
+                                            )}
+                                          </div>
+                                        </div>
+                                      )}
+                                      
                                       {notif.body_preview && (
                                         <div>
                                           <p className="text-xs font-medium text-slate-500 uppercase mb-1">

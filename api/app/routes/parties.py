@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import PartyLink, ReportParty, AuditLog
 from app.schemas.party import PartyResponse, PartySave, PartySubmitResponse, ReportSummary
-from app.services.notifications import log_notification
+from app.services.notifications import log_notification, send_party_confirmation_notification
 
 router = APIRouter(prefix="/party", tags=["party"])
 
@@ -183,24 +183,39 @@ def submit_party_data(
     )
     db.add(audit)
     
-    # Log notification event for party submission
+    # Send confirmation email if email available
     property_address = report.property_address_text or "Property"
-    log_notification(
-        db,
-        type="party_submitted",
-        report_id=report.id,
-        party_id=party.id,
-        party_token=token,
-        to_email=party_data.get("email"),
-        subject="Thank you — your information has been received",
-        body_preview=f"Your information for {property_address} has been successfully submitted. Confirmation: {confirmation_id}",
-        meta={
-            "confirmation_id": confirmation_id,
-            "submitted_at": submitted_at.isoformat(),
-            "party_role": party.party_role,
-            "display_name": party.display_name,
-        },
-    )
+    party_email = party_data.get("email")
+    
+    if party_email:
+        # Log and send confirmation email
+        send_party_confirmation_notification(
+            db=db,
+            report_id=report.id,
+            party_id=party.id,
+            to_email=party_email,
+            party_name=party.display_name or "",
+            confirmation_id=confirmation_id,
+            property_address=property_address,
+        )
+    else:
+        # Log notification event without sending (no email)
+        log_notification(
+            db,
+            type="party_submitted",
+            report_id=report.id,
+            party_id=party.id,
+            party_token=token,
+            to_email=None,
+            subject="Thank you — your information has been received",
+            body_preview=f"Your information for {property_address} has been successfully submitted. Confirmation: {confirmation_id}",
+            meta={
+                "confirmation_id": confirmation_id,
+                "submitted_at": submitted_at.isoformat(),
+                "party_role": party.party_role,
+                "display_name": party.display_name,
+            },
+        )
     
     db.commit()
     
