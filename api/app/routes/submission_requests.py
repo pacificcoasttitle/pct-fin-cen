@@ -194,6 +194,31 @@ def list_submission_requests(
     return [submission_to_response(s) for s in submissions]
 
 
+@router.get("/my-requests", response_model=List[SubmissionRequestResponse])
+def get_my_requests(
+    db: Session = Depends(get_db),
+    # current_user: User = Depends(get_current_user),  # When auth is implemented
+):
+    """
+    Get all submission requests for the current user's company.
+    For demo purposes, returns all requests for the demo company.
+    
+    In production, this will filter by the authenticated user's company_id.
+    """
+    from app.models.company import Company
+    
+    # For demo - get demo company's requests
+    demo_company = db.query(Company).filter(Company.code == "DEMO").first()
+    if not demo_company:
+        return []
+    
+    requests = db.query(SubmissionRequest).filter(
+        SubmissionRequest.company_id == demo_company.id
+    ).order_by(SubmissionRequest.created_at.desc()).all()
+    
+    return [submission_to_response(r) for r in requests]
+
+
 @router.get("/{request_id}", response_model=SubmissionRequestResponse)
 def get_submission_request(
     request_id: UUID,

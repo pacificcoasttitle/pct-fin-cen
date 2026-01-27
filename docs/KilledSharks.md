@@ -9,7 +9,7 @@
 | Category | Count |
 |----------|-------|
 | 🔴 Critical Fixes | 7 |
-| 🟠 Major Features | 5 |
+| 🟠 Major Features | 6 |
 | 📄 Documentation | 3 |
 
 ---
@@ -603,6 +603,73 @@ report = Report(
 
 ---
 
+### 13. Complete Client Request Visibility ✅
+
+**Problem Found During Testing:** Client submits a request, sees success message, but then has NO way to:
+- View their submitted requests
+- Check status of requests
+- Track progress through the workflow
+
+**Impact:** Clients submit into a black hole. Unprofessional for a compliance platform.
+
+**Solution - Complete Client Experience:**
+
+**1. Client Requests Dashboard (`/app/requests`)**
+- Table view of all client submissions
+- Stats cards (total, pending, in progress, completed)
+- Status badges with icons and colors
+- Click rows to view details
+- Auto-refresh every 60 seconds
+- Empty state with CTA
+- Status legend/help section
+
+**2. Request Detail Page (`/app/requests/[id]`)**
+- Full submission details in card layout
+- Visual status indicator with colors
+- Property details, transaction info, buyer/seller cards
+- Filing receipt display (when completed)
+- "What happens next?" timeline showing progress
+- Professional, polished UI
+
+**3. API Endpoint (`GET /submission-requests/my-requests`)**
+- Returns requests for current user's company
+- Sorted by most recent first
+- Ready for auth integration (uses demo company for now)
+
+**4. Enhanced Success Page**
+- Larger, more visible confirmation
+- Clear request ID display (truncated for readability)
+- "What happens next" explanation with checkmarks
+- Links to dashboard
+- Option to submit another
+
+**5. Proactive Bug Prevention**
+- Error boundary (`error.tsx`) for graceful failures
+- Loading states (`loading.tsx`) for both pages
+- Safe date/price formatting utilities in `web/lib/utils.ts`
+
+**Files Created:**
+- `web/app/(app)/app/requests/page.tsx` (complete rewrite - client dashboard)
+- `web/app/(app)/app/requests/[id]/page.tsx` (detail view)
+- `web/app/(app)/app/requests/[id]/loading.tsx` (loading state)
+- `web/app/(app)/app/requests/error.tsx` (error boundary)
+- `web/app/(app)/app/requests/loading.tsx` (loading state)
+
+**Files Modified:**
+- `api/app/routes/submission_requests.py` (added `/my-requests` endpoint)
+- `web/app/(app)/app/requests/new/page.tsx` (enhanced success page)
+- `web/lib/utils.ts` (added safe formatting utilities)
+
+**Test:**
+1. Submit a new request → See enhanced success page
+2. Click "View My Requests" → See dashboard with submission
+3. Click on request → See full details with timeline
+4. Submit another → Both appear in dashboard
+
+**Status:** ✅ Killed
+
+---
+
 ## Git Commits Today
 
 1. `docs: add gap analysis comparing North Star vs actual code`
@@ -619,6 +686,7 @@ report = Report(
 12. `fix: 422 payload fix and input formatting/masking`
 13. `fix: 500 error - company_id NOT NULL constraint + Vercel Analytics 404`
 14. `fix: propagate company_id from submission to report`
+15. `feat: complete client request visibility and tracking`
 
 ---
 
@@ -655,6 +723,12 @@ report = Report(
 - [x] Loading states on all async actions
 - [x] Error handling with toast notifications
 - [x] End-to-end flow complete
+- [ ] Client requests dashboard shows real data from API
+- [ ] Client request detail page loads submission info
+- [ ] "What happens next" timeline displays correctly
+- [ ] Success page shows enhanced UI with next steps
+- [ ] Error boundary catches failures gracefully
+- [ ] Loading states appear during fetch
 
 ---
 

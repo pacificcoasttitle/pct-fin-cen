@@ -274,8 +274,8 @@ export default function NewRequestPage() {
   // Success overlay
   if (isSuccess) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm">
-        <div className="text-center space-y-6 p-8 max-w-md">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm overflow-y-auto py-8">
+        <div className="text-center space-y-6 p-8 max-w-lg mx-4">
           <div className="relative mx-auto w-24 h-24">
             <div className="absolute inset-0 rounded-full bg-green-500/20 animate-ping" />
             <div className="relative w-24 h-24 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-xl shadow-green-500/30">
@@ -284,23 +284,47 @@ export default function NewRequestPage() {
           </div>
           
           <div className="space-y-2">
-            <h2 className="text-2xl font-bold">Request Submitted!</h2>
+            <h2 className="text-2xl font-bold text-green-800">Request Submitted Successfully!</h2>
             <p className="text-muted-foreground">
-              Your FinCEN report request has been received. Our team will begin 
-              processing and you&apos;ll receive updates on the status.
+              Your compliance request has been received and is now in our queue.
             </p>
           </div>
           
-          <div className="bg-muted rounded-xl p-4 inline-block">
+          <div className="bg-white border border-green-200 rounded-xl p-4 inline-block shadow-sm">
             <p className="text-sm text-muted-foreground">Request ID</p>
-            <p className="text-xl font-mono font-bold">{requestId}</p>
+            <p className="text-xl font-mono font-bold text-green-700">{requestId?.slice(0, 8).toUpperCase() || "..."}</p>
+          </div>
+
+          {/* What happens next */}
+          <div className="bg-muted/50 rounded-xl p-5 text-left space-y-3">
+            <h4 className="font-semibold text-sm flex items-center gap-2">
+              <HelpCircle className="h-4 w-4 text-blue-500" />
+              What happens next?
+            </h4>
+            <ul className="text-sm text-muted-foreground space-y-2">
+              <li className="flex items-start gap-2">
+                <Check className="h-4 w-4 mt-0.5 text-green-500 shrink-0" />
+                <span>PCT staff will review your submission within <strong>1 business day</strong></span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="h-4 w-4 mt-0.5 text-green-500 shrink-0" />
+                <span>Buyer and seller will receive <strong>secure links</strong> to provide required information</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="h-4 w-4 mt-0.5 text-green-500 shrink-0" />
+                <span>You can <strong>track progress</strong> anytime in your dashboard</span>
+              </li>
+            </ul>
           </div>
           
-          <div className="flex gap-3 justify-center pt-2">
-            <Button variant="outline" asChild>
-              <Link href="/app/requests">View All Requests</Link>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
+            <Button variant="outline" asChild className="gap-2">
+              <Link href="/app/requests">
+                <FileText className="h-4 w-4" />
+                View My Requests
+              </Link>
             </Button>
-            <Button asChild>
+            <Button asChild className="gap-2">
               <Link href="/app/requests/new" onClick={() => {
                 setIsSuccess(false);
                 setRequestId("");
@@ -323,7 +347,10 @@ export default function NewRequestPage() {
                   sellerPhone: "",
                   notes: "",
                 });
-              }}>Submit Another</Link>
+              }}>
+                <Send className="h-4 w-4" />
+                Submit Another Request
+              </Link>
             </Button>
           </div>
         </div>
