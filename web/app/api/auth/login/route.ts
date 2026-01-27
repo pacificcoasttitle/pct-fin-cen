@@ -7,30 +7,39 @@ import { NextRequest, NextResponse } from "next/server"
  * Each email maps to a specific role and company.
  * 
  * Demo accounts:
- * - admin@pctfincen.com → PCT Admin (internal staff)
- * - staff@pctfincen.com → PCT Staff (internal staff)
- * - admin@demotitle.com → Client Admin (Demo Title & Escrow)
- * - user@demotitle.com → Client User (Demo Title & Escrow)
+ * - coo@pct.com → COO (executive dashboard only)
+ * - admin@pctfincen.com → PCT Admin (internal operations)
+ * - staff@pctfincen.com → PCT Staff (assigned work)
+ * - admin@demotitle.com → Client Admin (company data + billing + team)
+ * - user@demotitle.com → Client User (basic tracking)
  */
 
 interface DemoUser {
   id: string
   email: string
   name: string
-  role: "pct_admin" | "pct_staff" | "client_admin" | "client_user"
+  role: "coo" | "pct_admin" | "pct_staff" | "client_admin" | "client_user"
   companyId: string | null
   companyName: string
 }
 
 // Demo users configuration
 const DEMO_USERS: Record<string, DemoUser> = {
+  "coo@pct.com": {
+    id: "demo-coo",
+    email: "coo@pct.com",
+    name: "Patricia Chen",
+    role: "coo",
+    companyId: null,
+    companyName: "PCT FinCEN Solutions",
+  },
   "admin@pctfincen.com": {
     id: "demo-pct-admin",
     email: "admin@pctfincen.com",
     name: "Sarah Mitchell",
     role: "pct_admin",
     companyId: null,
-    companyName: "PCT FinCEN",
+    companyName: "PCT FinCEN Solutions",
   },
   "staff@pctfincen.com": {
     id: "demo-pct-staff",
@@ -38,12 +47,12 @@ const DEMO_USERS: Record<string, DemoUser> = {
     name: "Emily Chen",
     role: "pct_staff",
     companyId: null,
-    companyName: "PCT FinCEN",
+    companyName: "PCT FinCEN Solutions",
   },
   "admin@demotitle.com": {
     id: "demo-client-admin",
     email: "admin@demotitle.com",
-    name: "Demo Client Admin",
+    name: "Mike Thompson",
     role: "client_admin",
     companyId: "demo-client-company",
     companyName: "Demo Title & Escrow",
@@ -51,7 +60,7 @@ const DEMO_USERS: Record<string, DemoUser> = {
   "user@demotitle.com": {
     id: "demo-client-user",
     email: "user@demotitle.com",
-    name: "Demo Client User",
+    name: "Lisa Garcia",
     role: "client_user",
     companyId: "demo-client-company",
     companyName: "Demo Title & Escrow",
@@ -108,7 +117,6 @@ export async function POST(request: NextRequest) {
 
     // Fallback: Check legacy env var credentials
     const validEmail = process.env.DEMO_LOGIN_EMAIL || process.env.NEXT_PUBLIC_DEMO_LOGIN_EMAIL
-    const validPassword = process.env.DEMO_LOGIN_PASSWORD || process.env.NEXT_PUBLIC_DEMO_LOGIN_PASSWORD
 
     if (validEmail && normalizedEmail === validEmail.toLowerCase()) {
       const response = NextResponse.json({ ok: true })

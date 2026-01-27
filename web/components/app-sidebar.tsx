@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { getNavigationForRole, isPCTStaff, type UserRole } from "@/lib/navigation";
+import { getNavigationForRole, getPortalLabel, isPCTInternal, type UserRole } from "@/lib/navigation";
 import { useDemo } from "@/hooks/use-demo";
 import { Badge } from "@/components/ui/badge";
 import { LogOut, HelpCircle, Shield, Wrench } from "lucide-react";
@@ -15,7 +15,8 @@ export function AppSidebar() {
 
   const role = (user?.role || "client_user") as UserRole;
   const navigation = getNavigationForRole(role);
-  const isInternal = isPCTStaff(role);
+  const portalLabel = getPortalLabel(role);
+  const isInternal = isPCTInternal(role);
 
   if (isLoading) {
     return (
@@ -33,22 +34,66 @@ export function AppSidebar() {
     );
   }
 
+  // Get role badge color
+  const getRoleBadgeColor = () => {
+    switch (role) {
+      case "coo":
+        return "border-purple-500/50 bg-purple-500/10 text-purple-400";
+      case "pct_admin":
+        return "border-blue-500/50 bg-blue-500/10 text-blue-400";
+      case "pct_staff":
+        return "border-green-500/50 bg-green-500/10 text-green-400";
+      case "client_admin":
+        return "border-orange-500/50 bg-orange-500/10 text-orange-400";
+      case "client_user":
+      default:
+        return "border-slate-500/50 bg-slate-500/10 text-slate-400";
+    }
+  };
+
+  // Format role label
+  const getRoleLabel = () => {
+    switch (role) {
+      case "coo":
+        return "COO";
+      case "pct_admin":
+        return "Admin";
+      case "pct_staff":
+        return "Staff";
+      case "client_admin":
+        return "Company Admin";
+      case "client_user":
+        return "User";
+      default:
+        return "User";
+    }
+  };
+
+  // Get home route for logo click
+  const getHomeRoute = () => {
+    switch (role) {
+      case "coo":
+        return "/app/executive";
+      case "pct_admin":
+        return "/app/admin/overview";
+      case "pct_staff":
+        return "/app/staff/queue";
+      default:
+        return "/app/dashboard";
+    }
+  };
+
   return (
     <aside className="flex h-screen w-64 flex-col border-r border-slate-700 bg-slate-900">
       {/* Logo/Header */}
       <div className="flex h-16 items-center border-b border-slate-700 px-6">
-        <Link
-          href={isInternal ? "/app/admin/overview" : "/app/dashboard"}
-          className="flex items-center gap-2"
-        >
+        <Link href={getHomeRoute()} className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-cyan-400">
             <Shield className="h-5 w-5 text-white" />
           </div>
           <div className="flex flex-col">
             <span className="text-sm font-semibold text-white">PCT FinCEN</span>
-            <span className="text-xs text-slate-400">
-              {isInternal ? "Admin Portal" : "Client Portal"}
-            </span>
+            <span className="text-xs text-slate-400">{portalLabel}</span>
           </div>
         </Link>
       </div>
@@ -64,24 +109,15 @@ export function AppSidebar() {
               {user?.name || "User"}
             </span>
             <span className="truncate text-xs text-slate-400">
-              {user?.companyName || (isInternal ? "PCT FinCEN Solutions" : "Company")}
+              {user?.companyName || "PCT FinCEN Solutions"}
             </span>
           </div>
         </div>
         <Badge
           variant="outline"
-          className={cn(
-            "mt-2 text-xs border",
-            isInternal
-              ? "border-blue-500/50 bg-blue-500/10 text-blue-400"
-              : "border-emerald-500/50 bg-emerald-500/10 text-emerald-400"
-          )}
+          className={cn("mt-2 text-xs border", getRoleBadgeColor())}
         >
-          {role
-            .replace("pct_", "PCT ")
-            .replace("client_", "")
-            .replace("_", " ")
-            .replace(/\b\w/g, (l) => l.toUpperCase())}
+          {getRoleLabel()}
         </Badge>
       </div>
 
@@ -144,8 +180,8 @@ export function AppSidebar() {
           </div>
         ))}
 
-        {/* Demo Tools - only for PCT staff in staging */}
-        {isInternal && process.env.NEXT_PUBLIC_ENVIRONMENT === "staging" && (
+        {/* Demo Tools - only for PCT internal staff in staging */}
+        {isInternal && role !== "coo" && process.env.NEXT_PUBLIC_ENVIRONMENT === "staging" && (
           <div className="mb-4">
             <h4 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
               Demo

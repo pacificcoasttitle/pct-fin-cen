@@ -6,42 +6,50 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { AlertCircle, Loader2, Shield, Building2, User, Users, UserCog } from "lucide-react"
+import { AlertCircle, Loader2, Shield, TrendingUp, ClipboardList, Building2, User } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-// Demo credentials for quick access
+// Demo credentials for quick access - 5 roles
 const demoCredentials = [
   { 
-    role: "PCT Admin", 
-    email: "admin@pctfincen.com", 
-    description: "Full admin access",
-    icon: UserCog,
-    color: "from-purple-500 to-indigo-500",
+    role: "COO / Executive", 
+    email: "coo@pct.com", 
+    description: "Executive dashboard only - business KPIs",
+    icon: TrendingUp,
+    color: "from-purple-500 to-violet-500",
     bgColor: "bg-purple-500/10 border-purple-500/30 hover:border-purple-500/50",
   },
   { 
-    role: "PCT Staff", 
-    email: "staff@pctfincen.com", 
-    description: "Process requests & filings",
-    icon: Users,
+    role: "PCT Admin", 
+    email: "admin@pctfincen.com", 
+    description: "Manage companies, users, reports, filings",
+    icon: Shield,
     color: "from-blue-500 to-cyan-500",
     bgColor: "bg-blue-500/10 border-blue-500/30 hover:border-blue-500/50",
   },
   { 
-    role: "Client Admin", 
-    email: "admin@demotitle.com", 
-    description: "Submit requests, view company reports",
-    icon: Building2,
-    color: "from-emerald-500 to-teal-500",
-    bgColor: "bg-emerald-500/10 border-emerald-500/30 hover:border-emerald-500/50",
+    role: "PCT Staff", 
+    email: "staff@pctfincen.com", 
+    description: "Process requests, fill wizards, manage filings",
+    icon: ClipboardList,
+    color: "from-green-500 to-emerald-500",
+    bgColor: "bg-green-500/10 border-green-500/30 hover:border-green-500/50",
   },
   { 
-    role: "Client User", 
+    role: "Company Admin", 
+    email: "admin@demotitle.com", 
+    description: "Submit requests, view reports, billing & team",
+    icon: Building2,
+    color: "from-orange-500 to-amber-500",
+    bgColor: "bg-orange-500/10 border-orange-500/30 hover:border-orange-500/50",
+  },
+  { 
+    role: "Company User", 
     email: "user@demotitle.com", 
-    description: "Submit requests, view status",
+    description: "Submit requests, view status only",
     icon: User,
-    color: "from-amber-500 to-orange-500",
-    bgColor: "bg-amber-500/10 border-amber-500/30 hover:border-amber-500/50",
+    color: "from-slate-500 to-slate-400",
+    bgColor: "bg-slate-500/10 border-slate-500/30 hover:border-slate-500/50",
   },
 ]
 
@@ -53,7 +61,7 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  const nextUrl = searchParams.get("next") || "/app/dashboard"
+  const nextUrl = searchParams.get("next") || "/app"
 
   const handleSelectCredential = (credential: typeof demoCredentials[0]) => {
     setEmail(credential.email)
@@ -153,7 +161,7 @@ function LoginForm() {
         <CardHeader className="pb-3">
           <CardTitle className="text-white text-lg">Demo Accounts</CardTitle>
           <CardDescription className="text-slate-400">
-            Click to select an account
+            Click to select an account (5 roles)
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">

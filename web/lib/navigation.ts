@@ -7,21 +7,19 @@ import {
   Receipt,
   Bell,
   Send,
-  Settings,
-  HelpCircle,
-  DollarSign,
-  BarChart3,
+  ClipboardList,
+  TrendingUp,
+  UserCircle,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-export type UserRole = "pct_admin" | "pct_staff" | "client_admin" | "client_user";
+export type UserRole = "coo" | "pct_admin" | "pct_staff" | "client_admin" | "client_user";
 
 export interface NavItem {
   label: string;
   href: string;
   icon: LucideIcon;
   badge?: number | string;
-  roles: UserRole[];
 }
 
 export interface NavSection {
@@ -29,22 +27,37 @@ export interface NavSection {
   items: NavItem[];
 }
 
-// PCT Staff Navigation (pct_admin, pct_staff)
-export const pctNavigation: NavSection[] = [
+// ============================================
+// COO - Executive Dashboard Only
+// ============================================
+export const cooNavigation: NavSection[] = [
+  {
+    items: [
+      {
+        label: "Executive Dashboard",
+        href: "/app/executive",
+        icon: TrendingUp,
+      },
+    ],
+  },
+];
+
+// ============================================
+// PCT Admin - Internal Operations (NO Billing)
+// ============================================
+export const pctAdminNavigation: NavSection[] = [
   {
     items: [
       {
         label: "Overview",
         href: "/app/admin/overview",
-        icon: BarChart3,
-        roles: ["pct_admin", "pct_staff"],
+        icon: LayoutDashboard,
       },
       {
         label: "Requests",
         href: "/app/admin/requests",
         icon: Inbox,
-        roles: ["pct_admin", "pct_staff"],
-        badge: 8, // Will be dynamic later
+        badge: 8,
       },
     ],
   },
@@ -55,62 +68,87 @@ export const pctNavigation: NavSection[] = [
         label: "Companies",
         href: "/app/admin/companies",
         icon: Building2,
-        roles: ["pct_admin", "pct_staff"],
       },
       {
         label: "Reports",
         href: "/app/admin/reports",
         icon: FileText,
-        roles: ["pct_admin", "pct_staff"],
       },
       {
         label: "Filings",
         href: "/app/admin/filings",
         icon: Send,
-        roles: ["pct_admin", "pct_staff"],
-      },
-      {
-        label: "Billing",
-        href: "/app/admin/billing",
-        icon: DollarSign,
-        roles: ["pct_admin"], // Admin only
       },
     ],
   },
   {
-    title: "System",
+    title: "Administration",
     items: [
       {
         label: "Users",
         href: "/app/admin/users",
         icon: Users,
-        roles: ["pct_admin"], // Admin only
       },
       {
         label: "Notifications",
         href: "/app/admin/notifications",
         icon: Bell,
-        roles: ["pct_admin"], // Admin only
       },
     ],
   },
 ];
 
-// Client Navigation (client_admin, client_user)
-export const clientNavigation: NavSection[] = [
+// ============================================
+// PCT Staff - Operational Work Only
+// ============================================
+export const pctStaffNavigation: NavSection[] = [
+  {
+    items: [
+      {
+        label: "My Queue",
+        href: "/app/staff/queue",
+        icon: Inbox,
+        badge: 3,
+      },
+      {
+        label: "All Requests",
+        href: "/app/admin/requests",
+        icon: ClipboardList,
+      },
+    ],
+  },
+  {
+    title: "My Work",
+    items: [
+      {
+        label: "My Reports",
+        href: "/app/staff/reports",
+        icon: FileText,
+      },
+      {
+        label: "Filings",
+        href: "/app/admin/filings",
+        icon: Send,
+      },
+    ],
+  },
+];
+
+// ============================================
+// Client Admin - Full Client Access + Billing + Team
+// ============================================
+export const clientAdminNavigation: NavSection[] = [
   {
     items: [
       {
         label: "Dashboard",
         href: "/app/dashboard",
         icon: LayoutDashboard,
-        roles: ["client_admin", "client_user"],
       },
       {
         label: "New Request",
         href: "/app/requests/new",
         icon: Send,
-        roles: ["client_admin", "client_user"],
       },
     ],
   },
@@ -121,84 +159,149 @@ export const clientNavigation: NavSection[] = [
         label: "Requests",
         href: "/app/requests",
         icon: Inbox,
-        roles: ["client_admin", "client_user"],
       },
       {
         label: "Reports",
         href: "/app/reports",
         icon: FileText,
-        roles: ["client_admin", "client_user"],
       },
       {
         label: "Invoices",
         href: "/app/invoices",
         icon: Receipt,
-        roles: ["client_admin", "client_user"],
       },
     ],
   },
   {
-    title: "Settings",
+    title: "Administration",
     items: [
       {
         label: "Company Settings",
         href: "/app/settings/company",
         icon: Building2,
-        roles: ["client_admin"], // Admin only
       },
       {
         label: "Team Members",
         href: "/app/settings/team",
         icon: Users,
-        roles: ["client_admin"], // Admin only
-      },
-      {
-        label: "My Profile",
-        href: "/app/settings/profile",
-        icon: Settings,
-        roles: ["client_admin", "client_user"],
       },
     ],
   },
 ];
 
-// Helper to get navigation based on role
+// ============================================
+// Client User - Basic Access (NO Billing, NO Team)
+// ============================================
+export const clientUserNavigation: NavSection[] = [
+  {
+    items: [
+      {
+        label: "Dashboard",
+        href: "/app/dashboard",
+        icon: LayoutDashboard,
+      },
+      {
+        label: "New Request",
+        href: "/app/requests/new",
+        icon: Send,
+      },
+    ],
+  },
+  {
+    title: "My Requests",
+    items: [
+      {
+        label: "All Requests",
+        href: "/app/requests",
+        icon: Inbox,
+      },
+      {
+        label: "Report Status",
+        href: "/app/reports",
+        icon: FileText,
+      },
+    ],
+  },
+  {
+    title: "Account",
+    items: [
+      {
+        label: "My Profile",
+        href: "/app/settings/profile",
+        icon: UserCircle,
+      },
+    ],
+  },
+];
+
+// ============================================
+// Helper Functions
+// ============================================
+
 export function getNavigationForRole(role: UserRole): NavSection[] {
-  if (role === "pct_admin" || role === "pct_staff") {
-    return pctNavigation
-      .map((section) => ({
-        ...section,
-        items: section.items.filter((item) => item.roles.includes(role)),
-      }))
-      .filter((section) => section.items.length > 0);
+  switch (role) {
+    case "coo":
+      return cooNavigation;
+    case "pct_admin":
+      return pctAdminNavigation;
+    case "pct_staff":
+      return pctStaffNavigation;
+    case "client_admin":
+      return clientAdminNavigation;
+    case "client_user":
+      return clientUserNavigation;
+    default:
+      return clientUserNavigation;
   }
-
-  if (role === "client_admin" || role === "client_user") {
-    return clientNavigation
-      .map((section) => ({
-        ...section,
-        items: section.items.filter((item) => item.roles.includes(role)),
-      }))
-      .filter((section) => section.items.length > 0);
-  }
-
-  return [];
 }
 
-// Check if user is PCT internal staff
-export function isPCTStaff(role: UserRole): boolean {
-  return role === "pct_admin" || role === "pct_staff";
+export function getHomeRoute(role: UserRole): string {
+  switch (role) {
+    case "coo":
+      return "/app/executive";
+    case "pct_admin":
+      return "/app/admin/overview";
+    case "pct_staff":
+      return "/app/staff/queue";
+    case "client_admin":
+    case "client_user":
+    default:
+      return "/app/dashboard";
+  }
 }
 
-// Check if user is client
+export function getPortalLabel(role: UserRole): string {
+  switch (role) {
+    case "coo":
+      return "Executive Portal";
+    case "pct_admin":
+      return "Admin Portal";
+    case "pct_staff":
+      return "Staff Portal";
+    case "client_admin":
+    case "client_user":
+    default:
+      return "Client Portal";
+  }
+}
+
+export function isPCTInternal(role: UserRole): boolean {
+  return role === "coo" || role === "pct_admin" || role === "pct_staff";
+}
+
 export function isClient(role: UserRole): boolean {
   return role === "client_admin" || role === "client_user";
 }
 
-// Get home page for role
-export function getHomePageForRole(role: UserRole): string {
-  if (isPCTStaff(role)) {
-    return "/app/admin/overview";
-  }
-  return "/app/dashboard";
+export function canViewBilling(role: UserRole): boolean {
+  // Only Company Admin sees billing
+  return role === "client_admin";
+}
+
+export function canManageTeam(role: UserRole): boolean {
+  return role === "pct_admin" || role === "client_admin";
+}
+
+export function canManageCompanies(role: UserRole): boolean {
+  return role === "pct_admin";
 }
