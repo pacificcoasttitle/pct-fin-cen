@@ -19,9 +19,23 @@ class Settings:
     
     def _parse_cors_origins(self) -> List[str]:
         """Parse CORS_ORIGINS from comma-separated string."""
-        origins_str = os.getenv("CORS_ORIGINS", "http://localhost:3000")
-        # Remove trailing slashes and whitespace from each origin
-        return [origin.strip().rstrip("/") for origin in origins_str.split(",") if origin.strip()]
+        # Default origins include localhost and known Vercel deployments
+        default_origins = [
+            "http://localhost:3000",
+            "http://localhost:3001",
+            "https://pct-fin-cen-6wx3.vercel.app",  # Production Vercel
+            "https://pct-fincen.vercel.app",        # Custom domain if used
+        ]
+        
+        origins_str = os.getenv("CORS_ORIGINS", "")
+        if origins_str:
+            # Parse env var and add to defaults
+            env_origins = [origin.strip().rstrip("/") for origin in origins_str.split(",") if origin.strip()]
+            # Combine and dedupe
+            all_origins = list(set(default_origins + env_origins))
+            return all_origins
+        
+        return default_origins
 
 
 @lru_cache()

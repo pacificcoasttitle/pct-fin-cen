@@ -8,7 +8,7 @@
 
 | Category | Count |
 |----------|-------|
-| 🔴 Critical Fixes | 3 |
+| 🔴 Critical Fixes | 4 |
 | 🟠 Major Features | 5 |
 | 📄 Documentation | 3 |
 
@@ -428,6 +428,52 @@ These were identified but not yet addressed:
 
 ---
 
+### 9. Client Form Testing Fixes ✅
+
+**Issues Found During Testing:**
+1. **CORS Error (Blocker):** API blocked requests from Vercel frontend domain
+2. **Wizard UX:** Form showed all sections at once (defeats wizard pattern)
+3. **Layout:** Form was left-aligned instead of centered
+
+**Solutions:**
+
+**CORS Fix:**
+- Updated `api/app/config.py` to include Vercel domains in default CORS origins
+- Added `allow_origin_regex=r"https://.*\.vercel\.app"` to allow all Vercel deployments
+- No more 403 errors from Vercel frontend!
+
+**Wizard UX - Step-by-Step:**
+- Converted scrollable form to true 4-step wizard
+- One section visible at a time with Back/Continue buttons
+- Validation per step (can't proceed until required fields filled)
+- Progress bar shows current position
+
+| Step | Fields |
+|------|--------|
+| 1. Property | Escrow #, Street, City, State, ZIP |
+| 2. Transaction | Closing Date, Purchase Price, Financing Type |
+| 3. Buyer | Name, Type (Individual/Entity/Trust), Email, Phone |
+| 4. Seller | Name, Email (optional), Notes (optional) |
+
+**Layout Fix:**
+- Changed from `max-w-4xl` to `max-w-2xl mx-auto`
+- Form now centered in content area
+- Better readability and professional appearance
+
+**Files Changed:**
+- `api/app/config.py` (CORS default origins)
+- `api/app/main.py` (allow_origin_regex)
+- `web/app/(app)/app/requests/new/page.tsx` (complete rewrite to step wizard)
+
+**Test:**
+- Submit form from Vercel deployment → No CORS error
+- Navigate through each step with Back/Continue
+- Submit on final step → Success overlay with request ID
+
+**Status:** ✅ Killed
+
+---
+
 ## Git Commits Today
 
 1. `docs: add gap analysis comparing North Star vs actual code`
@@ -440,6 +486,7 @@ These were identified but not yet addressed:
 8. `feat: P2 - Restructure wizard collection phase with new flow`
 9. `feat: Wire wizard steps to backend APIs (final gap closure)`
 10. `feat: Demo mode polish and comprehensive seed data`
+11. `fix: CORS and client form wizard UX improvements`
 
 ---
 
