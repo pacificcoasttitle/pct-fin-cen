@@ -8,7 +8,7 @@
 
 | Category | Count |
 |----------|-------|
-| 🔴 Critical Fixes | 6 |
+| 🔴 Critical Fixes | 7 |
 | 🟠 Major Features | 5 |
 | 📄 Documentation | 3 |
 
@@ -564,6 +564,45 @@ submission = SubmissionRequest(company_id=demo_company.id, ...)
 
 ---
 
+### 12. Proactive Landmine Check - company_id Propagation ✅
+
+**Issue Found During Trace Checklist:**
+When creating a Report from a SubmissionRequest via `/create-report`, the `company_id` wasn't being propagated.
+
+**Risk:**
+- Data lineage broken: Submission has company_id, but Report was getting NULL
+- Not a crash (Report.company_id is nullable) but bad for multi-tenant data integrity
+
+**Verification of Other Models:**
+
+| Model | Field | Constraint | Risk |
+|-------|-------|------------|------|
+| Report | `company_id` | `nullable=True` | ✅ Safe (but should propagate) |
+| Report | `created_by_user_id` | `nullable=True` | ✅ Safe |
+| ReportParty | `report_id` | `NOT NULL` (FK) | ✅ Set on creation |
+| ReportParty | `party_role` | `NOT NULL` | ✅ Required param |
+| ReportParty | `entity_type` | `NOT NULL` | ✅ Required param |
+| PartyLink | `report_party_id` | `NOT NULL` (FK) | ✅ Set on creation |
+| PartyLink | `token` | `NOT NULL` | ✅ Auto-generated |
+| PartyLink | `expires_at` | `NOT NULL` | ✅ Set on creation |
+
+**Fix:**
+```python
+# In create_report_from_submission()
+report = Report(
+    submission_request_id=submission.id,
+    company_id=submission.company_id,  # ← Added this line
+    ...
+)
+```
+
+**Files Changed:**
+- `api/app/routes/submission_requests.py`
+
+**Status:** ✅ Killed (proactive prevention)
+
+---
+
 ## Git Commits Today
 
 1. `docs: add gap analysis comparing North Star vs actual code`
@@ -579,6 +618,7 @@ submission = SubmissionRequest(company_id=demo_company.id, ...)
 11. `fix: CORS and client form wizard UX improvements`
 12. `fix: 422 payload fix and input formatting/masking`
 13. `fix: 500 error - company_id NOT NULL constraint + Vercel Analytics 404`
+14. `fix: propagate company_id from submission to report`
 
 ---
 
