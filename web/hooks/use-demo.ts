@@ -22,36 +22,48 @@ export function useDemo() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Read demo session from cookie
-    const cookies = document.cookie.split(";").reduce((acc, cookie) => {
-      const [key, value] = cookie.trim().split("=");
-      acc[key] = value;
-      return acc;
-    }, {} as Record<string, string>);
+    try {
+      // Read demo session from cookie
+      const cookies = document.cookie.split(";").reduce((acc, cookie) => {
+        const parts = cookie.trim().split("=");
+        const key = parts[0];
+        const value = parts.slice(1).join("="); // Handle values with = in them
+        if (key) {
+          acc[key] = value;
+        }
+        return acc;
+      }, {} as Record<string, string>);
 
-    const sessionValue = cookies["pct_demo_session"];
+      const sessionValue = cookies["pct_demo_session"];
 
-    if (sessionValue && sessionValue !== "1") {
-      try {
-        // Decode base64 JSON
-        const decoded = atob(sessionValue);
-        const userData = JSON.parse(decoded) as DemoUser;
-        setUser(userData);
-      } catch (e) {
-        // Invalid session data, treat as logged out
-        console.error("Failed to parse session:", e);
+      if (sessionValue && sessionValue !== "1") {
+        try {
+          // Decode URL encoding first, then base64
+          const decodedValue = decodeURIComponent(sessionValue);
+          const decoded = atob(decodedValue);
+          const userData = JSON.parse(decoded) as DemoUser;
+          setUser(userData);
+        } catch (e) {
+          // Invalid session data, treat as logged out
+          console.error("Failed to parse session:", e);
+          setUser(null);
+        }
+      } else if (sessionValue === "1") {
+        // Legacy session format - default to pct_admin
+        setUser({
+          id: "demo-legacy",
+          email: "admin@pctfincen.com",
+          name: "Demo User",
+          role: "pct_admin",
+          companyId: null,
+          companyName: "PCT FinCEN Solutions",
+        });
+      } else {
         setUser(null);
       }
-    } else if (sessionValue === "1") {
-      // Legacy session format - default to pct_admin
-      setUser({
-        id: "demo-legacy",
-        email: "admin@pctfincen.com",
-        name: "Demo User",
-        role: "pct_admin",
-        companyId: null,
-        companyName: "PCT FinCEN Solutions",
-      });
+    } catch (e) {
+      console.error("Error reading cookies:", e);
+      setUser(null);
     }
 
     setIsLoading(false);

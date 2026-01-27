@@ -104,8 +104,10 @@ export async function POST(request: NextRequest) {
       })).toString("base64")
 
       // Set session cookie with user data
+      // Note: httpOnly is false so client-side JS can read user info for sidebar
+      // This is acceptable for demo purposes - production should use server components
       response.cookies.set("pct_demo_session", sessionData, {
-        httpOnly: true,
+        httpOnly: false,
         sameSite: "lax",
         secure: isProduction,
         path: "/",
@@ -123,7 +125,7 @@ export async function POST(request: NextRequest) {
       const isProduction = process.env.NODE_ENV === "production"
 
       response.cookies.set("pct_demo_session", "1", {
-        httpOnly: true,
+        httpOnly: false,
         sameSite: "lax",
         secure: isProduction,
         path: "/",
