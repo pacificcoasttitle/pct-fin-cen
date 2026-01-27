@@ -10,6 +10,8 @@ import {
   ClipboardList,
   TrendingUp,
   UserCircle,
+  DollarSign,
+  Settings,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -28,7 +30,7 @@ export interface NavSection {
 }
 
 // ============================================
-// COO - Executive Dashboard Only
+// COO - Executive Dashboard + FULL Admin Access
 // ============================================
 export const cooNavigation: NavSection[] = [
   {
@@ -40,10 +42,66 @@ export const cooNavigation: NavSection[] = [
       },
     ],
   },
+  {
+    title: "Operations",
+    items: [
+      {
+        label: "Requests",
+        href: "/app/admin/requests",
+        icon: Inbox,
+        badge: 8,
+      },
+      {
+        label: "Reports",
+        href: "/app/admin/reports",
+        icon: FileText,
+      },
+      {
+        label: "Filings",
+        href: "/app/admin/filings",
+        icon: Send,
+      },
+    ],
+  },
+  {
+    title: "Business",
+    items: [
+      {
+        label: "Companies",
+        href: "/app/admin/companies",
+        icon: Building2,
+      },
+      {
+        label: "Billing",
+        href: "/app/admin/billing",
+        icon: DollarSign,
+      },
+    ],
+  },
+  {
+    title: "Administration",
+    items: [
+      {
+        label: "Users",
+        href: "/app/admin/users",
+        icon: Users,
+      },
+      {
+        label: "Notifications",
+        href: "/app/admin/notifications",
+        icon: Bell,
+      },
+      {
+        label: "Settings",
+        href: "/app/admin/settings",
+        icon: Settings,
+      },
+    ],
+  },
 ];
 
 // ============================================
-// PCT Admin - Internal Operations (NO Billing)
+// PCT Admin - Full Admin (NO Executive Dashboard, NO Billing)
 // ============================================
 export const pctAdminNavigation: NavSection[] = [
   {
@@ -294,14 +352,14 @@ export function isClient(role: UserRole): boolean {
 }
 
 export function canViewBilling(role: UserRole): boolean {
-  // Only Company Admin sees billing
-  return role === "client_admin";
+  // COO sees billing (business overview) + Company Admin sees their invoices
+  return role === "coo" || role === "client_admin";
 }
 
 export function canManageTeam(role: UserRole): boolean {
-  return role === "pct_admin" || role === "client_admin";
+  return role === "coo" || role === "pct_admin" || role === "client_admin";
 }
 
 export function canManageCompanies(role: UserRole): boolean {
-  return role === "pct_admin";
+  return role === "coo" || role === "pct_admin";
 }

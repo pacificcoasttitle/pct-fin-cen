@@ -34,6 +34,18 @@ export function AppSidebar() {
     );
   }
 
+  // Get display name with fallback
+  const getDisplayName = () => {
+    if (user?.name) return user.name;
+    // Fallback based on email
+    if (user?.email === "coo@pct.com") return "Patricia Chen";
+    if (user?.email === "admin@pctfincen.com") return "Sarah Mitchell";
+    if (user?.email === "staff@pctfincen.com") return "Emily Chen";
+    if (user?.email === "admin@demotitle.com") return "Mike Thompson";
+    if (user?.email === "user@demotitle.com") return "Lisa Garcia";
+    return "Demo User";
+  };
+
   // Get role badge color
   const getRoleBadgeColor = () => {
     switch (role) {
@@ -102,14 +114,14 @@ export function AppSidebar() {
       <div className="border-b border-slate-700 px-4 py-3">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-700 text-sm font-medium text-white">
-            {user?.name?.charAt(0) || "U"}
+            {getDisplayName().charAt(0)}
           </div>
           <div className="flex flex-col overflow-hidden">
             <span className="truncate text-sm font-medium text-white">
-              {user?.name || "User"}
+              {getDisplayName()}
             </span>
             <span className="truncate text-xs text-slate-400">
-              {user?.companyName || "PCT FinCEN Solutions"}
+              {user?.companyName || (isInternal ? "PCT FinCEN Solutions" : "Demo Company")}
             </span>
           </div>
         </div>

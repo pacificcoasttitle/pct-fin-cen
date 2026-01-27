@@ -14,7 +14,7 @@ const demoCredentials = [
   { 
     role: "COO / Executive", 
     email: "coo@pct.com", 
-    description: "Executive dashboard only - business KPIs",
+    description: "Full access - Executive dashboard + all admin pages",
     icon: TrendingUp,
     color: "from-purple-500 to-violet-500",
     bgColor: "bg-purple-500/10 border-purple-500/30 hover:border-purple-500/50",
@@ -22,7 +22,7 @@ const demoCredentials = [
   { 
     role: "PCT Admin", 
     email: "admin@pctfincen.com", 
-    description: "Manage companies, users, reports, filings",
+    description: "Manage companies, users, reports, filings (no billing)",
     icon: Shield,
     color: "from-blue-500 to-cyan-500",
     bgColor: "bg-blue-500/10 border-blue-500/30 hover:border-blue-500/50",
@@ -30,7 +30,7 @@ const demoCredentials = [
   { 
     role: "PCT Staff", 
     email: "staff@pctfincen.com", 
-    description: "Process requests, fill wizards, manage filings",
+    description: "Process requests, wizards, filings",
     icon: ClipboardList,
     color: "from-green-500 to-emerald-500",
     bgColor: "bg-green-500/10 border-green-500/30 hover:border-green-500/50",

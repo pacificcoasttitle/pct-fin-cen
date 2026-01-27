@@ -6,7 +6,7 @@ export interface DemoUser {
   id: string;
   email: string;
   name: string;
-  role: "pct_admin" | "pct_staff" | "client_admin" | "client_user";
+  role: "coo" | "pct_admin" | "pct_staff" | "client_admin" | "client_user";
   companyId: string | null;
   companyName: string;
 }
@@ -71,9 +71,10 @@ export function useDemo() {
     user,
     isLoading,
     isAuthenticated: !!user,
-    isPCTStaff: user?.role === "pct_admin" || user?.role === "pct_staff",
+    isCOO: user?.role === "coo",
+    isPCTStaff: user?.role === "coo" || user?.role === "pct_admin" || user?.role === "pct_staff",
     isClient: user?.role === "client_admin" || user?.role === "client_user",
-    isAdmin: user?.role === "pct_admin" || user?.role === "client_admin",
+    isAdmin: user?.role === "coo" || user?.role === "pct_admin" || user?.role === "client_admin",
     logout,
   };
 }
