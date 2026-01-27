@@ -3847,6 +3847,17 @@ export function RRERQuestionnaire({
                       description="Final review and submission"
                     />
                     <CardContent className="pt-6 space-y-6">
+                      {/* Demo Mode Banner */}
+                      {process.env.NEXT_PUBLIC_DEMO_MODE === "true" && (
+                        <div className="px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-3 text-amber-800">
+                          <span className="text-xl">🎭</span>
+                          <div>
+                            <p className="font-medium">Demo Mode Active</p>
+                            <p className="text-sm text-amber-700">Filing will be simulated - not submitted to real FinCEN</p>
+                          </div>
+                        </div>
+                      )}
+
                       {/* Show success state if filed */}
                       {filingResult?.success ? (
                         <div className="text-center py-8">

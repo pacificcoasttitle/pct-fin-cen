@@ -18,7 +18,7 @@ from pydantic import BaseModel
 from app.config import get_settings
 from app.database import get_db
 from app.models import Report, FilingSubmission
-from app.services.demo_seed import reset_demo_data, seed_demo_reports, create_single_demo_report
+from app.services.demo_seed import reset_demo_data, seed_demo_reports, seed_demo_submission_requests, create_single_demo_report
 from app.services.notifications import list_notifications, delete_all_notifications
 from app.services.filing_lifecycle import set_demo_outcome, get_or_create_submission
 from app.services.email_service import send_party_invite, SENDGRID_ENABLED, FRONTEND_URL
@@ -80,6 +80,9 @@ async def demo_reset(
         # Delete all data in correct FK order
         reset_demo_data(db)
         
+        # Re-seed demo submission requests
+        requests_created = seed_demo_submission_requests(db)
+        
         # Re-seed demo reports
         reports_created = seed_demo_reports(db)
         
@@ -88,9 +91,16 @@ async def demo_reset(
         
         return {
             "ok": True,
+            "requests_created": requests_created,
             "reports_created": reports_created,
             "timestamp": datetime.utcnow().isoformat(),
             "environment": settings.ENVIRONMENT,
+            "demo_scenarios": [
+                "2 pending requests in queue",
+                "1 in-progress request",
+                "3 exempt reports",
+                "3 reportable reports at various stages",
+            ],
         }
     except Exception as e:
         db.rollback()

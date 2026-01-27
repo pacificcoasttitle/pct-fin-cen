@@ -12,6 +12,15 @@ from app.models import (
     NotificationEvent, Company, User, SubmissionRequest, BillingEvent, Invoice,
 )
 
+# Re-export for easy import
+__all__ = [
+    "reset_demo_data",
+    "seed_demo_reports",
+    "seed_demo_submission_requests",
+    "seed_foundation_data",
+    "create_single_demo_report",
+]
+
 
 def reset_demo_data(db: Session) -> None:
     """
@@ -182,6 +191,94 @@ def seed_foundation_data(db: Session) -> Dict[str, Any]:
         "demo_client": demo_client,
         "client_users": client_users,
     }
+
+
+def seed_demo_submission_requests(db: Session, client_company_id=None) -> int:
+    """
+    Create demo submission requests showing various stages.
+    
+    Returns the number of requests created.
+    """
+    from datetime import date
+    requests_created = 0
+    
+    # 1. Pending Request - Just submitted, waiting for staff
+    req1 = SubmissionRequest(
+        status="pending",
+        property_address={
+            "street": "742 Evergreen Terrace",
+            "city": "Springfield",
+            "state": "CA",
+            "zip": "90210",
+            "county": "Los Angeles"
+        },
+        purchase_price_cents=85000000,  # $850,000
+        expected_closing_date=date.today() + timedelta(days=14),
+        escrow_number="ESC-2026-1001",
+        financing_type="cash",
+        buyer_name="Acme Investments LLC",
+        buyer_email="contact@acmeinvest.com",
+        buyer_type="entity",
+        seller_name="Homer Simpson",
+        seller_email="homer@springfield.net",
+        notes="Urgent - client needs fast turnaround",
+        company_id=client_company_id,
+        created_at=datetime.utcnow() - timedelta(hours=2),
+    )
+    db.add(req1)
+    requests_created += 1
+    
+    # 2. Another Pending Request - High value property
+    req2 = SubmissionRequest(
+        status="pending",
+        property_address={
+            "street": "1600 Pennsylvania Avenue",
+            "city": "Washington",
+            "state": "DC",
+            "zip": "20500",
+        },
+        purchase_price_cents=250000000,  # $2,500,000
+        expected_closing_date=date.today() + timedelta(days=21),
+        escrow_number="ESC-2026-1002",
+        financing_type="cash",
+        buyer_name="Capitol Trust Holdings",
+        buyer_email="legal@capitoltrust.com",
+        buyer_type="trust",
+        seller_name="Federal Properties Inc",
+        seller_email="sales@fedprops.com",
+        company_id=client_company_id,
+        created_at=datetime.utcnow() - timedelta(hours=5),
+    )
+    db.add(req2)
+    requests_created += 1
+    
+    # 3. In-Progress Request - Staff started working on it
+    req3 = SubmissionRequest(
+        status="in_progress",
+        property_address={
+            "street": "221B Baker Street",
+            "city": "Los Angeles",
+            "state": "CA",
+            "zip": "90028",
+        },
+        purchase_price_cents=72500000,  # $725,000
+        expected_closing_date=date.today() + timedelta(days=10),
+        escrow_number="ESC-2026-0998",
+        financing_type="cash",
+        buyer_name="Watson Enterprises LLC",
+        buyer_email="jwatson@watson-ent.com",
+        buyer_type="entity",
+        seller_name="Sherlock Holdings Trust",
+        seller_email="trustee@sherlockholdings.com",
+        company_id=client_company_id,
+        created_at=datetime.utcnow() - timedelta(days=1),
+    )
+    db.add(req3)
+    requests_created += 1
+    
+    db.flush()
+    print(f"   📋 Created {requests_created} submission requests")
+    return requests_created
 
 
 def seed_demo_reports(db: Session) -> int:

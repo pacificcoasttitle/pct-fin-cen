@@ -9,7 +9,7 @@
 | Category | Count |
 |----------|-------|
 | 🔴 Critical Fixes | 3 |
-| 🟠 Major Features | 4 |
+| 🟠 Major Features | 5 |
 | 📄 Documentation | 3 |
 
 ---
@@ -334,6 +334,54 @@ Review Submissions → File Report → SUBMIT TO FINCEN (API) → Success!
 
 ---
 
+### 8. Demo Mode Polish & Seed Data ✅
+
+**Problem:** 
+1. No clear indication that filing is in demo mode (could confuse sales team)
+2. Empty database makes demo awkward - no visual examples to show
+
+**Solution:**
+
+**Demo Mode Filing Indicator:**
+- Added "🎭 Demo Mode Active" banner in file-report step
+- Conditional display via `NEXT_PUBLIC_DEMO_MODE=true` env var
+- Filing endpoint already returns `is_demo: true` in response
+
+**Demo Seed Data:**
+Enhanced `seed_demo_submission_requests()` function to create comprehensive test data:
+
+| Scenario | Status | Purpose |
+|----------|--------|---------|
+| Request 1 | `pending` | Show client submission in queue |
+| Request 2 | `pending` | Show volume (high-value property) |
+| Request 3 | `in_progress` | Show wizard can be resumed |
+| Report 1-3 | `exempt` | Various exemption scenarios |
+| Report 4 | `awaiting_parties` | Show party monitoring |
+| Report 5 | `awaiting_parties` | Partial party submissions (1/2) |
+| Report 6 | `ready_to_file` | All parties done, ready to file |
+
+**Files Changed:**
+- `web/components/rrer-questionnaire.tsx` (demo mode banner)
+- `api/app/services/demo_seed.py` (added `seed_demo_submission_requests`)
+- `api/app/routes/demo.py` (updated reset to seed requests)
+
+**Test:** 
+- Call `POST /demo/reset` with X-DEMO-SECRET header
+- Admin queue shows 2 pending + 1 in-progress requests
+- Reports list shows reports at various stages
+- Filing shows "Demo Mode" when NEXT_PUBLIC_DEMO_MODE=true
+
+**Demo Walkthrough Now Supports:**
+1. ✅ Show client submission flow
+2. ✅ Show admin queue with pending items
+3. ✅ Resume partial wizard
+4. ✅ Show party monitoring (pending vs submitted)
+5. ✅ Show review screen with real data
+6. ✅ File and see receipt ID (with demo indicator)
+7. ✅ Show filing history
+
+---
+
 ## 📄 Documentation Created
 
 ### 4. Gap Analysis (`docs/GAP_ANALYSIS.md`) ✅
@@ -391,6 +439,7 @@ These were identified but not yet addressed:
 7. `feat: P1 - Enhanced party portal with full FinCEN fields`
 8. `feat: P2 - Restructure wizard collection phase with new flow`
 9. `feat: Wire wizard steps to backend APIs (final gap closure)`
+10. `feat: Demo mode polish and comprehensive seed data`
 
 ---
 
