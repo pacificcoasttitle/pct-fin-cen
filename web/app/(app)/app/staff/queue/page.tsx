@@ -202,9 +202,14 @@ export default function StaffQueuePage() {
                               </Link>
                             </Button>
                           ) : (
-                            <Button size="sm">
-                              Start Wizard
-                              <ArrowRight className="ml-1 h-4 w-4" />
+                            <Button 
+                              size="sm" 
+                              asChild
+                            >
+                              <Link href={`/app/reports/demo-${req.id}/wizard`}>
+                                Start Wizard
+                                <ArrowRight className="ml-1 h-4 w-4" />
+                              </Link>
                             </Button>
                           )}
                         </TableCell>

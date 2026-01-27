@@ -698,8 +698,18 @@ export default function AdminRequestsPage() {
   }
 
   const handleStartWizard = (requestId: string) => {
-    console.log("Start wizard for request", requestId)
-    // Demo: would create report and redirect
+    // Find the request to get its reportId
+    const request = mockSubmissionRequests.find(r => r.id === requestId)
+    
+    if (request?.reportId) {
+      // Navigate to existing report wizard
+      window.location.href = `/app/reports/${request.reportId}/wizard`
+    } else {
+      // For demo: create a mock report ID and navigate
+      // In production this would POST to create a report first
+      const mockReportId = `demo-${Date.now()}`
+      window.location.href = `/app/reports/${mockReportId}/wizard`
+    }
   }
 
   const handleCancel = (requestId: string) => {
