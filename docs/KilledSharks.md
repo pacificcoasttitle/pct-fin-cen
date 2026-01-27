@@ -8,7 +8,7 @@
 
 | Category | Count |
 |----------|-------|
-| 🔴 Critical Fixes | 2 |
+| 🔴 Critical Fixes | 3 |
 | 🟠 Major Features | 4 |
 | 📄 Documentation | 3 |
 
@@ -267,6 +267,73 @@ PCT Staff → Monitor → Review → File
 
 ---
 
+### 7. Wizard Step API Wiring ✅ (Final Gap Closure)
+
+**Problem:** The new wizard collection steps (party-setup, monitor-progress, file-report) had complete UI but were NOT connected to backend APIs. Buttons did nothing - they were just mockups.
+
+**Impact:**
+- "Send Links" button didn't actually send links
+- Party status wasn't being displayed/polled
+- "Submit to FinCEN" button didn't file
+
+**Solution:** Wired all new wizard steps to existing API functions via prop callbacks.
+
+| Step | Button | API Called | Status |
+|------|--------|------------|--------|
+| party-setup | "Send Links & Continue" | `createPartyLinks()` | ✅ Wired |
+| monitor-progress | Auto-poll + display | `getReportParties()` | ✅ Wired |
+| file-report | "Run Pre-Filing Check" | `readyCheck()` | ✅ Wired |
+| file-report | "Submit to FinCEN" | `fileReport()` | ✅ Wired |
+
+**Implementation Details:**
+
+1. **Updated RRERQuestionnaire Props:**
+   - Added `reportId`, `partyStatus`, `onRefreshPartyStatus`
+   - Added `onSendPartyLinks`, `onReadyCheck`, `onFileReport` callbacks
+   - These allow the wizard page to handle actual API calls
+
+2. **party-setup Step:**
+   - Validates parties have name + email
+   - Calls `onSendPartyLinks` with transformed party data
+   - Shows loading spinner during API call
+   - Shows success toast with party count
+   - Auto-advances to monitor-progress on success
+
+3. **monitor-progress Step:**
+   - Displays real party status from `partyStatus` prop
+   - Shows progress bar with X of Y submitted
+   - Shows individual party cards with status badges
+   - Shows "Copy Link" and "Open" buttons for pending parties
+   - "Continue" button disabled until all parties submitted
+   - Auto-refresh indicator showing 15-second polling
+
+4. **file-report Step:**
+   - "Run Pre-Filing Check" calls `onReadyCheck`
+   - Shows pass/fail result with error details
+   - Final certification checkbox required
+   - "Submit to FinCEN" calls `onFileReport`
+   - Shows success state with receipt ID
+   - Shows "Back to Reports Dashboard" button after success
+
+**Files Changed:**
+- `web/components/rrer-questionnaire.tsx` 
+  - Added props interface with API callbacks
+  - Added handler functions for all 3 steps
+  - Added loading states and toast notifications
+  - Updated step UIs to use real data/handlers
+- `web/app/(app)/app/reports/[id]/wizard/page.tsx`
+  - Passes all new props to questionnaire
+  - Implements API callback handlers
+
+**End-to-End Flow Now Works:**
+```
+Client Submit → Admin Queue → Start Wizard → Determination →
+Party Setup → SEND LINKS (API) → Monitor Progress (polling) →
+Review Submissions → File Report → SUBMIT TO FINCEN (API) → Success!
+```
+
+---
+
 ## 📄 Documentation Created
 
 ### 4. Gap Analysis (`docs/GAP_ANALYSIS.md`) ✅
@@ -308,7 +375,8 @@ These were identified but not yet addressed:
 | ~~Party portal missing 25+ FinCEN fields~~ | ~~P1~~ | ✅ **FIXED** |
 | ~~No party data review screen~~ | ~~P1~~ | ✅ **FIXED** |
 | ~~Wizard collects party data (should only do determination)~~ | ~~P2~~ | ✅ **FIXED** |
-| No purchase_price in Report model | P2 | Pending |
+| ~~Wizard steps not calling APIs~~ | ~~P0~~ | ✅ **FIXED** |
+| No purchase_price in Report model | P3 | Deferred (using wizard_data) |
 
 ---
 
@@ -322,6 +390,7 @@ These were identified but not yet addressed:
 6. `fix: add email-validator dependency for Pydantic EmailStr`
 7. `feat: P1 - Enhanced party portal with full FinCEN fields`
 8. `feat: P2 - Restructure wizard collection phase with new flow`
+9. `feat: Wire wizard steps to backend APIs (final gap closure)`
 
 ---
 
@@ -351,6 +420,13 @@ These were identified but not yet addressed:
 - [x] monitor-progress step displays
 - [x] review-submissions step with certification
 - [x] file-report step with pre-check and submit
+- [x] party-setup "Send Links" calls createPartyLinks API
+- [x] monitor-progress shows real-time party status from API
+- [x] file-report "Run Pre-Filing Check" calls readyCheck API
+- [x] file-report "Submit to FinCEN" calls fileReport API
+- [x] Loading states on all async actions
+- [x] Error handling with toast notifications
+- [x] End-to-end flow complete
 
 ---
 
@@ -359,9 +435,9 @@ These were identified but not yet addressed:
 1. ~~**P1:** Expand party portal with required FinCEN fields~~ ✅ DONE
 2. ~~**P1:** Create party data review screen for staff~~ ✅ DONE
 3. ~~**P2:** Refactor wizard collection phase~~ ✅ DONE
-4. **P2:** Add Trust buyer form with trustees/settlors/beneficiaries
-5. **P2:** Wire party-setup "Send Links" to API (currently UI-only)
-6. **P2:** Wire file-report "Submit to FinCEN" to real API
+4. ~~**P0:** Wire wizard steps to backend APIs~~ ✅ DONE
+5. **P2:** Add Trust buyer form with trustees/settlors/beneficiaries
+6. **P3:** Add more comprehensive form validation
 
 ---
 

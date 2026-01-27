@@ -358,6 +358,51 @@ export default function WizardPage() {
         initialData={initialData}
         onChange={handleQuestionnaireChange}
         saveStatus={saveStatus}
+        reportId={reportId}
+        partyStatus={partyStatus}
+        onRefreshPartyStatus={() => fetchPartyStatus(true)}
+        onSendPartyLinks={async (parties) => {
+          setGeneratingLinks(true)
+          try {
+            const result = await createPartyLinks(reportId, parties)
+            setPartyLinks(result.links)
+            // Also refresh report to update status
+            const updatedReport = await getReport(reportId)
+            setReport(updatedReport)
+          } finally {
+            setGeneratingLinks(false)
+          }
+        }}
+        onReadyCheck={async () => {
+          setCheckingReady(true)
+          try {
+            const result = await readyCheck(reportId)
+            setReadyResult(result)
+            return { 
+              ready: result.ready, 
+              errors: result.missing.map(m => m.message) 
+            }
+          } finally {
+            setCheckingReady(false)
+          }
+        }}
+        onFileReport={async () => {
+          setFiling(true)
+          try {
+            const result = await fileReport(reportId)
+            setFileResult(result)
+            // Refresh report to get updated status
+            const updatedReport = await getReport(reportId)
+            setReport(updatedReport)
+            return {
+              success: result.ok && result.status === "accepted",
+              receipt_id: result.receipt_id,
+              error: result.rejection_message || result.message,
+            }
+          } finally {
+            setFiling(false)
+          }
+        }}
       />
 
       {/* Action Buttons Section */}
