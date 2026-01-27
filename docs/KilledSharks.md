@@ -8,7 +8,7 @@
 
 | Category | Count |
 |----------|-------|
-| 🔴 Critical Fixes | 4 |
+| 🔴 Critical Fixes | 5 |
 | 🟠 Major Features | 5 |
 | 📄 Documentation | 3 |
 
@@ -474,6 +474,48 @@ These were identified but not yet addressed:
 
 ---
 
+### 10. Fix 422 Payload & Input Formatting ✅
+
+**Issues:**
+1. Potential 422 errors from payload mismatches
+2. No input formatting for phone numbers, currency, ZIP codes
+
+**Solutions:**
+
+**Payload Improvements:**
+- Added debug logging (`console.log`) to see exact payload being sent
+- Better error message formatting for validation errors (shows field names)
+- Trim whitespace from all text fields
+- Ensure lowercase for email, financing_type, buyer_type
+- Handle ZIP code formatting (strip dashes for API)
+
+**Input Formatting/Masking:**
+
+| Field | Format | Example |
+|-------|--------|---------|
+| Phone Numbers | `(XXX) XXX-XXXX` | (555) 123-4567 |
+| Purchase Price | `X,XXX,XXX` | 1,500,000 |
+| ZIP Code | `XXXXX` or `XXXXX-XXXX` | 90210 or 90210-1234 |
+
+**Implementation:**
+- `formatPhoneNumber()` - Auto-formats as user types
+- `formatCurrency()` - Adds commas for readability
+- `formatZipCode()` - Handles 5 or 9 digit formats
+- `parseCurrency()` - Strips formatting for API submission
+
+**Files Changed:**
+- `web/app/(app)/app/requests/new/page.tsx` (formatting utilities + improved payload)
+
+**Test:**
+- Type phone → auto-formats to (555) 123-4567
+- Type price → auto-formats with commas
+- Submit form → check console for payload debug
+- API returns 201 Created
+
+**Status:** ✅ Killed
+
+---
+
 ## Git Commits Today
 
 1. `docs: add gap analysis comparing North Star vs actual code`
@@ -487,6 +529,7 @@ These were identified but not yet addressed:
 9. `feat: Wire wizard steps to backend APIs (final gap closure)`
 10. `feat: Demo mode polish and comprehensive seed data`
 11. `fix: CORS and client form wizard UX improvements`
+12. `fix: 422 payload fix and input formatting/masking`
 
 ---
 

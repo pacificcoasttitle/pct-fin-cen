@@ -69,7 +69,66 @@ interface FormData {
   buyerPhone: string;
   sellerName: string;
   sellerEmail: string;
+  sellerPhone: string;
   notes: string;
+}
+
+// ============================================================================
+// Input Formatting Utilities
+// ============================================================================
+
+/**
+ * Format phone number as user types: (555) 123-4567
+ */
+function formatPhoneNumber(value: string): string {
+  // Remove all non-digits
+  const digits = value.replace(/\D/g, "");
+  
+  // Limit to 10 digits
+  const limited = digits.slice(0, 10);
+  
+  // Format based on length
+  if (limited.length === 0) return "";
+  if (limited.length <= 3) return `(${limited}`;
+  if (limited.length <= 6) return `(${limited.slice(0, 3)}) ${limited.slice(3)}`;
+  return `(${limited.slice(0, 3)}) ${limited.slice(3, 6)}-${limited.slice(6)}`;
+}
+
+/**
+ * Format currency with commas: 1,500,000
+ */
+function formatCurrency(value: string): string {
+  // Remove all non-digits
+  const digits = value.replace(/\D/g, "");
+  
+  if (digits.length === 0) return "";
+  
+  // Convert to number and format with commas
+  const num = parseInt(digits, 10);
+  return num.toLocaleString("en-US");
+}
+
+/**
+ * Parse formatted currency back to number string
+ */
+function parseCurrency(formatted: string): number {
+  const digits = formatted.replace(/\D/g, "");
+  return digits ? parseInt(digits, 10) : 0;
+}
+
+/**
+ * Format ZIP code: 12345 or 12345-6789
+ */
+function formatZipCode(value: string): string {
+  // Remove all non-digits
+  const digits = value.replace(/\D/g, "");
+  
+  // Limit to 9 digits
+  const limited = digits.slice(0, 9);
+  
+  // Format with dash if more than 5 digits
+  if (limited.length <= 5) return limited;
+  return `${limited.slice(0, 5)}-${limited.slice(5)}`;
 }
 
 export default function NewRequestPage() {
@@ -96,11 +155,25 @@ export default function NewRequestPage() {
     buyerPhone: "",
     sellerName: "",
     sellerEmail: "",
+    sellerPhone: "",
     notes: "",
   });
 
   const updateField = (field: keyof FormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  // Formatted field handlers
+  const handlePhoneChange = (field: "buyerPhone" | "sellerPhone", value: string) => {
+    updateField(field, formatPhoneNumber(value));
+  };
+
+  const handleCurrencyChange = (value: string) => {
+    updateField("purchasePrice", formatCurrency(value));
+  };
+
+  const handleZipChange = (value: string) => {
+    updateField("zip", formatZipCode(value));
   };
 
   // Step validation
@@ -130,9 +203,36 @@ export default function NewRequestPage() {
     setIsSubmitting(true);
     setError(null);
 
-    // Parse purchase price (remove commas and convert to cents)
-    const purchasePrice = parseFloat(formData.purchasePrice.replace(/,/g, ""));
-    const purchasePriceCents = Math.round(purchasePrice * 100);
+    // Parse purchase price (remove formatting and convert to cents)
+    const purchasePriceDollars = parseCurrency(formData.purchasePrice);
+    const purchasePriceCents = purchasePriceDollars * 100;
+
+    // Build payload matching API schema exactly
+    const payload = {
+      property_address: {
+        street: formData.propertyAddress.trim(),
+        city: formData.city.trim(),
+        state: formData.state,
+        zip: formData.zip.replace(/-/g, "").slice(0, 5), // Remove dash, keep 5 digits
+        county: null,
+      },
+      purchase_price_cents: purchasePriceCents,
+      expected_closing_date: formData.closingDate, // Already in YYYY-MM-DD from date input
+      escrow_number: formData.escrowNumber.trim() || null,
+      financing_type: formData.financingType.toLowerCase(),
+      buyer_name: formData.buyerName.trim(),
+      buyer_email: formData.buyerEmail.trim().toLowerCase(),
+      buyer_type: formData.buyerType.toLowerCase(),
+      seller_name: formData.sellerName.trim(),
+      seller_email: formData.sellerEmail.trim().toLowerCase() || null,
+      seller_type: "individual", // Default for now
+      notes: formData.notes.trim() || null,
+    };
+
+    // Debug logging
+    console.log("=== SUBMISSION DEBUG ===");
+    console.log("Form data:", formData);
+    console.log("Payload being sent:", JSON.stringify(payload, null, 2));
 
     try {
       const response = await fetch(`${API_BASE_URL}/submission-requests`, {
@@ -140,33 +240,27 @@ export default function NewRequestPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          property_address: {
-            street: formData.propertyAddress,
-            city: formData.city,
-            state: formData.state,
-            zip: formData.zip,
-            county: null,
-          },
-          purchase_price_cents: purchasePriceCents,
-          expected_closing_date: formData.closingDate,
-          escrow_number: formData.escrowNumber || null,
-          financing_type: formData.financingType || "unknown",
-          buyer_name: formData.buyerName,
-          buyer_email: formData.buyerEmail,
-          buyer_type: formData.buyerType,
-          seller_name: formData.sellerName,
-          seller_email: formData.sellerEmail || null,
-          notes: formData.notes || null,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        console.error("API error response:", errorData);
+        
+        // Format validation errors for display
+        if (errorData.detail && Array.isArray(errorData.detail)) {
+          const messages = errorData.detail.map((err: { loc?: string[]; msg: string }) => {
+            const field = err.loc?.slice(-1)[0] || "Field";
+            return `${field}: ${err.msg}`;
+          }).join("\n");
+          throw new Error(messages);
+        }
+        
         throw new Error(errorData.detail || `Failed to submit request: ${response.status}`);
       }
 
       const result = await response.json();
+      console.log("Success! Request ID:", result.id);
       setRequestId(result.id);
       setIsSuccess(true);
     } catch (err) {
@@ -226,6 +320,7 @@ export default function NewRequestPage() {
                   buyerPhone: "",
                   sellerName: "",
                   sellerEmail: "",
+                  sellerPhone: "",
                   notes: "",
                 });
               }}>Submit Another</Link>
@@ -302,6 +397,10 @@ export default function NewRequestPage() {
                         <SelectItem value="AZ">AZ</SelectItem>
                         <SelectItem value="OR">OR</SelectItem>
                         <SelectItem value="WA">WA</SelectItem>
+                        <SelectItem value="TX">TX</SelectItem>
+                        <SelectItem value="FL">FL</SelectItem>
+                        <SelectItem value="NY">NY</SelectItem>
+                        <SelectItem value="CO">CO</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -311,7 +410,8 @@ export default function NewRequestPage() {
                       id="zip" 
                       placeholder="90001"
                       value={formData.zip}
-                      onChange={(e) => updateField("zip", e.target.value)}
+                      onChange={(e) => handleZipChange(e.target.value)}
+                      maxLength={10}
                       className="bg-background" 
                     />
                   </div>
@@ -348,8 +448,8 @@ export default function NewRequestPage() {
                   Purchase Price <span className="text-destructive">*</span>
                 </Label>
                 <div className="relative">
-                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                    <DollarSign className="h-4 w-4" />
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold">
+                    $
                   </div>
                   <Input
                     id="purchasePrice"
@@ -357,13 +457,18 @@ export default function NewRequestPage() {
                     inputMode="numeric"
                     placeholder="1,500,000"
                     value={formData.purchasePrice}
-                    onChange={(e) => updateField("purchasePrice", e.target.value)}
-                    className="pl-9 h-12 text-lg font-semibold tracking-wide"
+                    onChange={(e) => handleCurrencyChange(e.target.value)}
+                    className="pl-7 h-12 text-lg font-semibold tracking-wide"
                   />
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-medium">
                     USD
                   </div>
                 </div>
+                {formData.purchasePrice && (
+                  <p className="text-xs text-muted-foreground">
+                    ${parseCurrency(formData.purchasePrice).toLocaleString("en-US")} dollars
+                  </p>
+                )}
               </div>
             </div>
 
@@ -571,7 +676,8 @@ export default function NewRequestPage() {
                   type="tel" 
                   placeholder="(555) 123-4567"
                   value={formData.buyerPhone}
-                  onChange={(e) => updateField("buyerPhone", e.target.value)}
+                  onChange={(e) => handlePhoneChange("buyerPhone", e.target.value)}
+                  maxLength={14}
                   className="h-11"
                 />
               </div>
@@ -600,18 +706,34 @@ export default function NewRequestPage() {
               </div>
             </div>
             
-            <div className="space-y-2">
-              <Label htmlFor="sellerEmail" className="text-sm font-medium text-muted-foreground">
-                Seller Email <span className="text-xs">(optional)</span>
-              </Label>
-              <Input 
-                id="sellerEmail"
-                type="email" 
-                placeholder="seller@example.com"
-                value={formData.sellerEmail}
-                onChange={(e) => updateField("sellerEmail", e.target.value)}
-                className="h-11"
-              />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="sellerEmail" className="text-sm font-medium text-muted-foreground">
+                  Seller Email <span className="text-xs">(optional)</span>
+                </Label>
+                <Input 
+                  id="sellerEmail"
+                  type="email" 
+                  placeholder="seller@example.com"
+                  value={formData.sellerEmail}
+                  onChange={(e) => updateField("sellerEmail", e.target.value)}
+                  className="h-11"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="sellerPhone" className="text-sm font-medium text-muted-foreground">
+                  Seller Phone <span className="text-xs">(optional)</span>
+                </Label>
+                <Input 
+                  id="sellerPhone" 
+                  type="tel" 
+                  placeholder="(555) 123-4567"
+                  value={formData.sellerPhone}
+                  onChange={(e) => handlePhoneChange("sellerPhone", e.target.value)}
+                  maxLength={14}
+                  className="h-11"
+                />
+              </div>
             </div>
 
             <div className="space-y-2 pt-4 border-t">
@@ -720,7 +842,7 @@ export default function NewRequestPage() {
               </div>
               <div className="space-y-1 flex-1">
                 <h4 className="font-semibold text-red-900">Submission Error</h4>
-                <p className="text-sm text-red-800">{error}</p>
+                <p className="text-sm text-red-800 whitespace-pre-line">{error}</p>
               </div>
               <Button 
                 variant="ghost" 
