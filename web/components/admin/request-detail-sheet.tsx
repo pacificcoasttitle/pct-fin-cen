@@ -16,6 +16,7 @@ import {
   XCircle,
   CheckCircle2,
   AlertTriangle,
+  Loader2,
 } from "lucide-react"
 import {
   Sheet,
@@ -96,6 +97,7 @@ interface RequestDetailSheetProps {
   onAssign?: (requestId: string, userId: string) => void
   onStartWizard?: (requestId: string) => void
   onCancel?: (requestId: string) => void
+  isCreatingReport?: string | null  // Request ID that is currently creating a report
 }
 
 // Mock PCT staff for assignment
@@ -167,6 +169,7 @@ export function RequestDetailSheet({
   onAssign,
   onStartWizard,
   onCancel,
+  isCreatingReport,
 }: RequestDetailSheetProps) {
   const [selectedStaff, setSelectedStaff] = useState<string>("")
 
@@ -412,9 +415,22 @@ export function RequestDetailSheet({
           {/* Actions */}
           <div className="flex flex-col gap-2 pt-2">
             {canStartWizard && (
-              <Button onClick={handleStartWizard} className="w-full bg-gradient-to-r from-blue-600 to-cyan-500">
-                <Play className="h-4 w-4 mr-2" />
-                Start Wizard
+              <Button 
+                onClick={handleStartWizard} 
+                className="w-full bg-gradient-to-r from-blue-600 to-cyan-500"
+                disabled={isCreatingReport === request.id}
+              >
+                {isCreatingReport === request.id ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Creating Report...
+                  </>
+                ) : (
+                  <>
+                    <Play className="h-4 w-4 mr-2" />
+                    Start Wizard
+                  </>
+                )}
               </Button>
             )}
             

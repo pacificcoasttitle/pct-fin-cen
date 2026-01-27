@@ -42,6 +42,8 @@ import {
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+
 export default function NewRequestPage() {
   const router = useRouter();
   const { user } = useDemo();
@@ -51,18 +53,78 @@ export default function NewRequestPage() {
   const [financingType, setFinancingType] = useState("");
   const [buyerType, setBuyerType] = useState("");
   const [notes, setNotes] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [propertyState, setPropertyState] = useState("CA");
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setError(null);
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    // Get form data
+    const formData = new FormData(e.currentTarget);
+    
+    // Parse purchase price (remove commas and convert to cents)
+    const purchasePriceStr = (formData.get("purchasePrice") as string) || "0";
+    const purchasePrice = parseFloat(purchasePriceStr.replace(/,/g, ""));
+    const purchasePriceCents = Math.round(purchasePrice * 100);
 
-    // Generate mock request ID
-    const mockId = `REQ-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
-    setRequestId(mockId);
-    setIsSuccess(true);
+    // Validate buyer email is provided (required by API)
+    const buyerEmail = (formData.get("buyerEmail") as string) || "";
+    if (!buyerEmail) {
+      setError("Buyer email is required for FinCEN filing communication");
+      setIsSubmitting(false);
+      return;
+    }
+
+    // Validate buyer type is selected
+    if (!buyerType) {
+      setError("Please select a buyer type");
+      setIsSubmitting(false);
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/submission-requests`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          property_address: {
+            street: formData.get("propertyAddress") as string,
+            city: formData.get("city") as string,
+            state: propertyState,
+            zip: formData.get("zip") as string,
+            county: null,
+          },
+          purchase_price_cents: purchasePriceCents,
+          expected_closing_date: formData.get("closingDate") as string,
+          escrow_number: (formData.get("escrowNumber") as string) || null,
+          financing_type: financingType || "unknown",
+          buyer_name: formData.get("buyerName") as string,
+          buyer_email: buyerEmail,
+          buyer_type: buyerType,
+          seller_name: formData.get("sellerName") as string,
+          seller_email: (formData.get("sellerEmail") as string) || null,
+          notes: notes || null,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || `Failed to submit request: ${response.status}`);
+      }
+
+      const result = await response.json();
+      setRequestId(result.id);
+      setIsSuccess(true);
+    } catch (err) {
+      console.error("Submission error:", err);
+      setError(err instanceof Error ? err.message : "An error occurred while submitting");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Success overlay
@@ -168,6 +230,31 @@ export default function NewRequestPage() {
           </div>
         </div>
 
+        {/* Error Alert */}
+        {error && (
+          <div className="relative overflow-hidden rounded-2xl border border-red-200 bg-gradient-to-br from-red-50 to-rose-50 p-5 mb-8">
+            <div className="flex gap-4">
+              <div className="shrink-0">
+                <div className="w-11 h-11 rounded-full bg-red-500 text-white flex items-center justify-center shadow-lg shadow-red-500/30">
+                  <AlertCircle className="h-5 w-5" />
+                </div>
+              </div>
+              <div className="space-y-1 flex-1">
+                <h4 className="font-semibold text-red-900">Submission Error</h4>
+                <p className="text-sm text-red-800">{error}</p>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setError(null)}
+                className="text-red-700 hover:bg-red-100"
+              >
+                Dismiss
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Info Callout */}
         <div className="relative overflow-hidden rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 to-sky-50 p-5 mb-8">
           <div className="flex gap-4">
@@ -223,6 +310,7 @@ export default function NewRequestPage() {
                     </div>
                     <Input
                       id="escrowNumber"
+                      name="escrowNumber"
                       placeholder="e.g., DTE-2026-001"
                       required
                       className={cn(
@@ -263,7 +351,8 @@ export default function NewRequestPage() {
                   <div className="space-y-2">
                     <Label htmlFor="propertyAddress" className="text-sm">Street Address *</Label>
                     <Input 
-                      id="propertyAddress" 
+                      id="propertyAddress"
+                      name="propertyAddress" 
                       placeholder="123 Main Street" 
                       required 
                       className="bg-background"
@@ -273,11 +362,11 @@ export default function NewRequestPage() {
                   <div className="grid gap-4 sm:grid-cols-6">
                     <div className="sm:col-span-3 space-y-2">
                       <Label htmlFor="city" className="text-sm">City *</Label>
-                      <Input id="city" placeholder="Los Angeles" required className="bg-background" />
+                      <Input id="city" name="city" placeholder="Los Angeles" required className="bg-background" />
                     </div>
                     <div className="sm:col-span-1 space-y-2">
                       <Label htmlFor="state" className="text-sm">State *</Label>
-                      <Select defaultValue="CA">
+                      <Select value={propertyState} onValueChange={setPropertyState}>
                         <SelectTrigger className="bg-background">
                           <SelectValue />
                         </SelectTrigger>
@@ -292,7 +381,7 @@ export default function NewRequestPage() {
                     </div>
                     <div className="sm:col-span-2 space-y-2">
                       <Label htmlFor="zip" className="text-sm">ZIP Code *</Label>
-                      <Input id="zip" placeholder="90001" required className="bg-background" />
+                      <Input id="zip" name="zip" placeholder="90001" required className="bg-background" />
                     </div>
                   </div>
                 </div>
@@ -309,7 +398,8 @@ export default function NewRequestPage() {
                       <Calendar className="h-4 w-4" />
                     </div>
                     <Input 
-                      id="closingDate" 
+                      id="closingDate"
+                      name="closingDate" 
                       type="date" 
                       required 
                       className={cn(
@@ -331,6 +421,7 @@ export default function NewRequestPage() {
                     </div>
                     <Input
                       id="purchasePrice"
+                      name="purchasePrice"
                       type="text"
                       inputMode="numeric"
                       placeholder="1,500,000"
@@ -455,7 +546,8 @@ export default function NewRequestPage() {
                     <User className="h-4 w-4" />
                   </div>
                   <Input 
-                    id="buyerName" 
+                    id="buyerName"
+                    name="buyerName" 
                     placeholder="Full legal name or entity name"
                     required 
                     className={cn(
@@ -567,13 +659,15 @@ export default function NewRequestPage() {
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="buyerEmail" className="text-sm font-medium text-muted-foreground">
-                    Buyer Email <span className="text-xs">(optional)</span>
+                  <Label htmlFor="buyerEmail" className="text-sm font-medium flex items-center gap-1">
+                    Buyer Email <span className="text-destructive">*</span>
                   </Label>
                   <Input 
-                    id="buyerEmail" 
+                    id="buyerEmail"
+                    name="buyerEmail" 
                     type="email" 
                     placeholder="buyer@example.com"
+                    required
                     className={cn(
                       "h-11 transition-all duration-200",
                       "border-muted-foreground/20",
@@ -634,7 +728,8 @@ export default function NewRequestPage() {
                     <User className="h-4 w-4" />
                   </div>
                   <Input 
-                    id="sellerName" 
+                    id="sellerName"
+                    name="sellerName" 
                     placeholder="Full legal name or entity name"
                     required 
                     className={cn(
@@ -651,7 +746,8 @@ export default function NewRequestPage() {
                   Seller Email <span className="text-xs">(optional)</span>
                 </Label>
                 <Input 
-                  id="sellerEmail" 
+                  id="sellerEmail"
+                  name="sellerEmail" 
                   type="email" 
                   placeholder="seller@example.com"
                   className={cn(

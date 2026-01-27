@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import {
   Inbox,
@@ -17,8 +17,8 @@ import {
   AlertTriangle,
   Loader2,
   FileText,
+  RefreshCw,
 } from "lucide-react"
-import { createReport } from "@/lib/api"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -43,594 +43,67 @@ import { RequestStatusBadge } from "@/components/admin/request-status-badge"
 import { PriorityBadge } from "@/components/admin/priority-badge"
 import { RequestDetailSheet, type SubmissionRequest } from "@/components/admin/request-detail-sheet"
 import { cn } from "@/lib/utils"
+import { useToast } from "@/hooks/use-toast"
 
-// Mock submission requests data (25 requests)
-const mockSubmissionRequests: SubmissionRequest[] = [
-  // Pending requests (8)
-  {
-    id: "req-001",
-    companyId: "2",
-    companyName: "Golden State Escrow",
-    requestedBy: "Mike Chen",
-    escrowNumber: "GSE-2026-1547",
-    fileNumber: "F-98745",
-    propertyAddress: { street: "742 Evergreen Terrace", city: "Springfield", state: "CA", zip: "90210" },
-    buyerName: "John Smith",
-    buyerType: "individual",
-    buyerEmail: "john.smith@email.com",
-    sellerName: "Jane Doe",
-    purchasePriceCents: 125000000,
-    financingType: "cash",
-    expectedClosingDate: "2026-02-15",
-    notes: "Buyer is purchasing as primary residence. All cash offer.",
-    priority: "urgent",
-    status: "pending",
-    assignedTo: null,
-    submittedAt: "2026-01-26T14:30:00Z",
-    reportId: null
-  },
-  {
-    id: "req-002",
-    companyId: "3",
-    companyName: "Summit Title Services",
-    requestedBy: "Jennifer Walsh",
-    escrowNumber: "STS-2026-0892",
-    fileNumber: "F-11234",
-    propertyAddress: { street: "1600 Pennsylvania Ave", city: "Washington", state: "CA", zip: "90001" },
-    buyerName: "ABC Holdings LLC",
-    buyerType: "entity",
-    buyerEmail: "legal@abcholdings.com",
-    sellerName: "Robert Johnson",
-    purchasePriceCents: 275000000,
-    financingType: "partial_cash",
-    expectedClosingDate: "2026-02-10",
-    notes: "Entity buyer - will need beneficial ownership info. Partial cash, partial financing.",
-    priority: "normal",
-    status: "pending",
-    assignedTo: null,
-    submittedAt: "2026-01-26T13:15:00Z",
-    reportId: null
-  },
-  {
-    id: "req-003",
-    companyId: "5",
-    companyName: "Coastal Closings Inc",
-    requestedBy: "Amanda Torres",
-    escrowNumber: "CCI-2026-0445",
-    fileNumber: "F-55678",
-    propertyAddress: { street: "123 Ocean View Dr", city: "Malibu", state: "CA", zip: "90265" },
-    buyerName: "Smith Family Trust",
-    buyerType: "trust",
-    buyerEmail: "trustee@smithtrust.com",
-    sellerName: "Beach Properties Inc",
-    purchasePriceCents: 450000000,
-    financingType: "cash",
-    expectedClosingDate: "2026-02-20",
-    notes: "Trust buyer. High value property - expedite if possible.",
-    priority: "urgent",
-    status: "pending",
-    assignedTo: null,
-    submittedAt: "2026-01-26T11:00:00Z",
-    reportId: null
-  },
-  {
-    id: "req-004",
-    companyId: "4",
-    companyName: "Bay Area Title Co",
-    requestedBy: "David Park",
-    escrowNumber: "BAT-2026-2234",
-    fileNumber: "F-33445",
-    propertyAddress: { street: "456 Tech Lane", city: "Palo Alto", state: "CA", zip: "94301" },
-    buyerName: "Maria Garcia",
-    buyerType: "individual",
-    buyerEmail: "maria.g@email.com",
-    sellerName: "Silicon Investments LLC",
-    purchasePriceCents: 189500000,
-    financingType: "cash",
-    expectedClosingDate: "2026-02-08",
-    notes: null,
-    priority: "normal",
-    status: "pending",
-    assignedTo: null,
-    submittedAt: "2026-01-26T10:30:00Z",
-    reportId: null
-  },
-  {
-    id: "req-005",
-    companyId: "6",
-    companyName: "Premier Escrow Services",
-    requestedBy: "Robert Kim",
-    escrowNumber: "PES-2026-1122",
-    fileNumber: "F-77889",
-    propertyAddress: { street: "789 Luxury Blvd", city: "Beverly Hills", state: "CA", zip: "90210" },
-    buyerName: "Luxury Living Corp",
-    buyerType: "entity",
-    buyerEmail: "acquisitions@luxuryliving.com",
-    sellerName: "Estate Holdings Trust",
-    purchasePriceCents: 875000000,
-    financingType: "cash",
-    expectedClosingDate: "2026-02-25",
-    notes: "Corporate buyer. Multiple beneficial owners expected.",
-    priority: "urgent",
-    status: "pending",
-    assignedTo: null,
-    submittedAt: "2026-01-26T09:45:00Z",
-    reportId: null
-  },
-  {
-    id: "req-006",
-    companyId: "7",
-    companyName: "Valley Title Group",
-    requestedBy: "Lisa Martinez",
-    escrowNumber: "VTG-2026-0567",
-    fileNumber: "F-22334",
-    propertyAddress: { street: "321 Valley Rd", city: "Van Nuys", state: "CA", zip: "91401" },
-    buyerName: "Thomas Anderson",
-    buyerType: "individual",
-    buyerEmail: "t.anderson@email.com",
-    sellerName: "Valley Home Sellers Inc",
-    purchasePriceCents: 95000000,
-    financingType: "cash",
-    expectedClosingDate: "2026-02-12",
-    notes: null,
-    priority: "normal",
-    status: "pending",
-    assignedTo: null,
-    submittedAt: "2026-01-26T08:30:00Z",
-    reportId: null
-  },
-  {
-    id: "req-007",
-    companyId: "8",
-    companyName: "Sunrise Settlement Co",
-    requestedBy: "Kevin O'Brien",
-    escrowNumber: "SSC-2026-0234",
-    fileNumber: "F-44556",
-    propertyAddress: { street: "555 Morning Star Ave", city: "Pasadena", state: "CA", zip: "91101" },
-    buyerName: "Sunrise Ventures LLC",
-    buyerType: "entity",
-    buyerEmail: "legal@sunriseventures.com",
-    sellerName: "Patricia Williams",
-    purchasePriceCents: 167500000,
-    financingType: "cash",
-    expectedClosingDate: "2026-02-18",
-    notes: "LLC buyer with single member. Need to verify beneficial ownership.",
-    priority: "normal",
-    status: "pending",
-    assignedTo: null,
-    submittedAt: "2026-01-25T16:00:00Z",
-    reportId: null
-  },
-  {
-    id: "req-008",
-    companyId: "10",
-    companyName: "Cornerstone Escrow",
-    requestedBy: "James Lee",
-    escrowNumber: "CSE-2026-0789",
-    fileNumber: "F-66778",
-    propertyAddress: { street: "888 Harbor View", city: "Long Beach", state: "CA", zip: "90802" },
-    buyerName: "Harbor Investment Trust",
-    buyerType: "trust",
-    buyerEmail: "trust@harborinvest.com",
-    sellerName: "Coastal Developers LLC",
-    purchasePriceCents: 234000000,
-    financingType: "cash",
-    expectedClosingDate: "2026-02-22",
-    notes: "Investment trust buyer. Trust documents on file.",
-    priority: "normal",
-    status: "pending",
-    assignedTo: null,
-    submittedAt: "2026-01-25T14:30:00Z",
-    reportId: null
-  },
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000"
 
-  // In Progress (5)
-  {
-    id: "req-009",
-    companyId: "2",
-    companyName: "Golden State Escrow",
-    requestedBy: "Linda Tran",
-    escrowNumber: "GSE-2026-1489",
-    fileNumber: "F-12345",
-    propertyAddress: { street: "321 Main St", city: "San Francisco", state: "CA", zip: "94102" },
-    buyerName: "Tech Ventures LLC",
-    buyerType: "entity",
-    buyerEmail: "legal@techventures.com",
-    sellerName: "Downtown Properties",
-    purchasePriceCents: 325000000,
-    financingType: "cash",
-    expectedClosingDate: "2026-02-05",
-    notes: "Waiting on BO information from buyer.",
-    priority: "normal",
-    status: "in_progress",
-    assignedTo: { id: "u3", name: "Emily Chen" },
-    assignedAt: "2026-01-25T14:00:00Z",
-    submittedAt: "2026-01-25T10:00:00Z",
-    reportId: "rpt-2026-0089"
-  },
-  {
-    id: "req-010",
-    companyId: "3",
-    companyName: "Summit Title Services",
-    requestedBy: "Brian Cooper",
-    escrowNumber: "STS-2026-0845",
-    fileNumber: "F-23456",
-    propertyAddress: { street: "999 Summit Peak Dr", city: "San Diego", state: "CA", zip: "92101" },
-    buyerName: "Peak Holdings LLC",
-    buyerType: "entity",
-    buyerEmail: "admin@peakholdings.com",
-    sellerName: "Mountain View Estates",
-    purchasePriceCents: 412000000,
-    financingType: "cash",
-    expectedClosingDate: "2026-02-03",
-    notes: "Collecting party information. Buyer responsive.",
-    priority: "urgent",
-    status: "in_progress",
-    assignedTo: { id: "u4", name: "Michael Thompson" },
-    assignedAt: "2026-01-24T16:00:00Z",
-    submittedAt: "2026-01-24T11:30:00Z",
-    reportId: "rpt-2026-0085"
-  },
-  {
-    id: "req-011",
-    companyId: "5",
-    companyName: "Coastal Closings Inc",
-    requestedBy: "Ryan Garcia",
-    escrowNumber: "CCI-2026-0398",
-    fileNumber: "F-34567",
-    propertyAddress: { street: "777 Beachfront Way", city: "Santa Monica", state: "CA", zip: "90401" },
-    buyerName: "Sarah Johnson",
-    buyerType: "individual",
-    buyerEmail: "sarah.j@email.com",
-    sellerName: "Beachfront Holdings",
-    purchasePriceCents: 198000000,
-    financingType: "cash",
-    expectedClosingDate: "2026-02-07",
-    notes: null,
-    priority: "normal",
-    status: "in_progress",
-    assignedTo: { id: "u5", name: "Jessica Wang" },
-    assignedAt: "2026-01-24T10:00:00Z",
-    submittedAt: "2026-01-24T08:00:00Z",
-    reportId: "rpt-2026-0082"
-  },
-  {
-    id: "req-012",
-    companyId: "4",
-    companyName: "Bay Area Title Co",
-    requestedBy: "Susan Miller",
-    escrowNumber: "BAT-2026-2198",
-    fileNumber: "F-45678",
-    propertyAddress: { street: "444 Innovation Dr", city: "Menlo Park", state: "CA", zip: "94025" },
-    buyerName: "Innovation Partners LP",
-    buyerType: "entity",
-    buyerEmail: "deals@innovationpartners.com",
-    sellerName: "Tech Campus LLC",
-    purchasePriceCents: 567000000,
-    financingType: "cash",
-    expectedClosingDate: "2026-02-01",
-    notes: "High priority. Multiple LPs to verify.",
-    priority: "urgent",
-    status: "in_progress",
-    assignedTo: { id: "u6", name: "Daniel Kim" },
-    assignedAt: "2026-01-23T15:00:00Z",
-    submittedAt: "2026-01-23T09:00:00Z",
-    reportId: "rpt-2026-0079"
-  },
-  {
-    id: "req-013",
-    companyId: "6",
-    companyName: "Premier Escrow Services",
-    requestedBy: "Patricia Nguyen",
-    escrowNumber: "PES-2026-1098",
-    fileNumber: "F-56789",
-    propertyAddress: { street: "222 Rodeo Dr", city: "Beverly Hills", state: "CA", zip: "90210" },
-    buyerName: "Rodriguez Family Trust",
-    buyerType: "trust",
-    buyerEmail: "trust@rodriguezfamily.com",
-    sellerName: "Luxury Estates Inc",
-    purchasePriceCents: 345000000,
-    financingType: "cash",
-    expectedClosingDate: "2026-02-04",
-    notes: "Trust documentation received. Verifying trustees.",
-    priority: "normal",
-    status: "in_progress",
-    assignedTo: { id: "u7", name: "Rachel Foster" },
-    assignedAt: "2026-01-23T11:00:00Z",
-    submittedAt: "2026-01-22T16:00:00Z",
-    reportId: "rpt-2026-0076"
-  },
+// Transform API response to match our SubmissionRequest interface
+function transformApiResponse(apiData: ApiSubmissionRequest): SubmissionRequest {
+  return {
+    id: apiData.id,
+    companyId: "", // Not provided by API yet
+    companyName: "Client Company", // Placeholder until API provides this
+    requestedBy: "Client User", // Placeholder
+    escrowNumber: apiData.escrow_number || "",
+    fileNumber: "",
+    propertyAddress: apiData.property_address || { street: "", city: "", state: "", zip: "" },
+    buyerName: apiData.buyer_name || "",
+    buyerType: (apiData.buyer_type as "individual" | "entity" | "trust") || "individual",
+    buyerEmail: apiData.buyer_email || "",
+    sellerName: apiData.seller_name || "",
+    purchasePriceCents: apiData.purchase_price_cents || 0,
+    financingType: apiData.financing_type || "unknown",
+    expectedClosingDate: apiData.expected_closing_date || "",
+    notes: apiData.notes || null,
+    priority: "normal" as const, // Default priority
+    status: mapApiStatus(apiData.status),
+    assignedTo: null,
+    submittedAt: apiData.created_at,
+    reportId: apiData.report_id || null,
+  }
+}
 
-  // Completed (12)
-  {
-    id: "req-014",
-    companyId: "3",
-    companyName: "Summit Title Services",
-    requestedBy: "Brian Cooper",
-    escrowNumber: "STS-2026-0756",
-    fileNumber: "F-99887",
-    propertyAddress: { street: "555 Park Ave", city: "San Diego", state: "CA", zip: "92101" },
-    buyerName: "Michael Thompson",
-    buyerType: "individual",
-    buyerEmail: "m.thompson@email.com",
-    sellerName: "Park Avenue Homes",
-    purchasePriceCents: 156000000,
-    financingType: "cash",
-    expectedClosingDate: "2026-01-28",
-    notes: null,
-    priority: "normal",
-    status: "completed",
-    assignedTo: { id: "u4", name: "Michael Thompson" },
-    assignedAt: "2026-01-24T09:00:00Z",
-    completedAt: "2026-01-26T16:30:00Z",
-    submittedAt: "2026-01-24T08:00:00Z",
-    reportId: "rpt-2026-0078"
-  },
-  {
-    id: "req-015",
-    companyId: "2",
-    companyName: "Golden State Escrow",
-    requestedBy: "Steve Martinez",
-    escrowNumber: "GSE-2026-1456",
-    fileNumber: "F-88776",
-    propertyAddress: { street: "123 Golden Gate Way", city: "San Francisco", state: "CA", zip: "94102" },
-    buyerName: "Chen Family Trust",
-    buyerType: "trust",
-    buyerEmail: "chen.trust@email.com",
-    sellerName: "Bay View Properties",
-    purchasePriceCents: 289000000,
-    financingType: "cash",
-    expectedClosingDate: "2026-01-27",
-    notes: null,
-    priority: "normal",
-    status: "completed",
-    assignedTo: { id: "u3", name: "Emily Chen" },
-    assignedAt: "2026-01-23T10:00:00Z",
-    completedAt: "2026-01-26T14:00:00Z",
-    submittedAt: "2026-01-23T08:30:00Z",
-    reportId: "rpt-2026-0075"
-  },
-  {
-    id: "req-016",
-    companyId: "5",
-    companyName: "Coastal Closings Inc",
-    requestedBy: "Nicole Adams",
-    escrowNumber: "CCI-2026-0367",
-    fileNumber: "F-77665",
-    propertyAddress: { street: "888 Coastal Hwy", city: "Laguna Beach", state: "CA", zip: "92651" },
-    buyerName: "David Williams",
-    buyerType: "individual",
-    buyerEmail: "d.williams@email.com",
-    sellerName: "Coastal Investments LLC",
-    purchasePriceCents: 178000000,
-    financingType: "cash",
-    expectedClosingDate: "2026-01-26",
-    notes: null,
-    priority: "normal",
-    status: "completed",
-    assignedTo: { id: "u5", name: "Jessica Wang" },
-    assignedAt: "2026-01-22T14:00:00Z",
-    completedAt: "2026-01-26T11:00:00Z",
-    submittedAt: "2026-01-22T10:00:00Z",
-    reportId: "rpt-2026-0072"
-  },
-  {
-    id: "req-017",
-    companyId: "4",
-    companyName: "Bay Area Title Co",
-    requestedBy: "Greg Thompson",
-    escrowNumber: "BAT-2026-2145",
-    fileNumber: "F-66554",
-    propertyAddress: { street: "456 Silicon Ave", city: "Mountain View", state: "CA", zip: "94043" },
-    buyerName: "Valley Ventures LLC",
-    buyerType: "entity",
-    buyerEmail: "legal@valleyventures.com",
-    sellerName: "Tech Campus Holdings",
-    purchasePriceCents: 423000000,
-    financingType: "cash",
-    expectedClosingDate: "2026-01-25",
-    notes: null,
-    priority: "urgent",
-    status: "completed",
-    assignedTo: { id: "u6", name: "Daniel Kim" },
-    assignedAt: "2026-01-21T09:00:00Z",
-    completedAt: "2026-01-26T09:30:00Z",
-    submittedAt: "2026-01-20T16:00:00Z",
-    reportId: "rpt-2026-0068"
-  },
-  {
-    id: "req-018",
-    companyId: "6",
-    companyName: "Premier Escrow Services",
-    requestedBy: "Mark Davis",
-    escrowNumber: "PES-2026-1067",
-    fileNumber: "F-55443",
-    propertyAddress: { street: "111 Sunset Blvd", city: "West Hollywood", state: "CA", zip: "90069" },
-    buyerName: "Entertainment Holdings LLC",
-    buyerType: "entity",
-    buyerEmail: "admin@entertainmenthold.com",
-    sellerName: "Sunset Properties Inc",
-    purchasePriceCents: 567000000,
-    financingType: "cash",
-    expectedClosingDate: "2026-01-24",
-    notes: null,
-    priority: "normal",
-    status: "completed",
-    assignedTo: { id: "u7", name: "Rachel Foster" },
-    assignedAt: "2026-01-20T11:00:00Z",
-    completedAt: "2026-01-25T15:00:00Z",
-    submittedAt: "2026-01-20T08:00:00Z",
-    reportId: "rpt-2026-0065"
-  },
-  {
-    id: "req-019",
-    companyId: "7",
-    companyName: "Valley Title Group",
-    requestedBy: "Eric Johnson",
-    escrowNumber: "VTG-2026-0534",
-    fileNumber: "F-44332",
-    propertyAddress: { street: "789 Valley View Rd", city: "Encino", state: "CA", zip: "91436" },
-    buyerName: "Amanda Roberts",
-    buyerType: "individual",
-    buyerEmail: "a.roberts@email.com",
-    sellerName: "Encino Estates",
-    purchasePriceCents: 134000000,
-    financingType: "cash",
-    expectedClosingDate: "2026-01-23",
-    notes: null,
-    priority: "normal",
-    status: "completed",
-    assignedTo: { id: "u3", name: "Emily Chen" },
-    assignedAt: "2026-01-19T15:00:00Z",
-    completedAt: "2026-01-25T10:00:00Z",
-    submittedAt: "2026-01-19T11:00:00Z",
-    reportId: "rpt-2026-0062"
-  },
-  {
-    id: "req-020",
-    companyId: "8",
-    companyName: "Sunrise Settlement Co",
-    requestedBy: "Samantha Lee",
-    escrowNumber: "SSC-2026-0198",
-    fileNumber: "F-33221",
-    propertyAddress: { street: "234 Morning Glory Ln", city: "Glendale", state: "CA", zip: "91201" },
-    buyerName: "Morning Star Trust",
-    buyerType: "trust",
-    buyerEmail: "trust@morningstar.com",
-    sellerName: "Glendale Homes LLC",
-    purchasePriceCents: 112000000,
-    financingType: "cash",
-    expectedClosingDate: "2026-01-22",
-    notes: null,
-    priority: "normal",
-    status: "completed",
-    assignedTo: { id: "u4", name: "Michael Thompson" },
-    assignedAt: "2026-01-18T10:00:00Z",
-    completedAt: "2026-01-24T16:00:00Z",
-    submittedAt: "2026-01-18T08:00:00Z",
-    reportId: "rpt-2026-0058"
-  },
-  {
-    id: "req-021",
-    companyId: "10",
-    companyName: "Cornerstone Escrow",
-    requestedBy: "Michelle Park",
-    escrowNumber: "CSE-2026-0745",
-    fileNumber: "F-22110",
-    propertyAddress: { street: "567 Stone Canyon Rd", city: "Bel Air", state: "CA", zip: "90077" },
-    buyerName: "Canyon Partners LLC",
-    buyerType: "entity",
-    buyerEmail: "admin@canyonpartners.com",
-    sellerName: "Stone Estate Holdings",
-    purchasePriceCents: 789000000,
-    financingType: "cash",
-    expectedClosingDate: "2026-01-21",
-    notes: null,
-    priority: "urgent",
-    status: "completed",
-    assignedTo: { id: "u5", name: "Jessica Wang" },
-    assignedAt: "2026-01-17T09:00:00Z",
-    completedAt: "2026-01-24T11:00:00Z",
-    submittedAt: "2026-01-16T15:00:00Z",
-    reportId: "rpt-2026-0055"
-  },
-  {
-    id: "req-022",
-    companyId: "2",
-    companyName: "Golden State Escrow",
-    requestedBy: "Mike Chen",
-    escrowNumber: "GSE-2026-1423",
-    fileNumber: "F-11009",
-    propertyAddress: { street: "890 Market St", city: "San Francisco", state: "CA", zip: "94103" },
-    buyerName: "Market Square LLC",
-    buyerType: "entity",
-    buyerEmail: "legal@marketsquare.com",
-    sellerName: "Urban Developers Inc",
-    purchasePriceCents: 356000000,
-    financingType: "cash",
-    expectedClosingDate: "2026-01-20",
-    notes: null,
-    priority: "normal",
-    status: "completed",
-    assignedTo: { id: "u6", name: "Daniel Kim" },
-    assignedAt: "2026-01-16T14:00:00Z",
-    completedAt: "2026-01-23T15:00:00Z",
-    submittedAt: "2026-01-16T09:00:00Z",
-    reportId: "rpt-2026-0052"
-  },
-  {
-    id: "req-023",
-    companyId: "3",
-    companyName: "Summit Title Services",
-    requestedBy: "Maria Santos",
-    escrowNumber: "STS-2026-0712",
-    fileNumber: "F-00998",
-    propertyAddress: { street: "432 Summit Dr", city: "La Jolla", state: "CA", zip: "92037" },
-    buyerName: "Robert Chen",
-    buyerType: "individual",
-    buyerEmail: "r.chen@email.com",
-    sellerName: "La Jolla Properties",
-    purchasePriceCents: 234500000,
-    financingType: "cash",
-    expectedClosingDate: "2026-01-19",
-    notes: null,
-    priority: "normal",
-    status: "completed",
-    assignedTo: { id: "u7", name: "Rachel Foster" },
-    assignedAt: "2026-01-15T10:00:00Z",
-    completedAt: "2026-01-22T14:00:00Z",
-    submittedAt: "2026-01-15T08:00:00Z",
-    reportId: "rpt-2026-0048"
-  },
-  {
-    id: "req-024",
-    companyId: "5",
-    companyName: "Coastal Closings Inc",
-    requestedBy: "Jason Wright",
-    escrowNumber: "CCI-2026-0334",
-    fileNumber: "F-99887",
-    propertyAddress: { street: "765 Pacific Coast Hwy", city: "Huntington Beach", state: "CA", zip: "92648" },
-    buyerName: "Pacific Dreams LLC",
-    buyerType: "entity",
-    buyerEmail: "info@pacificdreams.com",
-    sellerName: "Surfside Holdings",
-    purchasePriceCents: 198700000,
-    financingType: "cash",
-    expectedClosingDate: "2026-01-18",
-    notes: null,
-    priority: "normal",
-    status: "completed",
-    assignedTo: { id: "u3", name: "Emily Chen" },
-    assignedAt: "2026-01-14T11:00:00Z",
-    completedAt: "2026-01-21T16:00:00Z",
-    submittedAt: "2026-01-14T08:30:00Z",
-    reportId: "rpt-2026-0045"
-  },
-  {
-    id: "req-025",
-    companyId: "4",
-    companyName: "Bay Area Title Co",
-    requestedBy: "David Park",
-    escrowNumber: "BAT-2026-2112",
-    fileNumber: "F-88776",
-    propertyAddress: { street: "321 University Ave", city: "Berkeley", state: "CA", zip: "94702" },
-    buyerName: "University Holdings Trust",
-    buyerType: "trust",
-    buyerEmail: "trust@uniholdings.com",
-    sellerName: "Berkeley Real Estate LLC",
-    purchasePriceCents: 145000000,
-    financingType: "cash",
-    expectedClosingDate: "2026-01-17",
-    notes: null,
-    priority: "normal",
-    status: "completed",
-    assignedTo: { id: "u4", name: "Michael Thompson" },
-    assignedAt: "2026-01-13T09:00:00Z",
-    completedAt: "2026-01-20T11:00:00Z",
-    submittedAt: "2026-01-13T07:30:00Z",
-    reportId: "rpt-2026-0042"
-  },
-]
+// Map API status to our local status type
+function mapApiStatus(apiStatus: string): "pending" | "in_progress" | "completed" | "cancelled" {
+  const statusMap: Record<string, "pending" | "in_progress" | "completed" | "cancelled"> = {
+    pending: "pending",
+    assigned: "in_progress",
+    in_progress: "in_progress",
+    completed: "completed",
+    cancelled: "cancelled",
+  }
+  return statusMap[apiStatus] || "pending"
+}
+
+// API response type
+interface ApiSubmissionRequest {
+  id: string
+  status: string
+  property_address: { street: string; city: string; state: string; zip: string } | null
+  purchase_price_cents: number | null
+  expected_closing_date: string | null
+  escrow_number: string | null
+  financing_type: string | null
+  buyer_name: string | null
+  buyer_email: string | null
+  buyer_type: string | null
+  seller_name: string | null
+  seller_email: string | null
+  notes: string | null
+  report_id: string | null
+  created_at: string
+  updated_at: string
+}
 
 function formatTimeAgo(dateStr: string): string {
   const date = new Date(dateStr)
@@ -655,6 +128,12 @@ function truncateAddress(address: { street: string; city: string; state: string 
 
 export default function AdminRequestsPage() {
   const router = useRouter()
+  const { toast } = useToast()
+  
+  // State
+  const [requests, setRequests] = useState<SubmissionRequest[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [priorityFilter, setPriorityFilter] = useState<string>("all")
@@ -662,25 +141,55 @@ export default function AdminRequestsPage() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [isCreatingReport, setIsCreatingReport] = useState<string | null>(null)
 
+  // Fetch requests from API
+  const fetchRequests = useCallback(async () => {
+    try {
+      setError(null)
+      const response = await fetch(`${API_BASE_URL}/submission-requests`)
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch requests: ${response.status}`)
+      }
+      
+      const data: ApiSubmissionRequest[] = await response.json()
+      const transformedData = data.map(transformApiResponse)
+      setRequests(transformedData)
+    } catch (err) {
+      console.error("Failed to fetch requests:", err)
+      setError(err instanceof Error ? err.message : "Failed to load requests")
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  // Initial fetch and polling
+  useEffect(() => {
+    fetchRequests()
+    
+    // Poll every 30 seconds for updates
+    const interval = setInterval(fetchRequests, 30000)
+    return () => clearInterval(interval)
+  }, [fetchRequests])
+
   // Calculate stats
   const stats = useMemo(() => {
-    const pending = mockSubmissionRequests.filter(r => r.status === "pending").length
-    const inProgress = mockSubmissionRequests.filter(r => r.status === "in_progress").length
+    const pending = requests.filter(r => r.status === "pending").length
+    const inProgress = requests.filter(r => r.status === "in_progress").length
     const today = new Date().toDateString()
-    const completedToday = mockSubmissionRequests.filter(
+    const completedToday = requests.filter(
       r => r.status === "completed" && r.completedAt && new Date(r.completedAt).toDateString() === today
     ).length
     return {
       pending,
       inProgress,
       completedToday,
-      avgProcessingHours: 4.2, // Mock value
+      avgProcessingHours: 4.2, // TODO: Calculate from actual data
     }
-  }, [])
+  }, [requests])
 
   // Filter requests
   const filteredRequests = useMemo(() => {
-    return mockSubmissionRequests.filter(request => {
+    return requests.filter(request => {
       const matchesSearch = 
         request.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
         request.companyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -691,7 +200,7 @@ export default function AdminRequestsPage() {
       const matchesPriority = priorityFilter === "all" || request.priority === priorityFilter
       return matchesSearch && matchesStatus && matchesPriority
     })
-  }, [searchQuery, statusFilter, priorityFilter])
+  }, [requests, searchQuery, statusFilter, priorityFilter])
 
   const handleViewRequest = (request: SubmissionRequest) => {
     setSelectedRequest(request)
@@ -700,12 +209,12 @@ export default function AdminRequestsPage() {
 
   const handleAssign = (requestId: string, userId: string) => {
     console.log("Assign request", requestId, "to user", userId)
-    // Demo: would update state here
+    // TODO: Implement assignment API call
   }
 
   const handleStartWizard = async (requestId: string) => {
     // Find the request to get its reportId
-    const request = mockSubmissionRequests.find(r => r.id === requestId)
+    const request = requests.find(r => r.id === requestId)
     
     if (request?.reportId) {
       // Navigate to existing report wizard
@@ -713,26 +222,43 @@ export default function AdminRequestsPage() {
       return
     }
     
-    // Create a new report first
+    // Create a new report from this submission
     setIsCreatingReport(requestId)
     
     try {
-      const propertyAddress = request?.propertyAddress
-      const addressText = propertyAddress 
-        ? `${propertyAddress.street}, ${propertyAddress.city}, ${propertyAddress.state} ${propertyAddress.zip}`
-        : undefined
-
-      const newReport = await createReport({
-        property_address_text: addressText,
+      const response = await fetch(`${API_BASE_URL}/submission-requests/${requestId}/create-report`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.detail || `Failed to create report: ${response.status}`)
+      }
+      
+      const result = await response.json()
+      
+      toast({
+        title: "Report Created",
+        description: "Opening wizard...",
       })
       
       // Navigate to the wizard with the REAL report ID
-      router.push(`/app/reports/${newReport.id}/wizard`)
+      router.push(result.redirect_url)
       setSheetOpen(false)
+      
+      // Refresh the list to show updated status
+      fetchRequests()
       
     } catch (error) {
       console.error("Failed to create report:", error)
-      alert("Failed to create report. Please try again.")
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to create report. Please try again.",
+        variant: "destructive",
+      })
     } finally {
       setIsCreatingReport(null)
     }
@@ -740,8 +266,41 @@ export default function AdminRequestsPage() {
 
   const handleCancel = (requestId: string) => {
     console.log("Cancel request", requestId)
-    // Demo: would update status
+    // TODO: Implement cancel API call
     setSheetOpen(false)
+  }
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading requests...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Card className="max-w-md">
+          <CardContent className="pt-6">
+            <div className="text-center">
+              <AlertTriangle className="h-12 w-12 text-destructive mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Failed to Load Requests</h3>
+              <p className="text-muted-foreground mb-4">{error}</p>
+              <Button onClick={fetchRequests}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Try Again
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (
@@ -752,6 +311,10 @@ export default function AdminRequestsPage() {
           <h1 className="text-2xl font-bold text-slate-900">Submission Requests</h1>
           <p className="text-slate-500">Process incoming FinCEN filing requests from clients</p>
         </div>
+        <Button variant="outline" size="sm" onClick={fetchRequests}>
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Refresh
+        </Button>
       </div>
 
       {/* Stats */}
@@ -854,7 +417,7 @@ export default function AdminRequestsPage() {
                 <TabsTrigger value="pending" className="gap-1.5">
                   Pending
                   <Badge variant="secondary" className="h-5 px-1.5 bg-amber-100 text-amber-700">
-                    {mockSubmissionRequests.filter(r => r.status === "pending").length}
+                    {requests.filter(r => r.status === "pending").length}
                   </Badge>
                 </TabsTrigger>
                 <TabsTrigger value="in_progress">In Progress</TabsTrigger>
@@ -885,7 +448,10 @@ export default function AdminRequestsPage() {
                 {filteredRequests.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={10} className="text-center py-8 text-slate-500">
-                      No requests found matching your filters
+                      {requests.length === 0 
+                        ? "No submission requests yet. They will appear here when clients submit new requests."
+                        : "No requests found matching your filters"
+                      }
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -900,7 +466,7 @@ export default function AdminRequestsPage() {
                     >
                       <TableCell>
                         <Badge variant="outline" className="font-mono text-xs">
-                          {request.id.toUpperCase()}
+                          {request.id.slice(0, 8).toUpperCase()}
                         </Badge>
                       </TableCell>
                       <TableCell>
@@ -913,16 +479,19 @@ export default function AdminRequestsPage() {
                         <div className="flex items-center gap-1.5 text-sm text-slate-600">
                           <MapPin className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
                           <span className="truncate max-w-[180px]">
-                            {truncateAddress(request.propertyAddress)}
+                            {request.propertyAddress?.street 
+                              ? truncateAddress(request.propertyAddress)
+                              : "—"
+                            }
                           </span>
                         </div>
                       </TableCell>
                       <TableCell className="font-medium text-sm">
-                        {request.buyerName}
+                        {request.buyerName || "—"}
                       </TableCell>
                       <TableCell>
                         <span className="font-mono text-xs text-slate-600">
-                          {request.escrowNumber}
+                          {request.escrowNumber || "—"}
                         </span>
                       </TableCell>
                       <TableCell>
@@ -961,16 +530,17 @@ export default function AdminRequestsPage() {
             </Table>
           </div>
 
-          {/* Demo Notice */}
-          <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-            <p className="text-sm text-amber-700 flex items-center gap-2">
-              <span className="text-lg">📋</span>
-              <span>
-                <strong>Demo data</strong> — This is sample request data for demonstration purposes.
-                Request processing features will be available post-launch.
-              </span>
-            </p>
-          </div>
+          {/* Connection status */}
+          {requests.length > 0 && (
+            <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+              <p className="text-sm text-green-700 flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4" />
+                <span>
+                  Connected to live data • Auto-refreshes every 30 seconds
+                </span>
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -982,6 +552,7 @@ export default function AdminRequestsPage() {
         onAssign={handleAssign}
         onStartWizard={handleStartWizard}
         onCancel={handleCancel}
+        isCreatingReport={isCreatingReport}
       />
     </div>
   )
