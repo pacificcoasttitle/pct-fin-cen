@@ -44,7 +44,15 @@ import {
   Sparkles,
   Check,
   User,
-  Landmark
+  Landmark,
+  Mail,
+  Copy,
+  ExternalLink,
+  RefreshCw,
+  Send,
+  Eye,
+  FileCheck,
+  Rocket
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
@@ -290,6 +298,19 @@ export function RRERQuestionnaire({ initialData, onChange, saveStatus }: RRERQue
   const [determinationId] = useState(generateDeterminationId)
   const [createdAt] = useState(() => new Date().toISOString())
   const [lastSavedAt, setLastSavedAt] = useState<string | undefined>()
+  
+  // NEW: Party Setup State for restructured wizard flow
+  const [partySetup, setPartySetup] = useState<{
+    sellers: { id: string; name: string; email: string; type: "individual" | "entity" | "trust"; entityName?: string }[]
+    buyers: { id: string; name: string; email: string; type: "individual" | "entity" | "trust"; entityName?: string }[]
+  }>({
+    sellers: [],
+    buyers: [],
+  })
+  const [reviewCertified, setReviewCertified] = useState(false)
+  const [fileCertified, setFileCertified] = useState(false)
+  const [readyCheckResult, setReadyCheckResult] = useState<{ ready: boolean; errors: string[] } | null>(null)
+  const [filingResult, setFilingResult] = useState<{ success: boolean; receiptId?: string; error?: string } | null>(null)
 
   // Call onChange when data changes (for autosave)
   useEffect(() => {
@@ -433,15 +454,16 @@ export function RRERQuestionnaire({ initialData, onChange, saveStatus }: RRERQue
     return steps
   }, [determination, determinationResult])
 
-  // Collection steps
+  // Collection steps - NEW RESTRUCTURED FLOW
+  // Phase 2 now focuses on party setup and monitoring, not data entry
+  // Parties fill out their own info via the party portal
   const collectionSteps: CollectionStepId[] = [
-    "transaction-property",
-    "seller-info",
-    "buyer-info",
-    "signing-individuals",
-    "payment-info",
-    "reporting-person",
-    "certifications",
+    "transaction-property",  // PCT enters closing date, price, property details
+    "party-setup",           // Add parties (name, email, type), send links
+    "monitor-progress",      // Track party submissions with polling
+    "review-submissions",    // View all submitted party data
+    "reporting-person",      // PCT internal info
+    "file-report",           // Final certification and file
   ]
 
   // Progress calculations
@@ -1497,7 +1519,326 @@ export function RRERQuestionnaire({ initialData, onChange, saveStatus }: RRERQue
                   </>
                 )}
 
-                {/* Seller Information */}
+                {/* NEW: Party Setup Step */}
+                {collectionStep === "party-setup" && (
+                  <>
+                    <SectionHeader 
+                      step="Section 2B: Party Setup"
+                      title="Party Setup"
+                      description="Identify all parties and send them secure information requests"
+                    />
+                    <CardContent className="pt-6 space-y-6">
+                      {/* Sellers Section */}
+                      <div>
+                        <h4 className="font-semibold flex items-center gap-2 mb-4">
+                          <User className="w-4 h-4" />
+                          Sellers
+                        </h4>
+                        <div className="space-y-3">
+                          {partySetup.sellers.map((seller, index) => (
+                            <div key={seller.id} className="p-4 border rounded-lg space-y-3 bg-muted/30">
+                              <div className="flex items-center justify-between">
+                                <span className="font-medium">Seller {index + 1}</span>
+                                {partySetup.sellers.length > 1 && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setPartySetup(prev => ({
+                                      ...prev,
+                                      sellers: prev.sellers.filter(s => s.id !== seller.id)
+                                    }))}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                )}
+                              </div>
+                              <div className="grid gap-3 md:grid-cols-2">
+                                <div className="grid gap-2">
+                                  <Label>Name *</Label>
+                                  <Input
+                                    value={seller.name}
+                                    onChange={(e) => setPartySetup(prev => ({
+                                      ...prev,
+                                      sellers: prev.sellers.map(s => s.id === seller.id ? { ...s, name: e.target.value } : s)
+                                    }))}
+                                    placeholder="John Smith"
+                                  />
+                                </div>
+                                <div className="grid gap-2">
+                                  <Label>Email *</Label>
+                                  <Input
+                                    type="email"
+                                    value={seller.email}
+                                    onChange={(e) => setPartySetup(prev => ({
+                                      ...prev,
+                                      sellers: prev.sellers.map(s => s.id === seller.id ? { ...s, email: e.target.value } : s)
+                                    }))}
+                                    placeholder="john@email.com"
+                                  />
+                                </div>
+                              </div>
+                              <div className="grid gap-2">
+                                <Label>Type *</Label>
+                                <div className="flex gap-4">
+                                  {(["individual", "entity", "trust"] as const).map(type => (
+                                    <label key={type} className="flex items-center gap-2 cursor-pointer">
+                                      <input
+                                        type="radio"
+                                        name={`seller-type-${seller.id}`}
+                                        checked={seller.type === type}
+                                        onChange={() => setPartySetup(prev => ({
+                                          ...prev,
+                                          sellers: prev.sellers.map(s => s.id === seller.id ? { ...s, type } : s)
+                                        }))}
+                                        className="w-4 h-4"
+                                      />
+                                      <span className="capitalize">{type}</span>
+                                    </label>
+                                  ))}
+                                </div>
+                              </div>
+                              {(seller.type === "entity" || seller.type === "trust") && (
+                                <div className="grid gap-2">
+                                  <Label>Entity/Trust Name</Label>
+                                  <Input
+                                    value={seller.entityName || ""}
+                                    onChange={(e) => setPartySetup(prev => ({
+                                      ...prev,
+                                      sellers: prev.sellers.map(s => s.id === seller.id ? { ...s, entityName: e.target.value } : s)
+                                    }))}
+                                    placeholder="Smith Family Trust"
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                          <Button
+                            variant="outline"
+                            onClick={() => setPartySetup(prev => ({
+                              ...prev,
+                              sellers: [...prev.sellers, { id: generateId(), name: "", email: "", type: "individual" }]
+                            }))}
+                            className="w-full"
+                          >
+                            <Plus className="w-4 h-4 mr-2" />
+                            Add Seller
+                          </Button>
+                        </div>
+                      </div>
+
+                      <Separator />
+
+                      {/* Buyers Section */}
+                      <div>
+                        <h4 className="font-semibold flex items-center gap-2 mb-4">
+                          <Building2 className="w-4 h-4" />
+                          Buyers
+                        </h4>
+                        <div className="space-y-3">
+                          {partySetup.buyers.map((buyer, index) => (
+                            <div key={buyer.id} className="p-4 border rounded-lg space-y-3 bg-muted/30">
+                              <div className="flex items-center justify-between">
+                                <span className="font-medium">Buyer {index + 1}</span>
+                                {partySetup.buyers.length > 1 && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setPartySetup(prev => ({
+                                      ...prev,
+                                      buyers: prev.buyers.filter(b => b.id !== buyer.id)
+                                    }))}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                )}
+                              </div>
+                              <div className="grid gap-3 md:grid-cols-2">
+                                <div className="grid gap-2">
+                                  <Label>Name/Entity Name *</Label>
+                                  <Input
+                                    value={buyer.name}
+                                    onChange={(e) => setPartySetup(prev => ({
+                                      ...prev,
+                                      buyers: prev.buyers.map(b => b.id === buyer.id ? { ...b, name: e.target.value } : b)
+                                    }))}
+                                    placeholder="ABC Holdings LLC"
+                                  />
+                                </div>
+                                <div className="grid gap-2">
+                                  <Label>Contact Email *</Label>
+                                  <Input
+                                    type="email"
+                                    value={buyer.email}
+                                    onChange={(e) => setPartySetup(prev => ({
+                                      ...prev,
+                                      buyers: prev.buyers.map(b => b.id === buyer.id ? { ...b, email: e.target.value } : b)
+                                    }))}
+                                    placeholder="contact@abc.com"
+                                  />
+                                </div>
+                              </div>
+                              <div className="grid gap-2">
+                                <Label>Type *</Label>
+                                <div className="flex gap-4">
+                                  {(["individual", "entity", "trust"] as const).map(type => (
+                                    <label key={type} className="flex items-center gap-2 cursor-pointer">
+                                      <input
+                                        type="radio"
+                                        name={`buyer-type-${buyer.id}`}
+                                        checked={buyer.type === type}
+                                        onChange={() => setPartySetup(prev => ({
+                                          ...prev,
+                                          buyers: prev.buyers.map(b => b.id === buyer.id ? { ...b, type } : b)
+                                        }))}
+                                        className="w-4 h-4"
+                                      />
+                                      <span className="capitalize">{type}</span>
+                                    </label>
+                                  ))}
+                                </div>
+                              </div>
+                              {buyer.type !== "individual" && (
+                                <Alert className="bg-blue-50 border-blue-200">
+                                  <Info className="w-4 h-4 text-blue-600" />
+                                  <AlertDescription className="text-blue-700 text-sm">
+                                    This party will be asked to provide:
+                                    <ul className="list-disc list-inside mt-1">
+                                      <li>Entity details (EIN, formation state, address)</li>
+                                      <li>All beneficial owners (25%+ ownership or control)</li>
+                                      <li>Signing individual information</li>
+                                      <li>Payment source details</li>
+                                    </ul>
+                                  </AlertDescription>
+                                </Alert>
+                              )}
+                            </div>
+                          ))}
+                          <Button
+                            variant="outline"
+                            onClick={() => setPartySetup(prev => ({
+                              ...prev,
+                              buyers: [...prev.buyers, { id: generateId(), name: "", email: "", type: "entity" }]
+                            }))}
+                            className="w-full"
+                          >
+                            <Plus className="w-4 h-4 mr-2" />
+                            Add Buyer
+                          </Button>
+                        </div>
+                      </div>
+
+                      <Separator />
+
+                      {/* Email Preview */}
+                      <div className="p-4 bg-muted/50 rounded-lg">
+                        <h4 className="font-medium flex items-center gap-2 mb-2">
+                          <Mail className="w-4 h-4" />
+                          Email Preview
+                        </h4>
+                        <p className="text-sm text-muted-foreground">
+                          Each party will receive a secure link via email. Links expire in 30 days.
+                        </p>
+                        {collection.propertyAddress && (
+                          <p className="text-sm mt-2">
+                            <strong>Property:</strong> {collection.propertyAddress.street}, {collection.propertyAddress.city}, {collection.propertyAddress.state} {collection.propertyAddress.zip}
+                          </p>
+                        )}
+                      </div>
+
+                      <Alert className="bg-amber-50 border-amber-200">
+                        <AlertTriangle className="w-4 h-4 text-amber-600" />
+                        <AlertDescription className="text-amber-700">
+                          Links will be sent immediately upon clicking Continue.
+                        </AlertDescription>
+                      </Alert>
+                    </CardContent>
+                  </>
+                )}
+
+                {/* NEW: Monitor Progress Step */}
+                {collectionStep === "monitor-progress" && (
+                  <>
+                    <SectionHeader 
+                      step="Section 2C: Monitor Progress"
+                      title="Monitoring Party Submissions"
+                      description="Track information submissions from all parties"
+                    />
+                    <CardContent className="pt-6 space-y-6">
+                      <div className="text-center p-8 bg-muted/30 rounded-lg">
+                        <RefreshCw className="w-12 h-12 mx-auto mb-4 text-muted-foreground animate-spin" />
+                        <h3 className="font-semibold text-lg mb-2">Waiting for Party Submissions</h3>
+                        <p className="text-muted-foreground mb-4">
+                          Party status is monitored in the wizard page&apos;s sidebar. 
+                          You can also check the party status section above.
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          Auto-refreshing every 15 seconds when all parties haven&apos;t submitted yet.
+                        </p>
+                      </div>
+
+                      <Alert>
+                        <Info className="w-4 h-4" />
+                        <AlertDescription>
+                          Once all parties have submitted their information, the &quot;Continue&quot; button 
+                          will become active and you can proceed to review the submissions.
+                        </AlertDescription>
+                      </Alert>
+                    </CardContent>
+                  </>
+                )}
+
+                {/* NEW: Review Submissions Step */}
+                {collectionStep === "review-submissions" && (
+                  <>
+                    <SectionHeader 
+                      step="Section 2D: Review Submissions"
+                      title="Review Party Submissions"
+                      description="Review all information before filing to FinCEN"
+                    />
+                    <CardContent className="pt-6 space-y-6">
+                      <div className="p-6 bg-muted/30 rounded-lg text-center">
+                        <Eye className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                        <h3 className="font-semibold text-lg mb-2">Party Data Review</h3>
+                        <p className="text-muted-foreground mb-4">
+                          For a detailed view of all party submissions, use the dedicated Review page.
+                        </p>
+                        <Button variant="outline" asChild>
+                          <a href={`/app/reports/${window.location.pathname.split('/')[3]}/review`} target="_blank" rel="noopener noreferrer">
+                            <ExternalLink className="w-4 h-4 mr-2" />
+                            Open Full Review Page
+                          </a>
+                        </Button>
+                      </div>
+
+                      <Separator />
+
+                      <div className="p-4 border rounded-lg space-y-3">
+                        <h4 className="font-medium flex items-center gap-2">
+                          <Shield className="w-4 h-4" />
+                          Reviewer Certification
+                        </h4>
+                        <div className="flex items-start gap-2">
+                          <Checkbox
+                            id="review-cert"
+                            checked={reviewCertified}
+                            onCheckedChange={(checked) => setReviewCertified(!!checked)}
+                          />
+                          <Label htmlFor="review-cert" className="text-sm leading-relaxed cursor-pointer">
+                            I have reviewed all party submissions and confirm the information appears 
+                            complete and accurate to the best of my knowledge.
+                          </Label>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </>
+                )}
+
+                {/* OLD STEPS - These are now handled by the party portal */}
+                {/* The old seller-info, buyer-info, signing-individuals, payment-info, 
+                    and certifications steps have been replaced by the new workflow above.
+                    Parties now fill out their own information via the secure party portal. */}
+
+                {/* Seller Information - DEPRECATED: Parties fill this via portal */}
                 {collectionStep === "seller-info" && (
                   <>
                     <SectionHeader 
@@ -3111,7 +3452,152 @@ export function RRERQuestionnaire({ initialData, onChange, saveStatus }: RRERQue
                   </>
                 )}
 
-                {/* Certifications */}
+                {/* NEW: File Report Step */}
+                {collectionStep === "file-report" && (
+                  <>
+                    <SectionHeader 
+                      step="Section 2F: File Report"
+                      title="File Report to FinCEN"
+                      description="Final review and submission"
+                    />
+                    <CardContent className="pt-6 space-y-6">
+                      {/* Filing Summary */}
+                      <div className="p-4 bg-muted/30 rounded-lg space-y-3">
+                        <h4 className="font-semibold flex items-center gap-2">
+                          <FileText className="w-4 h-4" />
+                          Filing Summary
+                        </h4>
+                        <div className="grid gap-2 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Property:</span>
+                            <span className="font-medium">
+                              {collection.propertyAddress 
+                                ? `${collection.propertyAddress.street}, ${collection.propertyAddress.city}, ${collection.propertyAddress.state}` 
+                                : "Not specified"}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Purchase Price:</span>
+                            <span className="font-medium">
+                              {collection.purchasePrice 
+                                ? `$${collection.purchasePrice.toLocaleString()}` 
+                                : "Not specified"}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Closing Date:</span>
+                            <span className="font-medium">
+                              {collection.closingDate 
+                                ? new Date(collection.closingDate).toLocaleDateString() 
+                                : "Not specified"}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Determination:</span>
+                            <Badge variant="destructive">REPORTABLE</Badge>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Pre-Filing Check */}
+                      <div className="p-4 border rounded-lg space-y-3">
+                        <h4 className="font-semibold flex items-center gap-2">
+                          <FileCheck className="w-4 h-4" />
+                          Pre-Filing Check
+                        </h4>
+                        {readyCheckResult ? (
+                          readyCheckResult.ready ? (
+                            <Alert className="bg-green-50 border-green-200">
+                              <CheckCircle2 className="w-4 h-4 text-green-600" />
+                              <AlertDescription className="text-green-700">
+                                All checks passed. Ready to file.
+                              </AlertDescription>
+                            </Alert>
+                          ) : (
+                            <Alert variant="destructive">
+                              <XCircle className="w-4 h-4" />
+                              <AlertDescription>
+                                <strong>Issues found:</strong>
+                                <ul className="list-disc list-inside mt-1">
+                                  {readyCheckResult.errors.map((error, i) => (
+                                    <li key={i}>{error}</li>
+                                  ))}
+                                </ul>
+                              </AlertDescription>
+                            </Alert>
+                          )
+                        ) : (
+                          <Button 
+                            variant="outline" 
+                            onClick={() => setReadyCheckResult({ ready: true, errors: [] })}
+                          >
+                            Run Pre-Filing Check
+                          </Button>
+                        )}
+                      </div>
+
+                      {/* Final Certification */}
+                      <div className="p-4 border rounded-lg space-y-3">
+                        <h4 className="font-semibold flex items-center gap-2">
+                          <Shield className="w-4 h-4" />
+                          Final Certification
+                        </h4>
+                        <div className="flex items-start gap-2">
+                          <Checkbox
+                            id="file-cert"
+                            checked={fileCertified}
+                            onCheckedChange={(checked) => setFileCertified(!!checked)}
+                          />
+                          <Label htmlFor="file-cert" className="text-sm leading-relaxed cursor-pointer">
+                            I certify that:
+                            <ul className="list-disc list-inside mt-1 text-muted-foreground">
+                              <li>I have reviewed all information in this report</li>
+                              <li>The information is accurate to the best of my knowledge</li>
+                              <li>I am authorized to submit this report on behalf of {collection.reportingPerson?.companyName || "the reporting company"}</li>
+                            </ul>
+                          </Label>
+                        </div>
+                      </div>
+
+                      {filingResult ? (
+                        filingResult.success ? (
+                          <div className="p-6 bg-green-50 border border-green-200 rounded-lg text-center">
+                            <CheckCircle2 className="w-16 h-16 mx-auto mb-4 text-green-600" />
+                            <h3 className="text-xl font-bold text-green-800 mb-2">Report Successfully Filed!</h3>
+                            <p className="text-green-700 mb-4">Your report has been submitted to FinCEN.</p>
+                            <div className="p-3 bg-green-100 rounded-lg inline-block">
+                              <p className="text-xs text-green-600 font-medium uppercase">Receipt ID</p>
+                              <p className="text-lg font-mono font-bold text-green-800">{filingResult.receiptId}</p>
+                            </div>
+                          </div>
+                        ) : (
+                          <Alert variant="destructive">
+                            <XCircle className="w-4 h-4" />
+                            <AlertTitle>Filing Failed</AlertTitle>
+                            <AlertDescription>{filingResult.error}</AlertDescription>
+                          </Alert>
+                        )
+                      ) : (
+                        <Button 
+                          className="w-full h-12 text-lg gap-2"
+                          disabled={!readyCheckResult?.ready || !fileCertified}
+                          onClick={() => setFilingResult({ success: true, receiptId: `BSA-${new Date().getFullYear()}-${Date.now().toString().slice(-8)}` })}
+                        >
+                          <Rocket className="w-5 h-5" />
+                          Submit to FinCEN
+                        </Button>
+                      )}
+
+                      {collection.reportingPerson?.email && (
+                        <p className="text-sm text-muted-foreground text-center">
+                          A copy of the filing confirmation will be sent to: {collection.reportingPerson.email}
+                        </p>
+                      )}
+                    </CardContent>
+                  </>
+                )}
+
+                {/* OLD STEP: Certifications - DEPRECATED: Parties certify via portal */}
                 {collectionStep === "certifications" && (
                   <>
                     <SectionHeader 
@@ -3369,12 +3855,11 @@ export function RRERQuestionnaire({ initialData, onChange, saveStatus }: RRERQue
                     <h4 className="font-semibold">Section Completion Status</h4>
                     {[
                       { key: "transaction", label: "Transaction & Property", step: "transaction-property" as CollectionStepId },
-                      { key: "sellers", label: "Seller Information", step: "seller-info" as CollectionStepId },
-                      { key: "buyer", label: "Buyer Information", step: "buyer-info" as CollectionStepId },
-                      { key: "signingIndividuals", label: "Signing Individuals", step: "signing-individuals" as CollectionStepId },
-                      { key: "payment", label: "Payment Information", step: "payment-info" as CollectionStepId },
+                      { key: "partySetup", label: "Party Setup", step: "party-setup" as CollectionStepId },
+                      { key: "monitorProgress", label: "Monitor Progress", step: "monitor-progress" as CollectionStepId },
+                      { key: "reviewSubmissions", label: "Review Submissions", step: "review-submissions" as CollectionStepId },
                       { key: "reportingPerson", label: "Reporting Person", step: "reporting-person" as CollectionStepId },
-                      { key: "certifications", label: "Certifications", step: "certifications" as CollectionStepId },
+                      { key: "fileReport", label: "File Report", step: "file-report" as CollectionStepId },
                     ].map(({ key, label, step }) => (
                       <div 
                         key={key} 

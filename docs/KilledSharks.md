@@ -9,7 +9,7 @@
 | Category | Count |
 |----------|-------|
 | 🔴 Critical Fixes | 2 |
-| 🟠 Major Features | 3 |
+| 🟠 Major Features | 4 |
 | 📄 Documentation | 3 |
 
 ---
@@ -201,6 +201,72 @@ web/components/party-portal/
 
 ---
 
+### 6. Wizard Flow Restructure ✅ (P2)
+
+**Problem:** The wizard was collecting ALL party data (seller info, buyer info, beneficial owners, payment) directly. This is WRONG - parties should fill out their OWN information via the secure party portal.
+
+**Solution:** Restructured Phase 2 (Collection) with new steps:
+
+**OLD Collection Steps (REMOVED):**
+```
+transaction-property → seller-info → buyer-info → signing-individuals → 
+payment-info → reporting-person → certifications
+```
+
+**NEW Collection Steps:**
+```
+transaction-property → party-setup → monitor-progress → review-submissions → 
+reporting-person → file-report
+```
+
+**New Step Details:**
+
+| Step | Purpose | Key Features |
+|------|---------|--------------|
+| `transaction-property` | KEPT - PCT enters closing date, price, property | Unchanged |
+| `party-setup` | NEW - Add parties (name, email, type) | Sellers + Buyers sections, email previews |
+| `monitor-progress` | NEW - Track party submissions | Auto-refresh status, waiting message |
+| `review-submissions` | NEW - View party-submitted data | Links to full review page, staff certification |
+| `reporting-person` | KEPT - PCT internal info | Unchanged |
+| `file-report` | NEW - Final certification and file | Pre-filing check, final certification, submit button |
+
+**What Changed:**
+1. `CollectionStepId` type updated in `web/lib/rrer-types.ts`
+2. `collectionSteps` array updated in `web/components/rrer-questionnaire.tsx`
+3. Added new state: `partySetup`, `reviewCertified`, `fileCertified`, `readyCheckResult`, `filingResult`
+4. Added new step UI components for all 4 new steps
+5. Old collection step UIs kept (commented as deprecated) for data compatibility
+6. Updated section completion status display
+
+**party-setup Step Features:**
+- Add/remove multiple sellers and buyers
+- Capture name, email, and type for each party
+- Entity/trust type shows info box about what will be collected
+- Email preview card showing property address
+- Warning alert: "Links will be sent immediately"
+
+**file-report Step Features:**
+- Filing summary (property, price, closing date, determination)
+- Pre-filing check button with pass/fail display
+- Final certification checkbox with detailed terms
+- "Submit to FinCEN" button (disabled until ready + certified)
+- Success state shows receipt ID
+
+**Files Changed:**
+- `web/lib/rrer-types.ts` (updated CollectionStepId)
+- `web/components/rrer-questionnaire.tsx` (~300 lines added for new steps)
+
+**Flow Now Correct:**
+```
+PCT Staff → Determination → Party Setup → Send Links
+                               ↓
+Parties → Fill own info via portal → Submit
+                               ↓
+PCT Staff → Monitor → Review → File
+```
+
+---
+
 ## 📄 Documentation Created
 
 ### 4. Gap Analysis (`docs/GAP_ANALYSIS.md`) ✅
@@ -241,7 +307,7 @@ These were identified but not yet addressed:
 |-----|----------|--------|
 | ~~Party portal missing 25+ FinCEN fields~~ | ~~P1~~ | ✅ **FIXED** |
 | ~~No party data review screen~~ | ~~P1~~ | ✅ **FIXED** |
-| Wizard collects party data (should only do determination) | P2 | Pending |
+| ~~Wizard collects party data (should only do determination)~~ | ~~P2~~ | ✅ **FIXED** |
 | No purchase_price in Report model | P2 | Pending |
 
 ---
@@ -255,6 +321,7 @@ These were identified but not yet addressed:
 5. `feat: P1 - Create party data review screen with wizard navigation`
 6. `fix: add email-validator dependency for Pydantic EmailStr`
 7. `feat: P1 - Enhanced party portal with full FinCEN fields`
+8. `feat: P2 - Restructure wizard collection phase with new flow`
 
 ---
 
@@ -279,6 +346,11 @@ These were identified but not yet addressed:
 - [x] BeneficialOwnerCard add/remove works
 - [x] PaymentSourceCard with amount validation
 - [x] Certification section with digital signature
+- [x] Wizard collection steps updated (6 new steps)
+- [x] party-setup step add/remove parties works
+- [x] monitor-progress step displays
+- [x] review-submissions step with certification
+- [x] file-report step with pre-check and submit
 
 ---
 
@@ -286,8 +358,10 @@ These were identified but not yet addressed:
 
 1. ~~**P1:** Expand party portal with required FinCEN fields~~ ✅ DONE
 2. ~~**P1:** Create party data review screen for staff~~ ✅ DONE
-3. **P2:** Refactor wizard collection phase
+3. ~~**P2:** Refactor wizard collection phase~~ ✅ DONE
 4. **P2:** Add Trust buyer form with trustees/settlors/beneficiaries
+5. **P2:** Wire party-setup "Send Links" to API (currently UI-only)
+6. **P2:** Wire file-report "Submit to FinCEN" to real API
 
 ---
 

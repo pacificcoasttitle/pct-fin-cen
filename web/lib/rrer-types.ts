@@ -12,14 +12,13 @@ export type DeterminationStepId =
   | "trust-exemptions" 
   | "determination-result"
 
-export type CollectionStepId = 
+export type CollectionStepId =
   | "transaction-property"
-  | "seller-info"
-  | "buyer-info"
-  | "signing-individuals"
-  | "payment-info"
+  | "party-setup"
+  | "monitor-progress"
+  | "review-submissions"
   | "reporting-person"
-  | "certifications"
+  | "file-report"
 
 export type YesNoUnknown = "yes" | "no" | "unknown" | null
 export type BuyerType = "individual" | "entity" | "trust" | null
