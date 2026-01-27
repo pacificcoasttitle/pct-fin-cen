@@ -9,7 +9,7 @@
 | Category | Count |
 |----------|-------|
 | 🔴 Critical Fixes | 2 |
-| 🟠 Major Features | 1 |
+| 🟠 Major Features | 2 |
 | 📄 Documentation | 3 |
 
 ---
@@ -102,6 +102,38 @@ Redirect to /app/reports/{id}/wizard
 
 ---
 
+### 4. Party Data Review Screen ✅ (P1)
+
+**Problem:** PCT Staff had NO WAY to see what parties actually submitted. They were flying blind before filing to FinCEN.
+
+**Solution:** Created `web/app/(app)/app/reports/[id]/review/page.tsx` - a comprehensive review screen.
+
+**Features:**
+- Summary card showing total/submitted/pending party counts
+- Collapsible party cards for individuals and entities
+- Separate sections for Sellers, Buyers, and Beneficial Owners
+- SSN/sensitive data masking (`•••-••-1234`)
+- Shows all collected fields:
+  - Personal info (name, DOB, SSN, citizenship)
+  - Identification (ID type, number, jurisdiction)
+  - Address (street, city, state, zip, country)
+  - Entity details (legal name, EIN, formation)
+  - Beneficial owners (if entity)
+  - Payment sources (if buyer)
+  - Certification status
+- Staff certification checkbox before proceeding
+- "Proceed to File" button disabled until all parties submitted + certified
+
+**Navigation Integration:**
+- Added "Review All Submissions" button to wizard (appears when all parties complete)
+- Button has green gradient styling to stand out
+
+**Files Created/Changed:**
+- `web/app/(app)/app/reports/[id]/review/page.tsx` (NEW - 600+ lines)
+- `web/app/(app)/app/reports/[id]/wizard/page.tsx` (added review button + FileCheck icon)
+
+---
+
 ## 📄 Documentation Created
 
 ### 4. Gap Analysis (`docs/GAP_ANALYSIS.md`) ✅
@@ -141,7 +173,7 @@ These were identified but not yet addressed:
 | Gap | Priority | Status |
 |-----|----------|--------|
 | Party portal missing 25+ FinCEN fields | P1 | Pending |
-| No party data review screen | P1 | Pending |
+| ~~No party data review screen~~ | ~~P1~~ | ✅ **FIXED** |
 | Wizard collects party data (should only do determination) | P2 | Pending |
 | No purchase_price in Report model | P2 | Pending |
 
@@ -152,6 +184,8 @@ These were identified but not yet addressed:
 1. `docs: add gap analysis comparing North Star vs actual code`
 2. `docs: add data flow verification report`
 3. `feat: P0 - Create Submission Request API and wire frontend`
+4. `docs: add KilledSharks.md tracking today's fixes`
+5. `feat: P1 - Create party data review screen with wizard navigation`
 
 ---
 
@@ -164,13 +198,19 @@ These were identified but not yet addressed:
 - [x] Admin queue loads real data
 - [x] "Start Wizard" creates report and navigates
 - [x] Frontend builds successfully
+- [x] Review page loads party data
+- [x] Individual party cards render correctly
+- [x] Entity party cards render with BO sections
+- [x] Sensitive data is masked
+- [x] Certification checkbox works
+- [x] Navigation from wizard to review works
 
 ---
 
 ## Next Steps
 
 1. **P1:** Expand party portal with required FinCEN fields (SSN, citizenship, ID, etc.)
-2. **P1:** Create party data review screen for staff
+2. ~~**P1:** Create party data review screen for staff~~ ✅ DONE
 3. **P2:** Refactor wizard collection phase
 
 ---

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback, useRef } from "react"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { RRERQuestionnaire, type RRERQuestionnaireProps } from "@/components/rrer-questionnaire"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -20,7 +20,8 @@ import {
   Send,
   CheckCircle2,
   XCircle,
-  Clock
+  Clock,
+  FileCheck
 } from "lucide-react"
 import {
   getReport,
@@ -45,6 +46,7 @@ const AUTOSAVE_DELAY = 1500
 
 export default function WizardPage() {
   const params = useParams()
+  const router = useRouter()
   const reportId = params.id as string
 
   // Report state
@@ -602,6 +604,19 @@ export default function WizardPage() {
                             <Loader2 className="h-4 w-4 animate-spin mr-1" />
                           ) : null}
                           Refresh Now
+                        </Button>
+                      </div>
+                    )}
+                    
+                    {/* Review All Submissions button - shows when all parties submitted */}
+                    {partyStatus?.summary.all_complete && (
+                      <div className="pt-4 border-t mt-4">
+                        <Button 
+                          className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 shadow-md"
+                          onClick={() => router.push(`/app/reports/${reportId}/review`)}
+                        >
+                          <FileCheck className="h-4 w-4 mr-2" />
+                          Review All Submissions
                         </Button>
                       </div>
                     )}
