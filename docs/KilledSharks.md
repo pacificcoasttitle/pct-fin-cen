@@ -9,7 +9,7 @@
 | Category | Count |
 |----------|-------|
 | 🔴 Critical Fixes | 2 |
-| 🟠 Major Features | 2 |
+| 🟠 Major Features | 3 |
 | 📄 Documentation | 3 |
 
 ---
@@ -134,6 +134,73 @@ Redirect to /app/reports/{id}/wizard
 
 ---
 
+### 5. Enhanced Party Portal with Full FinCEN Fields ✅ (P1)
+
+**Problem:** Party portal had basic/generic fields. It was missing 25+ required FinCEN fields for proper compliance reporting.
+
+**Solution:** Complete rewrite of party portal with dynamic forms based on party role + type.
+
+**New Component Structure:**
+```
+web/components/party-portal/
+├── types.ts              - TypeScript types + constants (US states, entity types, etc.)
+├── AddressFields.tsx     - Reusable address input component
+├── CertificationSection.tsx - Digital signature + certification
+├── BeneficialOwnerCard.tsx  - Collapsible BO card with all fields
+├── PaymentSourceCard.tsx    - Payment info with validation
+├── SellerIndividualForm.tsx - Full seller individual form
+├── BuyerEntityForm.tsx      - Complex buyer entity form with BOs
+└── index.tsx             - DynamicPartyForm selector + generic fallbacks
+```
+
+**Forms by Party Type:**
+
+| Role | Type | Form | Key Fields |
+|------|------|------|------------|
+| Seller | Individual | SellerIndividualForm | Name, DOB, SSN, citizenship, address, ID |
+| Seller | Entity | GenericEntityForm | Legal name, EIN, formation, rep info |
+| Seller | Trust | GenericTrustForm | Trust name, type, date, trustee info |
+| Buyer | Individual | GenericIndividualForm | Name, DOB, citizenship, address |
+| Buyer | Entity | **BuyerEntityForm** | Entity + **Beneficial Owners** + **Payment Sources** |
+| Buyer | Trust | GenericTrustForm | Trust + trustee + settlor + beneficiary info |
+
+**BuyerEntityForm Features (most complex):**
+- Section 1: Entity Information (name, type, EIN, formation, address)
+- Section 2: Beneficial Owners (dynamic cards, add/remove)
+  - Each BO: name, DOB, SSN, address, citizenship, ID, ownership %
+  - Control type checkboxes (senior officer, authority, other)
+- Section 3: Signing Individual (with "same as BO" auto-fill)
+- Section 4: Payment Information
+  - Multiple payment sources with amounts
+  - Source types (personal, business, gift, loan, etc.)
+  - Payment methods (wire, check, etc.)
+  - Third party payer handling
+  - **Running total validation** against purchase price
+
+**UI/UX Improvements:**
+- Progress bar based on actual required fields per type
+- Sticky action bar (save + submit always visible)
+- Context card showing property + role + closing date
+- "Why is this needed?" info box
+- Secure/encrypted messaging
+- Modern gradient styling
+- Collapsible sections for complex forms
+
+**Files Created:**
+- `web/components/party-portal/types.ts` (200+ lines)
+- `web/components/party-portal/AddressFields.tsx` (100+ lines)
+- `web/components/party-portal/CertificationSection.tsx` (120+ lines)
+- `web/components/party-portal/BeneficialOwnerCard.tsx` (330+ lines)
+- `web/components/party-portal/PaymentSourceCard.tsx` (220+ lines)
+- `web/components/party-portal/SellerIndividualForm.tsx` (230+ lines)
+- `web/components/party-portal/BuyerEntityForm.tsx` (400+ lines)
+- `web/components/party-portal/index.tsx` (500+ lines)
+- `web/app/p/[token]/page.tsx` (rewritten - 350+ lines)
+
+**Total New Code:** ~2,400+ lines
+
+---
+
 ## 📄 Documentation Created
 
 ### 4. Gap Analysis (`docs/GAP_ANALYSIS.md`) ✅
@@ -172,7 +239,7 @@ These were identified but not yet addressed:
 
 | Gap | Priority | Status |
 |-----|----------|--------|
-| Party portal missing 25+ FinCEN fields | P1 | Pending |
+| ~~Party portal missing 25+ FinCEN fields~~ | ~~P1~~ | ✅ **FIXED** |
 | ~~No party data review screen~~ | ~~P1~~ | ✅ **FIXED** |
 | Wizard collects party data (should only do determination) | P2 | Pending |
 | No purchase_price in Report model | P2 | Pending |
@@ -187,6 +254,7 @@ These were identified but not yet addressed:
 4. `docs: add KilledSharks.md tracking today's fixes`
 5. `feat: P1 - Create party data review screen with wizard navigation`
 6. `fix: add email-validator dependency for Pydantic EmailStr`
+7. `feat: P1 - Enhanced party portal with full FinCEN fields`
 
 ---
 
@@ -205,14 +273,21 @@ These were identified but not yet addressed:
 - [x] Sensitive data is masked
 - [x] Certification checkbox works
 - [x] Navigation from wizard to review works
+- [x] Party portal dynamic forms render by role/type
+- [x] Seller Individual form shows all required fields
+- [x] Buyer Entity form shows BO + payment sections
+- [x] BeneficialOwnerCard add/remove works
+- [x] PaymentSourceCard with amount validation
+- [x] Certification section with digital signature
 
 ---
 
 ## Next Steps
 
-1. **P1:** Expand party portal with required FinCEN fields (SSN, citizenship, ID, etc.)
+1. ~~**P1:** Expand party portal with required FinCEN fields~~ ✅ DONE
 2. ~~**P1:** Create party data review screen for staff~~ ✅ DONE
 3. **P2:** Refactor wizard collection phase
+4. **P2:** Add Trust buyer form with trustees/settlors/beneficiaries
 
 ---
 

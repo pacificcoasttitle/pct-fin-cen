@@ -4,8 +4,6 @@ import { useEffect, useState, useCallback } from "react"
 import { useParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { 
@@ -18,43 +16,11 @@ import {
   Save,
   Send,
   Clock,
-  XCircle
+  XCircle,
+  Info
 } from "lucide-react"
 import { getParty, saveParty, submitParty, type PartyData } from "@/lib/api"
-
-interface PartyFormData {
-  // Common fields
-  first_name: string
-  last_name: string
-  email: string
-  phone: string
-  // Address
-  address_line1: string
-  address_line2: string
-  city: string
-  state: string
-  zip_code: string
-  // Individual
-  date_of_birth: string
-  // Entity
-  entity_name: string
-  ein: string
-}
-
-const emptyForm: PartyFormData = {
-  first_name: "",
-  last_name: "",
-  email: "",
-  phone: "",
-  address_line1: "",
-  address_line2: "",
-  city: "",
-  state: "",
-  zip_code: "",
-  date_of_birth: "",
-  entity_name: "",
-  ein: "",
-}
+import { DynamicPartyForm, type PartySubmissionData } from "@/components/party-portal"
 
 export default function PartyPortalPage() {
   const params = useParams()
@@ -62,7 +28,7 @@ export default function PartyPortalPage() {
 
   // State
   const [partyData, setPartyData] = useState<PartyData | null>(null)
-  const [formData, setFormData] = useState<PartyFormData>(emptyForm)
+  const [formData, setFormData] = useState<Partial<PartySubmissionData>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [errorType, setErrorType] = useState<"expired" | "invalid" | "generic" | null>(null)
@@ -73,12 +39,60 @@ export default function PartyPortalPage() {
   const [submittedAt, setSubmittedAt] = useState<string | null>(null)
   const [confirmationId, setConfirmationId] = useState<string | null>(null)
 
-  // Calculate form completion
+  // Calculate form completion based on role/type
   const calculateProgress = useCallback(() => {
-    const requiredFields = ["first_name", "last_name", "email", "address_line1", "city", "state", "zip_code"]
-    const filled = requiredFields.filter(f => formData[f as keyof PartyFormData]?.trim()).length
-    return Math.round((filled / requiredFields.length) * 100)
-  }, [formData])
+    if (!partyData) return 0
+    
+    const role = partyData.party_role
+    const type = partyData.entity_type
+    
+    let requiredFields: (keyof PartySubmissionData)[] = []
+    
+    if (type === "individual") {
+      requiredFields = ["first_name", "last_name", "date_of_birth", "certified", "certification_signature"]
+      if (formData.address) {
+        const addr = formData.address
+        if (addr.street && addr.city && addr.state && addr.zip) {
+          requiredFields = requiredFields.filter(f => f !== "address" as any)
+        }
+      }
+    } else if (type === "entity") {
+      requiredFields = ["entity_name", "entity_type", "ein", "formation_state", "certified", "certification_signature"]
+      if (role === "transferee") {
+        // Buyer entity needs beneficial owners
+        if (!formData.beneficial_owners || formData.beneficial_owners.length === 0) {
+          return Math.min(50, calculateBasicProgress(requiredFields))
+        }
+      }
+    } else if (type === "trust") {
+      requiredFields = ["trust_name", "trust_type", "trust_date", "signer_name", "certified", "certification_signature"]
+    }
+    
+    return calculateBasicProgress(requiredFields)
+  }, [formData, partyData])
+
+  const calculateBasicProgress = (requiredFields: (keyof PartySubmissionData)[]) => {
+    let filled = 0
+    let total = requiredFields.length
+    
+    for (const field of requiredFields) {
+      const value = formData[field]
+      if (value !== undefined && value !== null && value !== "" && value !== false) {
+        filled++
+      }
+    }
+    
+    // Check address separately
+    if (formData.address) {
+      const addr = formData.address
+      if (addr.street && addr.city && addr.state && addr.zip) {
+        filled++
+      }
+      total++
+    }
+    
+    return Math.round((filled / total) * 100)
+  }
 
   // Load party data
   useEffect(() => {
@@ -92,10 +106,7 @@ export default function PartyPortalPage() {
         
         // Hydrate form from existing party_data
         if (data.party_data && typeof data.party_data === "object") {
-          setFormData(prev => ({
-            ...prev,
-            ...(data.party_data as Partial<PartyFormData>),
-          }))
+          setFormData(data.party_data as Partial<PartySubmissionData>)
         }
         
         // Check if already submitted
@@ -121,10 +132,10 @@ export default function PartyPortalPage() {
     loadParty()
   }, [token])
 
-  // Update form field
-  const updateField = (field: keyof PartyFormData, value: string) => {
+  // Handle form data changes
+  const handleFormChange = (newData: Partial<PartySubmissionData>) => {
     if (submitted) return
-    setFormData(prev => ({ ...prev, [field]: value }))
+    setFormData(newData)
     setSaved(false)
   }
 
@@ -164,9 +175,11 @@ export default function PartyPortalPage() {
   // Loading state
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-muted-foreground" />
+          <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
           <p className="text-muted-foreground">Loading your form...</p>
         </div>
       </div>
@@ -176,18 +189,24 @@ export default function PartyPortalPage() {
   // Error state (no party data loaded)
   if (error && !partyData) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
         <Header />
         <div className="container mx-auto px-4 py-12 max-w-md">
-          <Card>
+          <Card className="shadow-lg">
             <CardContent className="pt-6">
               <div className="text-center py-8">
                 {errorType === "expired" ? (
-                  <Clock className="h-16 w-16 text-amber-500 mx-auto mb-4" />
+                  <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Clock className="h-10 w-10 text-amber-600" />
+                  </div>
                 ) : errorType === "invalid" ? (
-                  <XCircle className="h-16 w-16 text-destructive mx-auto mb-4" />
+                  <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <XCircle className="h-10 w-10 text-red-600" />
+                  </div>
                 ) : (
-                  <AlertTriangle className="h-16 w-16 text-destructive mx-auto mb-4" />
+                  <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <AlertTriangle className="h-10 w-10 text-red-600" />
+                  </div>
                 )}
                 <h2 className="text-xl font-bold mb-2">
                   {errorType === "expired" ? "Link Expired" : errorType === "invalid" ? "Invalid Link" : "Error"}
@@ -204,48 +223,59 @@ export default function PartyPortalPage() {
   // Success state (submitted)
   if (submitted) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-gradient-to-b from-green-50 to-white">
         <Header />
         <div className="container mx-auto px-4 py-12 max-w-md">
-          <Card className="border-green-200">
+          <Card className="border-green-200 shadow-lg">
             <CardContent className="pt-6">
               <div className="text-center py-8">
-                <CheckCircle2 className="h-16 w-16 text-green-600 mx-auto mb-4" />
-                <h2 className="text-xl font-bold text-green-800 mb-2">
-                  Information Submitted
+                <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <CheckCircle2 className="h-12 w-12 text-green-600" />
+                </div>
+                <h2 className="text-2xl font-bold text-green-800 mb-2">
+                  Information Submitted!
                 </h2>
-                <p className="text-muted-foreground mb-4">
+                <p className="text-muted-foreground mb-6">
                   Thank you! Your information has been successfully submitted.
                 </p>
                 
                 {/* Confirmation ID */}
                 {confirmationId && (
-                  <div className="inline-block bg-green-100 border border-green-200 rounded-lg px-6 py-3 mb-6">
-                    <p className="text-xs text-green-600 font-medium uppercase mb-1">Confirmation Number</p>
-                    <p className="text-xl font-mono font-bold text-green-800">{confirmationId}</p>
+                  <div className="inline-block bg-green-100 border-2 border-green-200 rounded-xl px-8 py-4 mb-6">
+                    <p className="text-xs text-green-600 font-medium uppercase mb-1 tracking-wider">
+                      Confirmation Number
+                    </p>
+                    <p className="text-2xl font-mono font-bold text-green-800 tracking-wide">
+                      {confirmationId}
+                    </p>
                   </div>
                 )}
                 
                 {partyData && (
-                  <div className="bg-muted/50 rounded-lg p-4 text-left mb-6">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Building2 className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-medium">
-                        {partyData.report_summary.property_address || "Property Address"}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <User className="h-4 w-4 text-muted-foreground" />
-                      <span className="capitalize">{partyData.party_role}</span>
+                  <div className="bg-muted/50 rounded-xl p-5 text-left mb-6">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                        <Building2 className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <span className="font-medium block">
+                          {partyData.report_summary.property_address || "Property Address"}
+                        </span>
+                        <span className="text-sm text-muted-foreground capitalize">
+                          {partyData.party_role.replace("_", " ")} • {partyData.entity_type}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 )}
+                
                 {submittedAt && (
                   <p className="text-sm text-muted-foreground">
                     Submitted: {new Date(submittedAt).toLocaleString()}
                   </p>
                 )}
-                <p className="text-sm text-muted-foreground mt-4">
+                
+                <p className="text-sm text-muted-foreground mt-6 px-4">
                   You may close this window. The title company will contact you if additional information is needed.
                 </p>
               </div>
@@ -258,31 +288,54 @@ export default function PartyPortalPage() {
 
   // Form state
   const progress = calculateProgress()
+  const canSubmit = progress >= 70 && formData.certified && formData.certification_signature
+
+  // Determine role display
+  const getRoleDisplay = (role: string) => {
+    switch (role) {
+      case "transferee": return "Buyer"
+      case "transferor": return "Seller"
+      case "beneficial_owner": return "Beneficial Owner"
+      default: return role.replace("_", " ")
+    }
+  }
+
+  const getTypeDisplay = (type: string) => {
+    switch (type) {
+      case "individual": return "Individual"
+      case "entity": return "Entity/LLC"
+      case "trust": return "Trust"
+      default: return type
+    }
+  }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
       <Header />
 
-      <div className="container mx-auto px-4 py-8 max-w-xl">
+      <div className="container mx-auto px-4 py-8 max-w-2xl">
         {/* Context Card */}
         {partyData && (
-          <Card className="mb-6 bg-muted/30">
+          <Card className="mb-6 bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20 shadow-sm">
             <CardContent className="pt-6">
               <div className="flex items-start gap-4">
-                <div className="p-3 bg-primary/10 rounded-lg">
+                <div className="p-3 bg-white rounded-xl shadow-sm">
                   <Building2 className="h-6 w-6 text-primary" />
                 </div>
                 <div className="flex-1">
-                  <p className="font-medium">
+                  <p className="font-semibold text-lg">
                     {partyData.report_summary.property_address || "Property Address Pending"}
                   </p>
-                  <div className="flex items-center gap-3 mt-2">
-                    <Badge variant="outline" className="capitalize">
-                      {partyData.party_role}
+                  <div className="flex flex-wrap items-center gap-2 mt-2">
+                    <Badge variant="secondary" className="font-medium">
+                      {getRoleDisplay(partyData.party_role)}
+                    </Badge>
+                    <Badge variant="outline">
+                      {getTypeDisplay(partyData.entity_type)}
                     </Badge>
                     {partyData.report_summary.closing_date && (
-                      <span className="text-sm text-muted-foreground">
-                        <Clock className="h-3 w-3 inline mr-1" />
+                      <span className="text-sm text-muted-foreground flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
                         Closing: {new Date(partyData.report_summary.closing_date).toLocaleDateString()}
                       </span>
                     )}
@@ -293,6 +346,23 @@ export default function PartyPortalPage() {
           </Card>
         )}
 
+        {/* Why We Need This Info */}
+        <Card className="mb-6 bg-blue-50/50 border-blue-100">
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-start gap-3">
+              <Info className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-sm text-blue-900 font-medium">Why is this information needed?</p>
+                <p className="text-sm text-blue-700 mt-1">
+                  Federal regulations require us to collect certain information from all parties 
+                  in real estate transactions. Your information is encrypted, secure, and will 
+                  only be used for compliance purposes.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Progress */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-2">
@@ -300,194 +370,80 @@ export default function PartyPortalPage() {
             <span className="text-sm text-muted-foreground">{progress}%</span>
           </div>
           <Progress value={progress} className="h-2" />
+          {progress < 70 && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Complete at least 70% and certify to submit
+            </p>
+          )}
         </div>
 
         {/* Error Alert */}
         {error && (
           <div className="flex items-center gap-2 p-4 bg-destructive/10 text-destructive rounded-lg mb-6">
-            <AlertTriangle className="h-5 w-5" />
-            <span>{error}</span>
-            <Button variant="ghost" size="sm" onClick={() => setError(null)} className="ml-auto">
+            <AlertTriangle className="h-5 w-5 shrink-0" />
+            <span className="flex-1">{error}</span>
+            <Button variant="ghost" size="sm" onClick={() => setError(null)}>
               Dismiss
             </Button>
           </div>
         )}
 
-        {/* Form */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <User className="h-5 w-5" />
-              Your Information
-            </CardTitle>
-            <CardDescription>
-              Please provide your information for this real estate transaction
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Name */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="first_name">First Name *</Label>
-                <Input
-                  id="first_name"
-                  value={formData.first_name}
-                  onChange={(e) => updateField("first_name", e.target.value)}
-                  placeholder="John"
-                />
-              </div>
-              <div>
-                <Label htmlFor="last_name">Last Name *</Label>
-                <Input
-                  id="last_name"
-                  value={formData.last_name}
-                  onChange={(e) => updateField("last_name", e.target.value)}
-                  placeholder="Smith"
-                />
-              </div>
-            </div>
-
-            {/* Contact */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="email">Email *</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => updateField("email", e.target.value)}
-                  placeholder="john@example.com"
-                />
-              </div>
-              <div>
-                <Label htmlFor="phone">Phone</Label>
-                <Input
-                  id="phone"
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) => updateField("phone", e.target.value)}
-                  placeholder="(555) 123-4567"
-                />
-              </div>
-            </div>
-
-            {/* DOB or EIN */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="date_of_birth">Date of Birth</Label>
-                <Input
-                  id="date_of_birth"
-                  type="date"
-                  value={formData.date_of_birth}
-                  onChange={(e) => updateField("date_of_birth", e.target.value)}
-                />
-              </div>
-              <div>
-                <Label htmlFor="ein">EIN (if entity)</Label>
-                <Input
-                  id="ein"
-                  value={formData.ein}
-                  onChange={(e) => updateField("ein", e.target.value)}
-                  placeholder="XX-XXXXXXX"
-                />
-              </div>
-            </div>
-
-            {/* Entity Name (optional) */}
-            <div>
-              <Label htmlFor="entity_name">Entity Name (if applicable)</Label>
-              <Input
-                id="entity_name"
-                value={formData.entity_name}
-                onChange={(e) => updateField("entity_name", e.target.value)}
-                placeholder="ABC Holdings LLC"
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Address */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Building2 className="h-5 w-5" />
-              Current Address
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="address_line1">Address Line 1 *</Label>
-              <Input
-                id="address_line1"
-                value={formData.address_line1}
-                onChange={(e) => updateField("address_line1", e.target.value)}
-                placeholder="123 Main Street"
-              />
-            </div>
-            <div>
-              <Label htmlFor="address_line2">Address Line 2</Label>
-              <Input
-                id="address_line2"
-                value={formData.address_line2}
-                onChange={(e) => updateField("address_line2", e.target.value)}
-                placeholder="Apt 4B"
-              />
-            </div>
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <Label htmlFor="city">City *</Label>
-                <Input
-                  id="city"
-                  value={formData.city}
-                  onChange={(e) => updateField("city", e.target.value)}
-                  placeholder="Los Angeles"
-                />
-              </div>
-              <div>
-                <Label htmlFor="state">State *</Label>
-                <Input
-                  id="state"
-                  value={formData.state}
-                  onChange={(e) => updateField("state", e.target.value)}
-                  placeholder="CA"
-                  maxLength={2}
-                />
-              </div>
-              <div>
-                <Label htmlFor="zip_code">ZIP *</Label>
-                <Input
-                  id="zip_code"
-                  value={formData.zip_code}
-                  onChange={(e) => updateField("zip_code", e.target.value)}
-                  placeholder="90210"
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Dynamic Form */}
+        {partyData && (
+          <DynamicPartyForm
+            partyRole={partyData.party_role as "transferee" | "transferor" | "beneficial_owner"}
+            entityType={partyData.entity_type as "individual" | "entity" | "trust"}
+            data={formData}
+            onChange={handleFormChange}
+            disabled={submitted}
+            email={partyData.email || undefined}
+            purchasePrice={partyData.report_summary.purchase_price}
+          />
+        )}
 
         {/* Actions */}
-        <div className="flex items-center gap-4">
-          <Button variant="outline" onClick={handleSave} disabled={saving || submitted}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+        <div className="flex items-center gap-4 mt-8 sticky bottom-4 bg-white/95 backdrop-blur p-4 -mx-4 rounded-xl shadow-lg border">
+          <Button 
+            variant="outline" 
+            onClick={handleSave} 
+            disabled={saving || submitted}
+            className="min-w-[140px]"
+          >
+            {saving ? (
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            ) : saved ? (
+              <CheckCircle2 className="h-4 w-4 mr-2 text-green-600" />
+            ) : (
+              <Save className="h-4 w-4 mr-2" />
+            )}
             {saved ? "Saved!" : "Save Progress"}
           </Button>
-          <Button onClick={handleSubmit} disabled={submitting || submitted || progress < 70} className="flex-1">
-            {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
+          <Button 
+            onClick={handleSubmit} 
+            disabled={submitting || submitted || !canSubmit} 
+            className="flex-1 min-h-[44px]"
+          >
+            {submitting ? (
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            ) : (
+              <Send className="h-4 w-4 mr-2" />
+            )}
             Submit Information
           </Button>
         </div>
 
-        {progress < 70 && (
-          <p className="text-sm text-muted-foreground text-center mt-4">
-            Please complete at least 70% of required fields to submit
-          </p>
-        )}
-
         {/* Footer */}
-        <p className="text-xs text-muted-foreground text-center mt-8">
-          Your information is encrypted and secure. By submitting, you certify that all information is accurate.
-        </p>
+        <div className="mt-8 pb-20 text-center">
+          <div className="flex items-center justify-center gap-2 text-muted-foreground mb-2">
+            <Shield className="h-4 w-4" />
+            <span className="text-sm font-medium">Secure & Encrypted</span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Your information is protected with industry-standard encryption.
+            <br />
+            By submitting, you certify that all information is accurate.
+          </p>
+        </div>
       </div>
     </div>
   )
@@ -496,11 +452,11 @@ export default function PartyPortalPage() {
 // Simple header component
 function Header() {
   return (
-    <header className="border-b border-border bg-card">
+    <header className="border-b border-border bg-white/80 backdrop-blur sticky top-0 z-10">
       <div className="container mx-auto px-4 py-4">
-        <div className="flex items-center gap-2">
-          <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-            <Shield className="w-6 h-6 text-primary-foreground" />
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary/80 rounded-xl flex items-center justify-center shadow-sm">
+            <Shield className="w-5 h-5 text-primary-foreground" />
           </div>
           <div>
             <span className="font-bold text-foreground">PCT FinCEN</span>
