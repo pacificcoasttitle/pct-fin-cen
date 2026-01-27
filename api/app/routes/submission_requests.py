@@ -277,6 +277,7 @@ def create_report_from_submission(
     # Create report with pre-filled data
     report = Report(
         submission_request_id=submission.id,
+        company_id=submission.company_id,  # Propagate company from submission
         property_address_text=property_address_text,
         closing_date=submission.expected_closing_date,
         filing_deadline=filing_deadline,
