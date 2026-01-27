@@ -29,12 +29,17 @@ import {
   createPartyLinks,
   readyCheck,
   fileReport,
+  getReportParties,
   type Report,
   type DeterminationResult,
   type PartyLink,
   type ReadyCheckResult,
   type FileResult,
+  type ReportPartiesResponse,
+  type PartyStatusItem,
 } from "@/lib/api"
+import { useToast } from "@/hooks/use-toast"
+import { Progress } from "@/components/ui/progress"
 
 const AUTOSAVE_DELAY = 1500
 
@@ -62,6 +67,12 @@ export default function WizardPage() {
   const [filing, setFiling] = useState(false)
   const [fileResult, setFileResult] = useState<FileResult | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
+  
+  // Party status tracking (real-time)
+  const [partyStatus, setPartyStatus] = useState<ReportPartiesResponse | null>(null)
+  const [partyStatusLoading, setPartyStatusLoading] = useState(false)
+  const [lastPartyUpdate, setLastPartyUpdate] = useState<Date | null>(null)
+  const { toast } = useToast()
 
   // Load report
   useEffect(() => {
@@ -82,6 +93,53 @@ export default function WizardPage() {
     }
     loadReport()
   }, [reportId])
+
+  // Fetch party status
+  const fetchPartyStatus = useCallback(async (showToast = false) => {
+    try {
+      setPartyStatusLoading(true)
+      const data = await getReportParties(reportId)
+      
+      // Check if any new submissions since last check
+      if (partyStatus && showToast) {
+        const prevSubmitted = partyStatus.summary.submitted
+        const newSubmitted = data.summary.submitted
+        if (newSubmitted > prevSubmitted) {
+          toast({
+            title: "Party Submitted! 🎉",
+            description: `${newSubmitted} of ${data.summary.total} parties have submitted their information.`,
+          })
+        }
+        if (data.summary.all_complete && !partyStatus.summary.all_complete) {
+          toast({
+            title: "All Parties Complete! ✅",
+            description: "You can now proceed to file the report.",
+            variant: "default",
+          })
+        }
+      }
+      
+      setPartyStatus(data)
+      setLastPartyUpdate(new Date())
+    } catch (err) {
+      console.error("Failed to fetch party status:", err)
+    } finally {
+      setPartyStatusLoading(false)
+    }
+  }, [reportId, partyStatus, toast])
+
+  // Poll for party status when in collecting mode
+  useEffect(() => {
+    // Only poll if report is in collecting status
+    if (report?.status === "collecting") {
+      // Initial fetch
+      fetchPartyStatus(false)
+      
+      // Poll every 15 seconds
+      const interval = setInterval(() => fetchPartyStatus(true), 15000)
+      return () => clearInterval(interval)
+    }
+  }, [report?.status, fetchPartyStatus])
 
   // Debounced save function
   const performSave = useCallback(async (wizardData: Record<string, unknown>, wizardStep: number) => {
@@ -154,6 +212,8 @@ export default function WizardPage() {
       setPartyLinks(result.links)
       const updatedReport = await getReport(reportId)
       setReport(updatedReport)
+      // Fetch party status after generating links
+      await fetchPartyStatus(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to generate links")
     } finally {
@@ -354,62 +414,126 @@ export default function WizardPage() {
             </CardContent>
           </Card>
 
-          {/* Party Links */}
+          {/* Party Links & Status */}
           {backendDetermination?.reportable && (
             <Card className="border-0 shadow-lg shadow-black/5 overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 via-purple-400 to-purple-500" />
+              <div className={`absolute top-0 left-0 right-0 h-1 ${
+                partyStatus?.summary.all_complete 
+                  ? "bg-gradient-to-r from-green-500 via-green-400 to-green-500" 
+                  : "bg-gradient-to-r from-purple-500 via-purple-400 to-purple-500"
+              }`} />
               <CardHeader className="relative">
-                <CardTitle className="flex items-center gap-3 text-base">
-                  <div className="p-2 rounded-lg bg-purple-100 text-purple-600">
-                    <Users className="h-5 w-5" />
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-3 text-base">
+                      <div className={`p-2 rounded-lg ${
+                        partyStatus?.summary.all_complete 
+                          ? "bg-green-100 text-green-600" 
+                          : "bg-purple-100 text-purple-600"
+                      }`}>
+                        <Users className="h-5 w-5" />
+                      </div>
+                      Party Collection Status
+                    </CardTitle>
+                    <CardDescription className="mt-1">
+                      {partyStatus?.summary.all_complete 
+                        ? "All parties have submitted their information! ✓" 
+                        : "Waiting for parties to submit their information"
+                      }
+                    </CardDescription>
                   </div>
-                  Party Links
-                </CardTitle>
-                <CardDescription>
-                  Generate secure links for parties to submit their information
-                </CardDescription>
+                  {partyStatus && (
+                    <div className="text-right">
+                      <div className="text-2xl font-bold">
+                        {partyStatus.summary.submitted}/{partyStatus.summary.total}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {lastPartyUpdate && `Updated ${lastPartyUpdate.toLocaleTimeString()}`}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Progress bar */}
+                {partyStatus && partyStatus.summary.total > 0 && (
+                  <div className="mt-4">
+                    <Progress 
+                      value={(partyStatus.summary.submitted / partyStatus.summary.total) * 100}
+                      className={`h-3 ${partyStatus.summary.all_complete ? '[&>div]:bg-green-500' : '[&>div]:bg-purple-500'}`}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {Math.round((partyStatus.summary.submitted / partyStatus.summary.total) * 100)}% complete
+                      {partyStatus.summary.pending > 0 && ` • ${partyStatus.summary.pending} pending`}
+                    </p>
+                  </div>
+                )}
               </CardHeader>
               <CardContent>
-                {partyLinks.length === 0 ? (
+                {!partyStatus && partyLinks.length === 0 ? (
                   <Button onClick={handleGenerateLinks} disabled={generatingLinks} className="shadow-md">
                     {generatingLinks ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                     Generate Party Links
                   </Button>
                 ) : (
-                  <div className="space-y-4">
-                    {partyLinks.map((link) => (
+                  <div className="space-y-3">
+                    {/* Use partyStatus if available, otherwise fall back to partyLinks */}
+                    {(partyStatus?.parties || partyLinks.map(l => ({
+                      id: l.party_id,
+                      party_role: l.party_role,
+                      entity_type: l.entity_type || "individual",
+                      display_name: l.display_name,
+                      email: null,
+                      status: l.status === "submitted" ? "submitted" : "pending",
+                      submitted_at: null,
+                      token: l.token,
+                      link: l.url,
+                      link_expires_at: l.expires_at,
+                      created_at: new Date().toISOString(),
+                    }))).map((party) => (
                       <div 
-                        key={link.token}
-                        className="relative overflow-hidden rounded-xl border bg-gradient-to-br from-background to-muted/30 p-4"
+                        key={party.id || party.token}
+                        className={`relative overflow-hidden rounded-xl border p-4 transition-all ${
+                          party.status === "submitted" 
+                            ? "bg-green-50 border-green-200" 
+                            : "bg-gradient-to-br from-background to-muted/30"
+                        }`}
                       >
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex items-center gap-3">
                             <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                              link.party_role === "buyer" 
-                                ? "bg-blue-100 text-blue-600" 
-                                : link.party_role === "seller"
-                                  ? "bg-purple-100 text-purple-600"
-                                  : "bg-amber-100 text-amber-600"
+                              party.status === "submitted"
+                                ? "bg-green-500 text-white"
+                                : party.party_role === "transferee" || party.party_role === "buyer"
+                                  ? "bg-blue-100 text-blue-600" 
+                                  : party.party_role === "transferor" || party.party_role === "seller"
+                                    ? "bg-purple-100 text-purple-600"
+                                    : "bg-amber-100 text-amber-600"
                             }`}>
-                              <Users className="h-5 w-5" />
+                              {party.status === "submitted" ? (
+                                <CheckCircle2 className="h-5 w-5" />
+                              ) : (
+                                <Users className="h-5 w-5" />
+                              )}
                             </div>
                             <div>
-                              <p className="font-medium capitalize">{link.party_role}</p>
-                              <p className="text-xs text-muted-foreground">
-                                <Clock className="h-3 w-3 inline mr-1" />
-                                Expires: {new Date(link.expires_at).toLocaleDateString()}
+                              <p className="font-medium">
+                                {party.display_name || party.party_role.replace("_", " ").replace(/\b\w/g, c => c.toUpperCase())}
+                              </p>
+                              <p className="text-xs text-muted-foreground capitalize">
+                                {party.party_role.replace("_", " ")}
+                                {party.email && ` • ${party.email}`}
                               </p>
                             </div>
                           </div>
                           
                           <Badge 
                             variant="outline" 
-                            className={link.status === "submitted" 
-                              ? "bg-green-50 text-green-700 border-green-200" 
-                              : "bg-yellow-50 text-yellow-700 border-yellow-200"
+                            className={party.status === "submitted" 
+                              ? "bg-green-100 text-green-700 border-green-300" 
+                              : "bg-amber-50 text-amber-700 border-amber-200"
                             }
                           >
-                            {link.status === "submitted" ? (
+                            {party.status === "submitted" ? (
                               <><CheckCircle2 className="h-3 w-3 mr-1" />Submitted</>
                             ) : (
                               <><Clock className="h-3 w-3 mr-1" />Pending</>
@@ -417,33 +541,70 @@ export default function WizardPage() {
                           </Badge>
                         </div>
                         
-                        {/* Copy link section */}
-                        <div className="mt-4 flex items-center gap-2">
-                          <input 
-                            value={link.url}
-                            readOnly
-                            className="flex-1 px-3 py-2 text-xs font-mono bg-muted/50 border rounded-lg truncate"
-                          />
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => copyToClipboard(link.url, link.token)}
-                            className="shrink-0"
-                          >
-                            {copied === link.token ? (
-                              <Check className="h-4 w-4 text-green-600" />
-                            ) : (
-                              <Copy className="h-4 w-4" />
-                            )}
-                          </Button>
-                          <a href={link.url} target="_blank" rel="noopener noreferrer">
-                            <Button variant="outline" size="sm">
-                              <ExternalLink className="h-4 w-4" />
+                        {/* Submitted info */}
+                        {party.status === "submitted" && party.submitted_at && (
+                          <p className="mt-2 text-xs text-green-600">
+                            Submitted {new Date(party.submitted_at).toLocaleString()}
+                          </p>
+                        )}
+                        
+                        {/* Copy link section - only for pending */}
+                        {party.status !== "submitted" && party.link && (
+                          <div className="mt-4 flex items-center gap-2">
+                            <input 
+                              value={party.link}
+                              readOnly
+                              className="flex-1 px-3 py-2 text-xs font-mono bg-white/50 border rounded-lg truncate"
+                            />
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => copyToClipboard(party.link!, party.token || party.id)}
+                              className="shrink-0"
+                            >
+                              {copied === (party.token || party.id) ? (
+                                <Check className="h-4 w-4 text-green-600" />
+                              ) : (
+                                <Copy className="h-4 w-4" />
+                              )}
                             </Button>
-                          </a>
-                        </div>
+                            <a href={party.link} target="_blank" rel="noopener noreferrer">
+                              <Button variant="outline" size="sm">
+                                <ExternalLink className="h-4 w-4" />
+                              </Button>
+                            </a>
+                          </div>
+                        )}
+                        
+                        {/* Expiration warning */}
+                        {party.status !== "submitted" && party.link_expires_at && (
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            <Clock className="h-3 w-3 inline mr-1" />
+                            Link expires: {new Date(party.link_expires_at).toLocaleDateString()}
+                          </p>
+                        )}
                       </div>
                     ))}
+                    
+                    {/* Refresh button */}
+                    {partyStatus && (
+                      <div className="flex items-center justify-between pt-2 border-t mt-4">
+                        <p className="text-xs text-muted-foreground">
+                          🔄 Auto-refreshes every 15 seconds
+                        </p>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => fetchPartyStatus(false)}
+                          disabled={partyStatusLoading}
+                        >
+                          {partyStatusLoading ? (
+                            <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                          ) : null}
+                          Refresh Now
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>

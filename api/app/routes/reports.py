@@ -19,6 +19,11 @@ from app.schemas.report import (
     WizardUpdate,
     DeterminationResponse,
     ReportPartyBrief,
+    PartyStatusItem,
+    PartySummary,
+    ReportPartiesResponse,
+    ReportWithPartySummary,
+    ReportListWithPartiesResponse,
 )
 from app.schemas.party import PartyLinkCreate, PartyLinkResponse, PartyLinkItem, PartyInput
 from app.schemas.common import ReadyCheckResponse, FileResponse, MissingItem
@@ -104,6 +109,59 @@ def list_reports(
     )
 
 
+@router.get("/queue/with-parties", response_model=ReportListWithPartiesResponse)
+def list_reports_with_parties(
+    status: Optional[str] = Query(None, description="Filter by status (e.g., 'collecting')"),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+):
+    """
+    List reports with party completion summary.
+    
+    This endpoint is optimized for queue/dashboard views where party
+    completion status needs to be shown at a glance.
+    
+    Returns party counts: total, submitted, pending, all_complete flag.
+    """
+    query = db.query(Report)
+    
+    if status:
+        query = query.filter(Report.status == status)
+    
+    total = query.count()
+    reports = query.order_by(Report.created_at.desc()).offset(offset).limit(limit).all()
+    
+    result = []
+    for report in reports:
+        parties = report.parties
+        parties_total = len(parties)
+        parties_submitted = len([p for p in parties if p.status == "submitted"])
+        
+        result.append(ReportWithPartySummary(
+            id=report.id,
+            status=report.status,
+            property_address_text=report.property_address_text,
+            escrow_number=report.escrow_number,
+            closing_date=report.closing_date,
+            filing_deadline=report.filing_deadline,
+            wizard_step=report.wizard_step,
+            determination=report.determination,
+            filing_status=report.filing_status,
+            created_at=report.created_at,
+            updated_at=report.updated_at,
+            parties_total=parties_total,
+            parties_submitted=parties_submitted,
+            parties_pending=parties_total - parties_submitted,
+            all_parties_complete=parties_submitted == parties_total if parties_total > 0 else False,
+        ))
+    
+    return ReportListWithPartiesResponse(
+        reports=result,
+        total=total,
+    )
+
+
 @router.get("/{report_id}", response_model=ReportDetailResponse)
 def get_report(
     report_id: UUID,
@@ -130,6 +188,83 @@ def get_report(
         filing_payload=report.filing_payload,
         created_at=report.created_at,
         updated_at=report.updated_at,
+    )
+
+
+@router.get("/{report_id}/parties", response_model=ReportPartiesResponse)
+def get_report_parties(
+    report_id: UUID,
+    db: Session = Depends(get_db),
+):
+    """
+    Get all parties and their submission status for a report.
+    
+    Returns detailed party information including:
+    - Submission status (pending, submitted)
+    - Portal link for pending parties
+    - Submission timestamp for completed parties
+    """
+    report = db.query(Report).filter(Report.id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    
+    parties_data = []
+    for party in report.parties:
+        # Get the most recent active link for this party
+        active_link = None
+        for link in party.links:
+            if link.status == "active" or link.status == "used":
+                active_link = link
+                break
+        
+        # Get email from party_data if available
+        party_email = None
+        if party.party_data:
+            party_email = party.party_data.get("email")
+        
+        # Build portal link
+        portal_link = None
+        link_expires_at = None
+        token = None
+        if active_link:
+            token = active_link.token
+            portal_link = f"{FRONTEND_URL}/p/{active_link.token}"
+            link_expires_at = active_link.expires_at
+        
+        # Get submitted_at from link
+        submitted_at = None
+        if party.status == "submitted" and active_link:
+            submitted_at = active_link.submitted_at
+        
+        parties_data.append(PartyStatusItem(
+            id=party.id,
+            party_role=party.party_role,
+            entity_type=party.entity_type,
+            display_name=party.display_name,
+            email=party_email,
+            status=party.status,
+            submitted_at=submitted_at,
+            token=token,
+            link=portal_link,
+            link_expires_at=link_expires_at,
+            created_at=party.created_at,
+        ))
+    
+    # Calculate summary
+    total = len(parties_data)
+    submitted = len([p for p in parties_data if p.status == "submitted"])
+    pending = total - submitted
+    
+    return ReportPartiesResponse(
+        report_id=report.id,
+        property_address=report.property_address_text,
+        parties=parties_data,
+        summary=PartySummary(
+            total=total,
+            submitted=submitted,
+            pending=pending,
+            all_complete=submitted == total if total > 0 else False,
+        ),
     )
 
 

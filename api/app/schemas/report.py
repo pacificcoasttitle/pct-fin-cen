@@ -26,6 +26,63 @@ class ReportPartyBrief(BaseModel):
         from_attributes = True
 
 
+class PartyStatusItem(BaseModel):
+    """Detailed party status for tracking."""
+    id: UUID
+    party_role: str
+    entity_type: str
+    display_name: Optional[str]
+    email: Optional[str] = None
+    status: str
+    submitted_at: Optional[datetime] = None
+    token: Optional[str] = None
+    link: Optional[str] = None
+    link_expires_at: Optional[datetime] = None
+    created_at: datetime
+
+
+class PartySummary(BaseModel):
+    """Summary of party completion status."""
+    total: int
+    submitted: int
+    pending: int
+    all_complete: bool
+
+
+class ReportPartiesResponse(BaseModel):
+    """Response for GET /reports/{id}/parties."""
+    report_id: UUID
+    property_address: Optional[str]
+    parties: List[PartyStatusItem]
+    summary: PartySummary
+
+
+class ReportWithPartySummary(BaseModel):
+    """Report with party summary for queue views."""
+    id: UUID
+    status: str
+    property_address_text: Optional[str]
+    escrow_number: Optional[str] = None
+    closing_date: Optional[date] = None
+    filing_deadline: Optional[date] = None
+    wizard_step: int
+    determination: Optional[Dict[str, Any]] = None
+    filing_status: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    # Party summary
+    parties_total: int = 0
+    parties_submitted: int = 0
+    parties_pending: int = 0
+    all_parties_complete: bool = False
+
+
+class ReportListWithPartiesResponse(BaseModel):
+    """Schema for list of reports with party summaries."""
+    reports: List[ReportWithPartySummary]
+    total: int
+
+
 class ReportResponse(BaseModel):
     """Schema for report in list responses."""
     id: UUID

@@ -314,6 +314,42 @@ export async function readyCheck(reportId: string): Promise<ReadyCheckResult> {
   });
 }
 
+// Party status types
+export interface PartyStatusItem {
+  id: string;
+  party_role: string;
+  entity_type: string;
+  display_name: string | null;
+  email: string | null;
+  status: string;
+  submitted_at: string | null;
+  token: string | null;
+  link: string | null;
+  link_expires_at: string | null;
+  created_at: string;
+}
+
+export interface PartySummary {
+  total: number;
+  submitted: number;
+  pending: number;
+  all_complete: boolean;
+}
+
+export interface ReportPartiesResponse {
+  report_id: string;
+  property_address: string | null;
+  parties: PartyStatusItem[];
+  summary: PartySummary;
+}
+
+/**
+ * Get party status for a report
+ */
+export async function getReportParties(reportId: string): Promise<ReportPartiesResponse> {
+  return apiFetch<ReportPartiesResponse>(`/reports/${reportId}/parties`);
+}
+
 /**
  * File a report (mock)
  */
