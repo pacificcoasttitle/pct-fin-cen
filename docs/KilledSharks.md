@@ -186,6 +186,7 @@ These were identified but not yet addressed:
 3. `feat: P0 - Create Submission Request API and wire frontend`
 4. `docs: add KilledSharks.md tracking today's fixes`
 5. `feat: P1 - Create party data review screen with wizard navigation`
+6. `fix: add email-validator dependency for Pydantic EmailStr`
 
 ---
 
