@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useMemo } from "react"
+import { useRouter } from "next/navigation"
 import {
   Inbox,
   Search,
@@ -14,7 +15,10 @@ import {
   Building2,
   MapPin,
   AlertTriangle,
+  Loader2,
+  FileText,
 } from "lucide-react"
+import { createReport } from "@/lib/api"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -650,11 +654,13 @@ function truncateAddress(address: { street: string; city: string; state: string 
 }
 
 export default function AdminRequestsPage() {
+  const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [priorityFilter, setPriorityFilter] = useState<string>("all")
   const [selectedRequest, setSelectedRequest] = useState<SubmissionRequest | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [isCreatingReport, setIsCreatingReport] = useState<string | null>(null)
 
   // Calculate stats
   const stats = useMemo(() => {
@@ -697,18 +703,38 @@ export default function AdminRequestsPage() {
     // Demo: would update state here
   }
 
-  const handleStartWizard = (requestId: string) => {
+  const handleStartWizard = async (requestId: string) => {
     // Find the request to get its reportId
     const request = mockSubmissionRequests.find(r => r.id === requestId)
     
     if (request?.reportId) {
       // Navigate to existing report wizard
-      window.location.href = `/app/reports/${request.reportId}/wizard`
-    } else {
-      // For demo: create a mock report ID and navigate
-      // In production this would POST to create a report first
-      const mockReportId = `demo-${Date.now()}`
-      window.location.href = `/app/reports/${mockReportId}/wizard`
+      router.push(`/app/reports/${request.reportId}/wizard`)
+      return
+    }
+    
+    // Create a new report first
+    setIsCreatingReport(requestId)
+    
+    try {
+      const propertyAddress = request?.propertyAddress
+      const addressText = propertyAddress 
+        ? `${propertyAddress.street}, ${propertyAddress.city}, ${propertyAddress.state} ${propertyAddress.zip}`
+        : undefined
+
+      const newReport = await createReport({
+        property_address_text: addressText,
+      })
+      
+      // Navigate to the wizard with the REAL report ID
+      router.push(`/app/reports/${newReport.id}/wizard`)
+      setSheetOpen(false)
+      
+    } catch (error) {
+      console.error("Failed to create report:", error)
+      alert("Failed to create report. Please try again.")
+    } finally {
+      setIsCreatingReport(null)
     }
   }
 

@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,9 +13,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Inbox, Clock, FileText, ArrowRight, CheckCircle, AlertTriangle } from "lucide-react";
+import { Inbox, Clock, FileText, ArrowRight, CheckCircle, AlertTriangle, Loader2, Play } from "lucide-react";
 import Link from "next/link";
 import { useDemo } from "@/hooks/use-demo";
+import { createReport } from "@/lib/api";
 
 // Mock queue data for this staff member
 const mockMyQueue = [
@@ -61,6 +64,30 @@ const statusConfig: Record<string, { label: string; color: string }> = {
 
 export default function StaffQueuePage() {
   const { user } = useDemo();
+  const router = useRouter();
+  const [isCreatingReport, setIsCreatingReport] = useState<string | null>(null);
+
+  const handleStartWizard = async (req: typeof mockMyQueue[0]) => {
+    if (req.reportId) {
+      router.push(`/app/reports/${req.reportId}/wizard`);
+      return;
+    }
+
+    setIsCreatingReport(req.id);
+    
+    try {
+      const newReport = await createReport({
+        property_address_text: req.propertyAddress,
+      });
+      
+      router.push(`/app/reports/${newReport.id}/wizard`);
+    } catch (error) {
+      console.error("Failed to create report:", error);
+      alert("Failed to create report. Please try again.");
+    } finally {
+      setIsCreatingReport(null);
+    }
+  };
 
   // Stats
   const stats = {
@@ -194,24 +221,28 @@ export default function StaffQueuePage() {
                           <Badge className={status.color}>{status.label}</Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          {req.reportId ? (
-                            <Button size="sm" asChild>
-                              <Link href={`/app/reports/${req.reportId}/wizard`}>
+                          <Button 
+                            size="sm"
+                            onClick={() => handleStartWizard(req)}
+                            disabled={isCreatingReport === req.id}
+                          >
+                            {isCreatingReport === req.id ? (
+                              <>
+                                <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                                Creating...
+                              </>
+                            ) : req.reportId ? (
+                              <>
+                                <FileText className="mr-1 h-3 w-3" />
                                 Continue
-                                <ArrowRight className="ml-1 h-4 w-4" />
-                              </Link>
-                            </Button>
-                          ) : (
-                            <Button 
-                              size="sm" 
-                              asChild
-                            >
-                              <Link href={`/app/reports/demo-${req.id}/wizard`}>
+                              </>
+                            ) : (
+                              <>
+                                <Play className="mr-1 h-3 w-3" />
                                 Start Wizard
-                                <ArrowRight className="ml-1 h-4 w-4" />
-                              </Link>
-                            </Button>
-                          )}
+                              </>
+                            )}
+                          </Button>
                         </TableCell>
                       </TableRow>
                     );
