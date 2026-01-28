@@ -1596,6 +1596,46 @@ clientNotes?: string
 
 ---
 
+## Investigation Completed (Fix Pending)
+
+### 27. Party Links & Report Status Flow (Investigation) 🔍
+
+**Problem:** Staff cannot send party links because the endpoint returns:
+```
+Error: Cannot create party links for report in 'draft' status
+```
+
+**Root Cause Found:**
+1. The `POST /party-links` endpoint only allows status `determination_complete` or `collecting`
+2. Report stays in `draft` until `POST /determine` is called
+3. Wizard doesn't make it obvious that determination must be "run" before proceeding
+
+**Status Transition Chain:**
+```
+draft → [POST /determine] → determination_complete → [POST /party-links] → collecting
+```
+
+**Additional Issues Found:**
+| Issue | Impact | Priority |
+|-------|--------|----------|
+| Session cookie parse error in layout.tsx | Minor console error | P1 |
+| Missing `decodeURIComponent` before `atob` | Cookie sometimes fails to parse | P1 |
+| Entity type flow | ✅ Working correctly | N/A |
+| Confirmation number | Shows UUID slice, not human-readable | P3 |
+
+**Recommended Fixes:**
+1. **P0:** Auto-run determination when entering party setup, OR allow draft status to send links
+2. **P1:** Fix session cookie parsing in `web/app/(app)/layout.tsx`
+3. **P2:** Add UI warning if determination not yet run
+4. **P3:** Add confirmation_number field to SubmissionRequest model
+
+**Files Created:**
+- `docs/INVESTIGATION_PARTY_LINKS_FINDINGS.md` (comprehensive analysis)
+
+**Status:** 🔍 Investigation Complete (Fix pending)
+
+---
+
 ## Next Steps
 
 1. ~~**P1:** Expand party portal with required FinCEN fields~~ ✅ DONE
@@ -1606,9 +1646,11 @@ clientNotes?: string
 6. ~~**P2:** Add Trust buyer form with trustees/settlors/beneficiaries~~ ✅ DONE
 7. ~~**P2:** Implement dynamic sidebar badges~~ ✅ DONE
 8. ~~**P0:** Fix SubmissionRequest → Wizard data flow~~ ✅ DONE
-9. **P3:** Add more comprehensive form validation
-10. **P3:** Add `refreshCounts()` calls after key actions (start wizard, file report)
+9. **P0:** Fix Party Links status check (investigation complete, ready to fix)
+10. **P1:** Fix session cookie parsing in layout.tsx
+11. **P3:** Add more comprehensive form validation
+12. **P3:** Add `refreshCounts()` calls after key actions (start wizard, file report)
 
 ---
 
-*Last updated: January 28, 2026 @ 1:00 PM*
+*Last updated: January 28, 2026 @ 1:30 PM*
