@@ -1464,7 +1464,7 @@ Returns:
 
 | Category | Count |
 |----------|-------|
-| 🔴 Critical Fixes | 9 |
+| 🔴 Critical Fixes | 10 |
 | 🟠 Major Features | 11 |
 | 🎨 UX/Design | 3 |
 | 🔧 Configuration | 2 |
@@ -1472,7 +1472,7 @@ Returns:
 | 🎯 Demo Data & API | 1 |
 | 🏗️ Multi-Tenant Infrastructure | 1 |
 
-**Total Sharks Killed: 30** 🦈
+**Total Sharks Killed: 31** 🦈
 
 ---
 
@@ -1531,36 +1531,68 @@ Returns:
 
 ---
 
-## Investigation Completed (Not Yet Fixed)
+### 26. SubmissionRequest → Wizard Data Flow - FIXED ✅
 
-### 26. Data Flow: SubmissionRequest → Wizard (Investigation) 🔍
+**Problem:** When staff clicked "Start Wizard", most client-submitted data was NOT showing in the wizard form even though it was being transferred to the backend.
 
-**Problem:** When staff clicks "Start Wizard", most client-submitted data is NOT showing in the wizard form even though it's being transferred.
+**Root Cause:** TypeScript `CollectionData` interface didn't include fields the backend was sending, so they were silently ignored when spreading into state.
 
-**Root Cause Found:**
-1. **Type Definition Gap**: The `CollectionData` TypeScript interface doesn't include `escrowNumber`, `financingType`, or `initialParties` fields
-2. **Determination Not Pre-filled**: Backend doesn't set `isNonFinanced` based on `financing_type`
-3. **Party Setup Disconnect**: `initialParties` is sent but Party Setup step doesn't read from it
+**Solution:**
 
-**What DOES carry over:** Property address ✅, Purchase price ✅, Closing date ✅
+**1. Updated TypeScript Types** (`web/lib/rrer-types.ts`)
+Added to CollectionData interface:
+```typescript
+escrowNumber?: string
+financingType?: "cash" | "financed" | "partial_cash"
+initialParties?: {
+  buyers: Array<{ name, email, type, phone }>
+  sellers: Array<{ name, email, type, phone }>
+}
+clientNotes?: string
+```
 
-**What's LOST due to type mismatch:**
-- ❌ Escrow number (transferred but interface missing)
-- ❌ Financing type (transferred but interface missing)
-- ❌ Buyer name/email/type (in initialParties but not consumed)
-- ❌ Seller name/email (in initialParties but not consumed)
-- ❌ Pre-filled determination answers
+**2. Pre-fill Determination** (`api/app/routes/submission_requests.py`)
+- `financing_type = "cash"` → `isNonFinanced = "yes"`
+- `financing_type = "financed"` → `isNonFinanced = "no"`
+- `financing_type = "partial_cash"` → `isNonFinanced = "unknown"`
 
-**Recommended Fixes:**
-1. **P0**: Update `CollectionData` type in `web/lib/rrer-types.ts` to include missing fields
-2. **P1**: Pre-fill `wizard_data.determination.isNonFinanced` in backend based on financing_type
-3. **P1**: Initialize Party Setup from `initialParties` in RRERQuestionnaire
-4. **P2**: Display escrow number prominently in wizard header
+**3. Party Setup Pre-population** (`web/components/rrer-questionnaire.tsx`)
+- Initializes party setup state from `initialParties` if available
+- Shows "pre-filled from submission" indicator
+- Staff can still add more parties
 
-**Files Created:**
-- `docs/INVESTIGATION_DATA_FLOW_FINDINGS.md` (comprehensive analysis)
+**4. Escrow Number Display** (`web/app/(app)/app/reports/[id]/wizard/page.tsx`)
+- Shows escrow number in wizard header (monospace pill badge)
+- Helps staff quickly identify which transaction
 
-**Status:** 🔍 Investigation Complete (Fix pending)
+**5. Client Notes Display**
+- Shows client notes in amber card if present
+- Staff sees important context from client
+
+**6. Financing Pre-fill Indicator**
+- Shows blue indicator when isNonFinanced was pre-filled
+- "Pre-filled based on client's indication of 'cash' financing"
+
+**Data Now Flowing:**
+| Data | Before | After |
+|------|--------|-------|
+| Property Address | ✅ | ✅ |
+| Purchase Price | ✅ | ✅ |
+| Closing Date | ✅ | ✅ |
+| Escrow Number | ❌ | ✅ |
+| Financing Type | ❌ | ✅ |
+| isNonFinanced (determination) | ❌ | ✅ |
+| Buyer Name/Email/Type | ❌ | ✅ |
+| Seller Name/Email | ❌ | ✅ |
+| Client Notes | ❌ | ✅ |
+
+**Files Changed:**
+- `web/lib/rrer-types.ts` (add interface fields)
+- `api/app/routes/submission_requests.py` (comprehensive wizard_data build)
+- `web/components/rrer-questionnaire.tsx` (use initialParties, show indicators)
+- `web/app/(app)/app/reports/[id]/wizard/page.tsx` (escrow number, client notes)
+
+**Status:** ✅ Killed
 
 ---
 
@@ -1573,10 +1605,10 @@ Returns:
 5. ~~**P0:** Demo data and dashboard fixes~~ ✅ DONE
 6. ~~**P2:** Add Trust buyer form with trustees/settlors/beneficiaries~~ ✅ DONE
 7. ~~**P2:** Implement dynamic sidebar badges~~ ✅ DONE
-8. **P0:** Fix SubmissionRequest → Wizard data flow (investigation complete, ready to fix)
+8. ~~**P0:** Fix SubmissionRequest → Wizard data flow~~ ✅ DONE
 9. **P3:** Add more comprehensive form validation
 10. **P3:** Add `refreshCounts()` calls after key actions (start wizard, file report)
 
 ---
 
-*Last updated: January 28, 2026 @ 12:30 PM*
+*Last updated: January 28, 2026 @ 1:00 PM*

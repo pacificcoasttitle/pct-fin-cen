@@ -331,7 +331,13 @@ def create_report_from_submission(
     """
     Create a Report from a SubmissionRequest.
     This is called when staff clicks "Start Wizard" on a pending request.
-    The report inherits key fields from the submission.
+    The report inherits key fields from the submission and pre-fills wizard data.
+    
+    Data Flow:
+    - financing_type → determination.isNonFinanced
+    - buyer/seller info → collection.initialParties
+    - purchase_price_cents → collection.purchasePrice (converted to dollars)
+    - All other submission fields → collection.*
     """
     submission = db.query(SubmissionRequest).filter(
         SubmissionRequest.id == request_id
@@ -359,39 +365,85 @@ def create_report_from_submission(
     if submission.expected_closing_date:
         filing_deadline = submission.expected_closing_date + timedelta(days=30)
     
+    # ==========================================================================
+    # PRE-FILL DETERMINATION based on financing_type
+    # ==========================================================================
+    is_non_financed = None
+    if submission.financing_type == "cash":
+        is_non_financed = "yes"
+    elif submission.financing_type == "financed":
+        is_non_financed = "no"
+    elif submission.financing_type == "partial_cash":
+        is_non_financed = "unknown"  # Staff needs to determine exact cash portion
+    
+    # ==========================================================================
+    # BUILD INITIAL PARTIES (only if data exists)
+    # ==========================================================================
+    initial_buyers = []
+    if submission.buyer_name:
+        initial_buyers.append({
+            "name": submission.buyer_name,
+            "email": submission.buyer_email or "",
+            "type": submission.buyer_type or "individual",
+            "phone": submission.buyer_phone or "",
+        })
+    
+    initial_sellers = []
+    if submission.seller_name:
+        initial_sellers.append({
+            "name": submission.seller_name,
+            "email": submission.seller_email or "",
+            "type": "individual",  # Default, wizard can change
+        })
+    
+    # ==========================================================================
+    # BUILD COMPREHENSIVE WIZARD_DATA
+    # ==========================================================================
+    wizard_data = {
+        # Current phase/step tracking
+        "phase": "determination",
+        "determinationStep": "property",
+        "collectionStep": "transaction-property",
+        
+        # Pre-fill determination answers where possible
+        "determination": {
+            "isNonFinanced": is_non_financed,
+            # Other fields will be answered by staff during wizard
+        },
+        
+        # Pre-fill collection data from submission
+        "collection": {
+            # Transaction basics (from submission)
+            "purchasePrice": submission.purchase_price_cents / 100 if submission.purchase_price_cents else None,
+            "escrowNumber": submission.escrow_number,
+            "financingType": submission.financing_type,
+            "closingDate": submission.expected_closing_date.isoformat() if submission.expected_closing_date else None,
+            
+            # Property info
+            "propertyAddress": submission.property_address,
+            
+            # Party info for pre-population
+            "initialParties": {
+                "buyers": initial_buyers,
+                "sellers": initial_sellers,
+            },
+            
+            # Notes from client
+            "clientNotes": submission.notes,
+        },
+    }
+    
     # Create report with pre-filled data
     report = Report(
         submission_request_id=submission.id,
-        company_id=submission.company_id,  # Propagate company from submission
+        company_id=submission.company_id,
         property_address_text=property_address_text,
         closing_date=submission.expected_closing_date,
         filing_deadline=filing_deadline,
         escrow_number=submission.escrow_number,
         status="draft",
         wizard_step=1,
-        wizard_data={
-            # Pre-fill wizard collection data from submission
-            "collection": {
-                "purchasePrice": submission.purchase_price_cents / 100 if submission.purchase_price_cents else None,
-                "escrowNumber": submission.escrow_number,
-                "financingType": submission.financing_type,
-                "closingDate": submission.expected_closing_date.isoformat() if submission.expected_closing_date else None,
-                "propertyAddress": submission.property_address,
-                # Store initial party info for party-setup step
-                "initialParties": {
-                    "buyers": [{
-                        "name": submission.buyer_name,
-                        "email": submission.buyer_email,
-                        "type": submission.buyer_type,
-                    }],
-                    "sellers": [{
-                        "name": submission.seller_name,
-                        "email": submission.seller_email,
-                        "type": "individual",  # Default, can be changed
-                    }]
-                }
-            }
-        }
+        wizard_data=wizard_data,
     )
     
     db.add(report)

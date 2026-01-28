@@ -21,7 +21,8 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
-  FileCheck
+  FileCheck,
+  FileText
 } from "lucide-react"
 import {
   getReport,
@@ -307,6 +308,12 @@ export default function WizardPage() {
                 {report?.property_address_text || "New Report"}
               </h1>
               <div className="flex items-center gap-3 text-sm text-muted-foreground mt-0.5">
+                {/* Escrow Number from submission */}
+                {report?.escrow_number && (
+                  <span className="font-mono bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-xs">
+                    {report.escrow_number}
+                  </span>
+                )}
                 <Badge 
                   variant={report?.filing_status === "filed_mock" ? "default" : "secondary"}
                   className={report?.filing_status === "filed_mock" 
@@ -349,6 +356,25 @@ export default function WizardPage() {
             <Button variant="ghost" size="sm" onClick={() => setError(null)} className="ml-auto">
               Dismiss
             </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Client Notes from Submission */}
+      {initialData?.collection?.clientNotes && (
+        <div className="container mx-auto px-4 py-4">
+          <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
+            <div className="flex items-start gap-3">
+              <FileText className="h-5 w-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <h4 className="font-medium text-amber-800 dark:text-amber-300 text-sm mb-1">
+                  Client Notes
+                </h4>
+                <p className="text-sm text-amber-700 dark:text-amber-400">
+                  {initialData.collection.clientNotes as string}
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       )}

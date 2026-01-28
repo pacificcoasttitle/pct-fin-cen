@@ -353,12 +353,41 @@ export function RRERQuestionnaire({
   const [lastSavedAt, setLastSavedAt] = useState<string | undefined>()
   
   // NEW: Party Setup State for restructured wizard flow
+  // Initialize from initialParties if available (from client submission)
   const [partySetup, setPartySetup] = useState<{
     sellers: { id: string; name: string; email: string; type: "individual" | "entity" | "trust"; entityName?: string }[]
     buyers: { id: string; name: string; email: string; type: "individual" | "entity" | "trust"; entityName?: string }[]
-  }>({
-    sellers: [],
-    buyers: [],
+  }>(() => {
+    // Try to initialize from submission data
+    const initialParties = initialData?.collection?.initialParties
+    if (initialParties) {
+      const buyers = (initialParties.buyers || [])
+        .filter(b => b.name) // Only include if has name
+        .map(b => ({
+          id: generateId(),
+          name: b.name || "",
+          email: b.email || "",
+          type: (b.type || "individual") as "individual" | "entity" | "trust",
+          entityName: undefined,
+        }))
+      
+      const sellers = (initialParties.sellers || [])
+        .filter(s => s.name) // Only include if has name
+        .map(s => ({
+          id: generateId(),
+          name: s.name || "",
+          email: s.email || "",
+          type: (s.type || "individual") as "individual" | "entity" | "trust",
+          entityName: undefined,
+        }))
+      
+      if (buyers.length > 0 || sellers.length > 0) {
+        return { buyers, sellers }
+      }
+    }
+    
+    // Default empty state
+    return { sellers: [], buyers: [] }
   })
   const [reviewCertified, setReviewCertified] = useState(false)
   const [fileCertified, setFileCertified] = useState(false)
@@ -1178,6 +1207,15 @@ export function RRERQuestionnaire({
                     description="A non-financed transfer means no mortgage lender is involved in the transaction (cash purchase, seller financing, etc.)"
                   />
                   <CardContent className="pt-6">
+                    {/* Pre-filled indicator */}
+                    {initialData?.determination?.isNonFinanced && initialData?.collection?.financingType && (
+                      <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg flex items-center gap-2">
+                        <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                        <span className="text-sm text-blue-700 dark:text-blue-300">
+                          Pre-filled based on client&apos;s indication of &quot;{initialData.collection.financingType}&quot; financing. Please verify.
+                        </span>
+                      </div>
+                    )}
                     <div className="flex flex-col sm:flex-row gap-4">
                       <Button
                         variant={determination.isNonFinanced === "yes" ? "default" : "outline"}
@@ -1765,6 +1803,19 @@ export function RRERQuestionnaire({
                       description="Identify all parties and send them secure information requests"
                     />
                     <CardContent className="pt-6 space-y-6">
+                      {/* Pre-filled from submission indicator */}
+                      {initialData?.collection?.initialParties && (
+                        (initialData.collection.initialParties.buyers?.length > 0 || 
+                         initialData.collection.initialParties.sellers?.length > 0) && (
+                          <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg flex items-center gap-2">
+                            <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                            <span className="text-sm text-blue-700 dark:text-blue-300">
+                              Party information pre-filled from client submission. Please verify and update as needed.
+                            </span>
+                          </div>
+                        )
+                      )}
+                      
                       {/* Sellers Section */}
                       <div>
                         <h4 className="font-semibold flex items-center gap-2 mb-4">

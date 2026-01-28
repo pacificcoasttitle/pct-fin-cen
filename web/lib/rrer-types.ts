@@ -210,9 +210,40 @@ export interface Certification {
   signature: string
 }
 
+// Initial party info from client submission (used to pre-populate party setup)
+export interface InitialParty {
+  name: string
+  email: string
+  type: "individual" | "entity" | "trust"
+  phone?: string
+}
+
+export interface InitialParties {
+  buyers: InitialParty[]
+  sellers: InitialParty[]
+}
+
 // Full Collection Data
 export interface CollectionData {
+  // ==========================================================================
+  // Fields from SubmissionRequest (pre-filled when wizard starts)
+  // ==========================================================================
+  
+  /** Escrow/file number from client submission */
+  escrowNumber?: string
+  
+  /** Financing type from client submission */
+  financingType?: "cash" | "financed" | "partial_cash"
+  
+  /** Initial party info from client submission - used to pre-populate party setup */
+  initialParties?: InitialParties
+  
+  /** Notes from client submission */
+  clientNotes?: string
+
+  // ==========================================================================
   // Transaction & Property
+  // ==========================================================================
   closingDate: string
   propertyAddress: Address
   county: string
