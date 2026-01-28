@@ -1392,7 +1392,71 @@ Navigation items have hardcoded badge numbers that never change:
 **Files Created:**
 - `docs/INVESTIGATION_BADGE_FINDINGS.md` (comprehensive analysis)
 
-**Status:** ✅ Investigation Complete (Fix pending as next step)
+**Status:** ✅ Investigation Complete
+
+---
+
+### 25. Dynamic Sidebar Badges - Full Implementation ✅
+
+**Problem:** All sidebar badges were hardcoded static numbers
+- "My Queue" always showed "3" 
+- "Requests" always showed "8"
+- "All Requests" for staff had NO badge at all
+- Staff couldn't see when new requests arrived
+
+**Solution:**
+
+**1. Created Sidebar Counts API** (`api/app/routes/sidebar.py`)
+
+```
+GET /sidebar/counts?role={role}&company_id={id}
+
+Returns:
+- Internal roles: { requests_pending, queue_active }
+- Client roles: { requests_active }
+```
+
+**2. Created SidebarBadgeProvider Context** (`web/context/sidebar-badge-context.tsx`)
+- Fetches counts on mount
+- Polls every 60 seconds automatically
+- Provides `refreshCounts()` for immediate updates after actions
+
+**3. Color-Coded Badge System**
+
+| Color | Variant | Meaning | Used For |
+|-------|---------|---------|----------|
+| 🔴 Red | `alert` | Needs attention | Pending requests |
+| 🟡 Amber | `active` | Work in progress | Queue items (collecting/ready) |
+| 🔵 Blue | `info` | General count | Client requests |
+
+**4. Badge Logic by Role**
+
+| Role | Nav Item | Badge | Color |
+|------|----------|-------|-------|
+| COO | Requests | Pending count | 🔴 Red |
+| pct_admin | Requests | Pending count | 🔴 Red |
+| pct_staff | All Requests | Pending count | 🔴 Red |
+| pct_staff | My Queue | Collecting + Ready | 🟡 Amber |
+| client_admin | Requests | Pending + In Progress | 🔵 Blue |
+| client_user | Requests | Pending + In Progress | 🔵 Blue |
+
+**5. Real-Time Updates**
+- Polls every 60 seconds automatically
+- Badge counts update as data changes
+- "99+" display for counts over 99
+
+**Files Created:**
+- `api/app/routes/sidebar.py` (NEW - 75 lines)
+- `web/context/sidebar-badge-context.tsx` (NEW - 85 lines)
+
+**Files Changed:**
+- `api/app/routes/__init__.py` (register router)
+- `api/app/main.py` (include router)
+- `web/lib/navigation.ts` (BadgeConfig type, dynamic nav functions)
+- `web/components/app-sidebar.tsx` (color-coded badge rendering)
+- `web/app/(app)/layout.tsx` (wrap with provider)
+
+**Status:** ✅ Killed
 
 ---
 
@@ -1401,14 +1465,14 @@ Navigation items have hardcoded badge numbers that never change:
 | Category | Count |
 |----------|-------|
 | 🔴 Critical Fixes | 9 |
-| 🟠 Major Features | 10 |
+| 🟠 Major Features | 11 |
 | 🎨 UX/Design | 3 |
 | 🔧 Configuration | 2 |
 | 📄 Documentation | 4 |
 | 🎯 Demo Data & API | 1 |
 | 🏗️ Multi-Tenant Infrastructure | 1 |
 
-**Total Sharks Killed: 29** 🦈
+**Total Sharks Killed: 30** 🦈
 
 ---
 
@@ -1452,6 +1516,19 @@ Navigation items have hardcoded badge numbers that never change:
 - [ ] All 5 demo logins work correctly
 - [ ] Seed data creates all expected users
 
+### Dynamic Sidebar Badges
+- [ ] `GET /sidebar/counts?role=pct_staff` returns `requests_pending` and `queue_active`
+- [ ] `GET /sidebar/counts?role=client_admin&company_id=xxx` returns `requests_active`
+- [ ] SidebarBadgeProvider wraps app layout
+- [ ] Badge counts fetch on page load
+- [ ] Badge counts poll every 60 seconds
+- [ ] 🔴 Red badge shows for pending requests (COO, Admin, Staff)
+- [ ] 🟡 Amber badge shows for queue items (Staff only)
+- [ ] 🔵 Blue badge shows for client requests
+- [ ] Badges hide when count is 0
+- [ ] Badges show "99+" when count > 99
+- [ ] "All Requests" now has badge for Staff role
+
 ---
 
 ## Next Steps
@@ -1462,9 +1539,10 @@ Navigation items have hardcoded badge numbers that never change:
 4. ~~**P0:** Wire wizard steps to backend APIs~~ ✅ DONE
 5. ~~**P0:** Demo data and dashboard fixes~~ ✅ DONE
 6. ~~**P2:** Add Trust buyer form with trustees/settlors/beneficiaries~~ ✅ DONE
-7. **P2:** Implement dynamic sidebar badges (investigation complete, ready to implement)
+7. ~~**P2:** Implement dynamic sidebar badges~~ ✅ DONE
 8. **P3:** Add more comprehensive form validation
+9. **P3:** Add `refreshCounts()` calls after key actions (start wizard, file report)
 
 ---
 
-*Last updated: January 28, 2026 @ 11:00 AM*
+*Last updated: January 28, 2026 @ 12:00 PM*

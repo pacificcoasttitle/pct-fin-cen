@@ -9,6 +9,7 @@ from app.routes.submission_requests import router as submission_requests_router
 from app.routes.invoices import router as invoices_router
 from app.routes.companies import router as companies_router
 from app.routes.users import router as users_router
+from app.routes.sidebar import router as sidebar_router
 
 __all__ = [
     "reports_router",
@@ -19,4 +20,5 @@ __all__ = [
     "invoices_router",
     "companies_router",
     "users_router",
+    "sidebar_router",
 ]

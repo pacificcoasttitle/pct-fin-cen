@@ -5,6 +5,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { getNavigationForRole, getPortalLabel, isPCTInternal, type UserRole } from "@/lib/navigation";
 import { useDemo } from "@/hooks/use-demo";
+import { useSidebarBadges } from "@/context/sidebar-badge-context";
 import { Badge } from "@/components/ui/badge";
 import { LogOut, HelpCircle, Wrench } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -14,9 +15,15 @@ import { BRAND } from "@/lib/brand";
 export function AppSidebar() {
   const pathname = usePathname();
   const { user, isLoading, logout } = useDemo();
+  const { requestsPending, queueActive, requestsActive } = useSidebarBadges();
 
   const role = (user?.role || "client_user") as UserRole;
-  const navigation = getNavigationForRole(role);
+  // Pass dynamic badge counts to navigation
+  const navigation = getNavigationForRole(role, {
+    requestsPending,
+    queueActive,
+    requestsActive,
+  });
   const portalLabel = getPortalLabel(role);
   const isInternal = isPCTInternal(role);
 
@@ -177,18 +184,21 @@ export function AppSidebar() {
                     >
                       <Icon className="h-4 w-4" />
                       <span className="flex-1">{item.label}</span>
-                      {item.badge && (
-                        <Badge
-                          variant="secondary"
+                      {/* Dynamic Badge with Color Variants */}
+                      {item.badge && item.badge.count > 0 && (
+                        <span
                           className={cn(
-                            "h-5 px-1.5 text-xs",
-                            isActive
-                              ? "bg-blue-500/30 text-blue-300"
-                              : "bg-slate-700 text-slate-300"
+                            "ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-xs font-semibold transition-colors",
+                            // Alert (Red) - Needs attention
+                            item.badge.variant === "alert" && "bg-red-500 text-white",
+                            // Active (Amber) - Work in progress
+                            item.badge.variant === "active" && "bg-amber-500 text-white",
+                            // Info (Blue) - General count
+                            item.badge.variant === "info" && "bg-blue-500 text-white"
                           )}
                         >
-                          {item.badge}
-                        </Badge>
+                          {item.badge.count > 99 ? "99+" : item.badge.count}
+                        </span>
                       )}
                     </Link>
                   </li>

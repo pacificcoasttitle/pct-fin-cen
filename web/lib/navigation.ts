@@ -17,11 +17,19 @@ import type { LucideIcon } from "lucide-react";
 
 export type UserRole = "coo" | "pct_admin" | "pct_staff" | "client_admin" | "client_user";
 
+// Badge type with color variant
+export type BadgeVariant = "alert" | "active" | "info";
+
+export interface BadgeConfig {
+  count: number;
+  variant: BadgeVariant;  // alert=red, active=amber, info=blue
+}
+
 export interface NavItem {
   label: string;
   href: string;
   icon: LucideIcon;
-  badge?: number | string;
+  badge?: BadgeConfig;
 }
 
 export interface NavSection {
@@ -29,289 +37,333 @@ export interface NavSection {
   items: NavItem[];
 }
 
+// Badge counts from API
+export interface BadgeCounts {
+  requestsPending: number;  // RED: Pending submission requests
+  queueActive: number;      // AMBER: Reports in collecting/ready_to_file
+  requestsActive: number;   // BLUE: Client's pending + in_progress
+}
+
+// ============================================
+// Dynamic Navigation Generators
+// ============================================
+
+/**
+ * Get navigation items for a role with dynamic badge counts
+ */
+export function getNavigationForRole(
+  role: UserRole,
+  badgeCounts?: BadgeCounts
+): NavSection[] {
+  const counts = badgeCounts || { requestsPending: 0, queueActive: 0, requestsActive: 0 };
+
+  switch (role) {
+    case "coo":
+      return getCOONavigation(counts);
+    case "pct_admin":
+      return getPCTAdminNavigation(counts);
+    case "pct_staff":
+      return getPCTStaffNavigation(counts);
+    case "client_admin":
+      return getClientAdminNavigation(counts);
+    case "client_user":
+      return getClientUserNavigation(counts);
+    default:
+      return getClientUserNavigation(counts);
+  }
+}
+
 // ============================================
 // COO - Executive Dashboard + FULL Admin Access
 // ============================================
-export const cooNavigation: NavSection[] = [
-  {
-    items: [
-      {
-        label: "Executive Dashboard",
-        href: "/app/executive",
-        icon: TrendingUp,
-      },
-    ],
-  },
-  {
-    title: "Operations",
-    items: [
-      {
-        label: "Requests",
-        href: "/app/admin/requests",
-        icon: Inbox,
-        badge: 8,
-      },
-      {
-        label: "Reports",
-        href: "/app/admin/reports",
-        icon: FileText,
-      },
-      {
-        label: "Filings",
-        href: "/app/admin/filings",
-        icon: Send,
-      },
-    ],
-  },
-  {
-    title: "Business",
-    items: [
-      {
-        label: "Companies",
-        href: "/app/admin/companies",
-        icon: Building2,
-      },
-      {
-        label: "Billing",
-        href: "/app/admin/billing",
-        icon: DollarSign,
-      },
-    ],
-  },
-  {
-    title: "Administration",
-    items: [
-      {
-        label: "Users",
-        href: "/app/admin/users",
-        icon: Users,
-      },
-      {
-        label: "Notifications",
-        href: "/app/admin/notifications",
-        icon: Bell,
-      },
-      {
-        label: "Settings",
-        href: "/app/admin/settings",
-        icon: Settings,
-      },
-    ],
-  },
-];
+function getCOONavigation(counts: BadgeCounts): NavSection[] {
+  return [
+    {
+      items: [
+        {
+          label: "Executive Dashboard",
+          href: "/app/executive",
+          icon: TrendingUp,
+        },
+      ],
+    },
+    {
+      title: "Operations",
+      items: [
+        {
+          label: "Requests",
+          href: "/app/admin/requests",
+          icon: Inbox,
+          badge: counts.requestsPending > 0
+            ? { count: counts.requestsPending, variant: "alert" as BadgeVariant }
+            : undefined,
+        },
+        {
+          label: "Reports",
+          href: "/app/admin/reports",
+          icon: FileText,
+        },
+        {
+          label: "Filings",
+          href: "/app/admin/filings",
+          icon: Send,
+        },
+      ],
+    },
+    {
+      title: "Business",
+      items: [
+        {
+          label: "Companies",
+          href: "/app/admin/companies",
+          icon: Building2,
+        },
+        {
+          label: "Billing",
+          href: "/app/admin/billing",
+          icon: DollarSign,
+        },
+      ],
+    },
+    {
+      title: "Administration",
+      items: [
+        {
+          label: "Users",
+          href: "/app/admin/users",
+          icon: Users,
+        },
+        {
+          label: "Notifications",
+          href: "/app/admin/notifications",
+          icon: Bell,
+        },
+        {
+          label: "Settings",
+          href: "/app/admin/settings",
+          icon: Settings,
+        },
+      ],
+    },
+  ];
+}
 
 // ============================================
 // FinClear Admin - Full Admin (NO Executive Dashboard, NO Billing)
 // ============================================
-export const pctAdminNavigation: NavSection[] = [
-  {
-    items: [
-      {
-        label: "Overview",
-        href: "/app/admin/overview",
-        icon: LayoutDashboard,
-      },
-      {
-        label: "Requests",
-        href: "/app/admin/requests",
-        icon: Inbox,
-        badge: 8,
-      },
-    ],
-  },
-  {
-    title: "Management",
-    items: [
-      {
-        label: "Companies",
-        href: "/app/admin/companies",
-        icon: Building2,
-      },
-      {
-        label: "Reports",
-        href: "/app/admin/reports",
-        icon: FileText,
-      },
-      {
-        label: "Filings",
-        href: "/app/admin/filings",
-        icon: Send,
-      },
-    ],
-  },
-  {
-    title: "Administration",
-    items: [
-      {
-        label: "Users",
-        href: "/app/admin/users",
-        icon: Users,
-      },
-      {
-        label: "Notifications",
-        href: "/app/admin/notifications",
-        icon: Bell,
-      },
-    ],
-  },
-];
+function getPCTAdminNavigation(counts: BadgeCounts): NavSection[] {
+  return [
+    {
+      items: [
+        {
+          label: "Overview",
+          href: "/app/admin/overview",
+          icon: LayoutDashboard,
+        },
+        {
+          label: "Requests",
+          href: "/app/admin/requests",
+          icon: Inbox,
+          badge: counts.requestsPending > 0
+            ? { count: counts.requestsPending, variant: "alert" as BadgeVariant }
+            : undefined,
+        },
+      ],
+    },
+    {
+      title: "Management",
+      items: [
+        {
+          label: "Companies",
+          href: "/app/admin/companies",
+          icon: Building2,
+        },
+        {
+          label: "Reports",
+          href: "/app/admin/reports",
+          icon: FileText,
+        },
+        {
+          label: "Filings",
+          href: "/app/admin/filings",
+          icon: Send,
+        },
+      ],
+    },
+    {
+      title: "Administration",
+      items: [
+        {
+          label: "Users",
+          href: "/app/admin/users",
+          icon: Users,
+        },
+        {
+          label: "Notifications",
+          href: "/app/admin/notifications",
+          icon: Bell,
+        },
+      ],
+    },
+  ];
+}
 
 // ============================================
 // FinClear Staff - Operational Work Only
 // ============================================
-export const pctStaffNavigation: NavSection[] = [
-  {
-    items: [
-      {
-        label: "My Queue",
-        href: "/app/staff/queue",
-        icon: Inbox,
-        badge: 3,
-      },
-      {
-        label: "All Requests",
-        href: "/app/admin/requests",
-        icon: ClipboardList,
-      },
-    ],
-  },
-  {
-    title: "My Work",
-    items: [
-      {
-        label: "My Reports",
-        href: "/app/staff/reports",
-        icon: FileText,
-      },
-      {
-        label: "Filings",
-        href: "/app/admin/filings",
-        icon: Send,
-      },
-    ],
-  },
-];
+function getPCTStaffNavigation(counts: BadgeCounts): NavSection[] {
+  return [
+    {
+      items: [
+        {
+          label: "My Queue",
+          href: "/app/staff/queue",
+          icon: Inbox,
+          badge: counts.queueActive > 0
+            ? { count: counts.queueActive, variant: "active" as BadgeVariant }  // AMBER
+            : undefined,
+        },
+        {
+          label: "All Requests",
+          href: "/app/admin/requests",
+          icon: ClipboardList,
+          badge: counts.requestsPending > 0
+            ? { count: counts.requestsPending, variant: "alert" as BadgeVariant }  // RED
+            : undefined,
+        },
+      ],
+    },
+    {
+      title: "My Work",
+      items: [
+        {
+          label: "My Reports",
+          href: "/app/staff/reports",
+          icon: FileText,
+        },
+        {
+          label: "Filings",
+          href: "/app/admin/filings",
+          icon: Send,
+        },
+      ],
+    },
+  ];
+}
 
 // ============================================
 // Client Admin - Full Client Access + Billing + Team
 // ============================================
-export const clientAdminNavigation: NavSection[] = [
-  {
-    items: [
-      {
-        label: "Dashboard",
-        href: "/app/dashboard",
-        icon: LayoutDashboard,
-      },
-      {
-        label: "New Request",
-        href: "/app/requests/new",
-        icon: Send,
-      },
-    ],
-  },
-  {
-    title: "My Company",
-    items: [
-      {
-        label: "Requests",
-        href: "/app/requests",
-        icon: Inbox,
-      },
-      {
-        label: "Reports",
-        href: "/app/reports",
-        icon: FileText,
-      },
-      {
-        label: "Invoices",
-        href: "/app/invoices",
-        icon: Receipt,
-      },
-    ],
-  },
-  {
-    title: "Administration",
-    items: [
-      {
-        label: "Company Settings",
-        href: "/app/settings/company",
-        icon: Building2,
-      },
-      {
-        label: "Team Members",
-        href: "/app/settings/team",
-        icon: Users,
-      },
-    ],
-  },
-];
+function getClientAdminNavigation(counts: BadgeCounts): NavSection[] {
+  return [
+    {
+      items: [
+        {
+          label: "Dashboard",
+          href: "/app/dashboard",
+          icon: LayoutDashboard,
+        },
+        {
+          label: "New Request",
+          href: "/app/requests/new",
+          icon: Send,
+        },
+      ],
+    },
+    {
+      title: "My Company",
+      items: [
+        {
+          label: "Requests",
+          href: "/app/requests",
+          icon: Inbox,
+          badge: counts.requestsActive > 0
+            ? { count: counts.requestsActive, variant: "info" as BadgeVariant }  // BLUE
+            : undefined,
+        },
+        {
+          label: "Reports",
+          href: "/app/reports",
+          icon: FileText,
+        },
+        {
+          label: "Invoices",
+          href: "/app/invoices",
+          icon: Receipt,
+        },
+      ],
+    },
+    {
+      title: "Administration",
+      items: [
+        {
+          label: "Company Settings",
+          href: "/app/settings/company",
+          icon: Building2,
+        },
+        {
+          label: "Team Members",
+          href: "/app/settings/team",
+          icon: Users,
+        },
+      ],
+    },
+  ];
+}
 
 // ============================================
 // Client User - Basic Access (NO Billing, NO Team)
 // ============================================
-export const clientUserNavigation: NavSection[] = [
-  {
-    items: [
-      {
-        label: "Dashboard",
-        href: "/app/dashboard",
-        icon: LayoutDashboard,
-      },
-      {
-        label: "New Request",
-        href: "/app/requests/new",
-        icon: Send,
-      },
-    ],
-  },
-  {
-    title: "My Requests",
-    items: [
-      {
-        label: "All Requests",
-        href: "/app/requests",
-        icon: Inbox,
-      },
-      {
-        label: "Report Status",
-        href: "/app/reports",
-        icon: FileText,
-      },
-    ],
-  },
-  {
-    title: "Account",
-    items: [
-      {
-        label: "My Profile",
-        href: "/app/settings/profile",
-        icon: UserCircle,
-      },
-    ],
-  },
-];
+function getClientUserNavigation(counts: BadgeCounts): NavSection[] {
+  return [
+    {
+      items: [
+        {
+          label: "Dashboard",
+          href: "/app/dashboard",
+          icon: LayoutDashboard,
+        },
+        {
+          label: "New Request",
+          href: "/app/requests/new",
+          icon: Send,
+        },
+      ],
+    },
+    {
+      title: "My Requests",
+      items: [
+        {
+          label: "All Requests",
+          href: "/app/requests",
+          icon: Inbox,
+          badge: counts.requestsActive > 0
+            ? { count: counts.requestsActive, variant: "info" as BadgeVariant }  // BLUE
+            : undefined,
+        },
+        {
+          label: "Report Status",
+          href: "/app/reports",
+          icon: FileText,
+        },
+      ],
+    },
+    {
+      title: "Account",
+      items: [
+        {
+          label: "My Profile",
+          href: "/app/settings/profile",
+          icon: UserCircle,
+        },
+      ],
+    },
+  ];
+}
 
 // ============================================
 // Helper Functions
 // ============================================
-
-export function getNavigationForRole(role: UserRole): NavSection[] {
-  switch (role) {
-    case "coo":
-      return cooNavigation;
-    case "pct_admin":
-      return pctAdminNavigation;
-    case "pct_staff":
-      return pctStaffNavigation;
-    case "client_admin":
-      return clientAdminNavigation;
-    case "client_user":
-      return clientUserNavigation;
-    default:
-      return clientUserNavigation;
-  }
-}
 
 export function getHomeRoute(role: UserRole): string {
   switch (role) {

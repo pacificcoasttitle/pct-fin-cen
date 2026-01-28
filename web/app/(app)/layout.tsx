@@ -1,20 +1,50 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { AppSidebar } from "@/components/app-sidebar"
+import { SidebarBadgeProvider } from "@/context/sidebar-badge-context"
+
+interface SessionData {
+  role: string;
+  companyId: string | null;
+}
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
+  const [session, setSession] = useState<SessionData>({ role: "client_user", companyId: null });
+
+  // Read session from cookie
+  useEffect(() => {
+    const cookie = document.cookie
+      .split("; ")
+      .find((row) => row.startsWith("pct_demo_session="));
+    
+    if (cookie) {
+      try {
+        const data = JSON.parse(atob(cookie.split("=")[1]));
+        setSession({
+          role: data.role || "client_user",
+          companyId: data.companyId || null,
+        });
+      } catch (e) {
+        console.error("Failed to parse session cookie:", e);
+      }
+    }
+  }, []);
+
   return (
-    <div className="flex h-screen bg-slate-50">
-      <AppSidebar />
-      <main className="flex-1 overflow-y-auto">
-        {/* Staging banner */}
-        {process.env.NEXT_PUBLIC_ENVIRONMENT === "staging" && (
-          <div className="bg-amber-500 text-white text-center text-xs font-medium py-1">
-            STAGING ENVIRONMENT — Demo data may be reset
-          </div>
-        )}
-        <div className="p-6">{children}</div>
-      </main>
-    </div>
+    <SidebarBadgeProvider role={session.role} companyId={session.companyId}>
+      <div className="flex h-screen bg-slate-50">
+        <AppSidebar />
+        <main className="flex-1 overflow-y-auto">
+          {/* Staging banner */}
+          {process.env.NEXT_PUBLIC_ENVIRONMENT === "staging" && (
+            <div className="bg-amber-500 text-white text-center text-xs font-medium py-1">
+              STAGING ENVIRONMENT — Demo data may be reset
+            </div>
+          )}
+          <div className="p-6">{children}</div>
+        </main>
+      </div>
+    </SidebarBadgeProvider>
   )
 }
