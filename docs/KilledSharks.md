@@ -1531,6 +1531,39 @@ Returns:
 
 ---
 
+## Investigation Completed (Not Yet Fixed)
+
+### 26. Data Flow: SubmissionRequest → Wizard (Investigation) 🔍
+
+**Problem:** When staff clicks "Start Wizard", most client-submitted data is NOT showing in the wizard form even though it's being transferred.
+
+**Root Cause Found:**
+1. **Type Definition Gap**: The `CollectionData` TypeScript interface doesn't include `escrowNumber`, `financingType`, or `initialParties` fields
+2. **Determination Not Pre-filled**: Backend doesn't set `isNonFinanced` based on `financing_type`
+3. **Party Setup Disconnect**: `initialParties` is sent but Party Setup step doesn't read from it
+
+**What DOES carry over:** Property address ✅, Purchase price ✅, Closing date ✅
+
+**What's LOST due to type mismatch:**
+- ❌ Escrow number (transferred but interface missing)
+- ❌ Financing type (transferred but interface missing)
+- ❌ Buyer name/email/type (in initialParties but not consumed)
+- ❌ Seller name/email (in initialParties but not consumed)
+- ❌ Pre-filled determination answers
+
+**Recommended Fixes:**
+1. **P0**: Update `CollectionData` type in `web/lib/rrer-types.ts` to include missing fields
+2. **P1**: Pre-fill `wizard_data.determination.isNonFinanced` in backend based on financing_type
+3. **P1**: Initialize Party Setup from `initialParties` in RRERQuestionnaire
+4. **P2**: Display escrow number prominently in wizard header
+
+**Files Created:**
+- `docs/INVESTIGATION_DATA_FLOW_FINDINGS.md` (comprehensive analysis)
+
+**Status:** 🔍 Investigation Complete (Fix pending)
+
+---
+
 ## Next Steps
 
 1. ~~**P1:** Expand party portal with required FinCEN fields~~ ✅ DONE
@@ -1540,9 +1573,10 @@ Returns:
 5. ~~**P0:** Demo data and dashboard fixes~~ ✅ DONE
 6. ~~**P2:** Add Trust buyer form with trustees/settlors/beneficiaries~~ ✅ DONE
 7. ~~**P2:** Implement dynamic sidebar badges~~ ✅ DONE
-8. **P3:** Add more comprehensive form validation
-9. **P3:** Add `refreshCounts()` calls after key actions (start wizard, file report)
+8. **P0:** Fix SubmissionRequest → Wizard data flow (investigation complete, ready to fix)
+9. **P3:** Add more comprehensive form validation
+10. **P3:** Add `refreshCounts()` calls after key actions (start wizard, file report)
 
 ---
 
-*Last updated: January 28, 2026 @ 12:00 PM*
+*Last updated: January 28, 2026 @ 12:30 PM*
