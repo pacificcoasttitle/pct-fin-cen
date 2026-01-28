@@ -17,7 +17,7 @@ SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
 SENDGRID_FROM_EMAIL = os.getenv("SENDGRID_FROM_EMAIL", "noreply@example.com")
 SENDGRID_FROM_NAME = os.getenv("SENDGRID_FROM_NAME", "FinCEN Compliance")
 SENDGRID_ENABLED = os.getenv("SENDGRID_ENABLED", "false").lower() == "true"
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://fincenclear.com")
 
 
 class EmailResult:

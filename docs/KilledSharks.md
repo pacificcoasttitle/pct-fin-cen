@@ -11,6 +11,7 @@
 | 🔴 Critical Fixes | 7 |
 | 🟠 Major Features | 6 |
 | 🎨 UX/Design | 1 |
+| 🔧 Configuration | 1 |
 | 📄 Documentation | 3 |
 
 ---
@@ -715,6 +716,53 @@ Landing (Teal) → Login (Teal) → Dashboard (Teal) = **ONE Premium Brand**
 
 ---
 
+### 15. Custom Domain Configuration ✅
+
+**Task:** Configure production domain `fincenclear.com`
+
+**Changes Made:**
+
+1. **CORS Configuration** (`api/app/config.py`)
+   - Added `https://fincenclear.com` to allowed origins
+   - Added `https://www.fincenclear.com` to allowed origins
+   - Origins are automatically included as defaults
+
+2. **Frontend Metadata** (`web/app/layout.tsx`)
+   - Added `metadataBase` using `NEXT_PUBLIC_SITE_URL` env var
+   - Defaults to `https://fincenclear.com`
+   - Added OpenGraph tags for social sharing
+   - Added Twitter card metadata
+   - Added SEO keywords
+   - Updated site title: "FinCEN Clear - FinCEN Compliance Made Simple"
+
+3. **Email Service** (`api/app/services/email_service.py`)
+   - Updated `FRONTEND_URL` default from localhost to `https://fincenclear.com`
+   - Party portal links now use production domain by default
+
+**Environment Variables to Set:**
+
+| Service | Variable | Value |
+|---------|----------|-------|
+| Vercel | `NEXT_PUBLIC_SITE_URL` | `https://fincenclear.com` |
+| Render | `FRONTEND_URL` | `https://fincenclear.com` |
+| Render | `CORS_ORIGINS` | (optional - defaults work) |
+
+**DNS Records Needed:**
+```
+Type    Name    Value
+A       @       76.76.21.21
+CNAME   www     cname.vercel-dns.com
+```
+
+**Files Changed:**
+- `api/app/config.py`
+- `api/app/services/email_service.py`
+- `web/app/layout.tsx`
+
+**Status:** ✅ Killed
+
+---
+
 ## Git Commits Today
 
 1. `docs: add gap analysis comparing North Star vs actual code`
@@ -733,6 +781,7 @@ Landing (Teal) → Login (Teal) → Dashboard (Teal) = **ONE Premium Brand**
 14. `fix: propagate company_id from submission to report`
 15. `feat: complete client request visibility and tracking`
 16. `feat: landing page color glow-up - gold to teal`
+17. `feat: configure custom domain fincenclear.com`
 
 ---
 
@@ -780,6 +829,10 @@ Landing (Teal) → Login (Teal) → Dashboard (Teal) = **ONE Premium Brand**
 - [ ] Countdown timer numbers are teal
 - [ ] Pricing "popular" badge is teal gradient
 - [ ] Footer links hover to teal
+- [ ] Custom domain DNS records configured
+- [ ] https://fincenclear.com loads correctly
+- [ ] No CORS errors on production domain
+- [ ] OpenGraph/Twitter cards show correctly
 
 ---
 

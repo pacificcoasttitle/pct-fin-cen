@@ -19,12 +19,17 @@ class Settings:
     
     def _parse_cors_origins(self) -> List[str]:
         """Parse CORS_ORIGINS from comma-separated string."""
-        # Default origins include localhost and known Vercel deployments
+        # Default origins include localhost and known deployments
         default_origins = [
+            # Local development
             "http://localhost:3000",
             "http://localhost:3001",
-            "https://pct-fin-cen-6wx3.vercel.app",  # Production Vercel
-            "https://pct-fincen.vercel.app",        # Custom domain if used
+            # Vercel deployments
+            "https://pct-fin-cen-6wx3.vercel.app",
+            "https://pct-fincen.vercel.app",
+            # Production domain
+            "https://fincenclear.com",
+            "https://www.fincenclear.com",
         ]
         
         origins_str = os.getenv("CORS_ORIGINS", "")
