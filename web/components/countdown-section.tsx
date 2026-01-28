@@ -43,24 +43,24 @@ export function CountdownSection() {
 
   const TimeBlock = ({ value, label }: { value: number; label: string }) => (
     <div className="flex flex-col items-center">
-      <div className="bg-white/10 backdrop-blur-sm rounded-lg px-3 py-2 sm:px-4 sm:py-3 min-w-[60px] sm:min-w-[80px]">
-        <span className="text-2xl sm:text-4xl font-bold text-white tabular-nums">
+      <div className="bg-teal-500/20 border border-teal-500/30 backdrop-blur-sm rounded-lg px-3 py-2 sm:px-4 sm:py-3 min-w-[60px] sm:min-w-[80px]">
+        <span className="text-2xl sm:text-4xl font-bold text-teal-400 tabular-nums font-mono">
           {value.toString().padStart(2, "0")}
         </span>
       </div>
-      <span className="text-xs sm:text-sm text-white/70 mt-2 uppercase tracking-wider">
+      <span className="text-xs sm:text-sm text-slate-400 mt-2 uppercase tracking-wider">
         {label}
       </span>
     </div>
   );
 
   return (
-    <section className="relative bg-gradient-to-r from-[#1E3A5F] to-[#2D4A6F] py-8 sm:py-10">
+    <section className="relative bg-gradient-to-r from-slate-900 via-slate-800 to-teal-900 py-8 sm:py-10 border-y border-teal-500/20">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col lg:flex-row items-center justify-between gap-6 lg:gap-8">
           {/* Left - Warning */}
           <div className="flex items-center gap-3 text-white">
-            <AlertTriangle className="w-6 h-6 text-[#C9A227] flex-shrink-0 animate-pulse" />
+            <AlertTriangle className="w-6 h-6 text-amber-400 flex-shrink-0 animate-pulse" />
             <span className="text-sm sm:text-base font-medium">
               FinCEN Reporting Goes Live In:
             </span>

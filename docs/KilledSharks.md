@@ -10,6 +10,7 @@
 |----------|-------|
 | 🔴 Critical Fixes | 7 |
 | 🟠 Major Features | 6 |
+| 🎨 UX/Design | 1 |
 | 📄 Documentation | 3 |
 
 ---
@@ -670,6 +671,50 @@ report = Report(
 
 ---
 
+### 14. Landing Page Color Scheme Glow-Up ✅
+
+**Problem:** Landing page used Navy + Gold color scheme, while the app dashboards evolved to Navy + Teal with modern "bubbly tech" aesthetic. Visual disconnect between marketing and product.
+
+**Impact:** 
+- Brand inconsistency
+- Marketing didn't match the premium feel of the app
+- Demo flow felt disjointed landing → app
+
+**Solution:** Complete color refresh of all landing page components to match app design system:
+
+| Element | Before (Gold) | After (Teal) |
+|---------|---------------|--------------|
+| Primary Accent | `#C9A227` | `#0D9488` (teal-500) |
+| CTA Buttons | Gold gradient | Teal gradient with shadows |
+| Hover States | Gold accents | Teal-400 accents |
+| Countdown Timer | Gold numbers | Teal-400 numbers |
+| Popular Badge | Gold badge | Teal-to-emerald gradient |
+| Footer Logo | Gold shield | Teal gradient shield |
+
+**Components Updated:**
+- `hero-section.tsx` - Badge, CTAs, floating clock icon
+- `header.tsx` - Navbar CTA buttons (desktop + mobile)
+- `countdown-section.tsx` - Timer blocks, background gradient
+- `pricing-section.tsx` - Popular badge, CTA buttons, borders
+- `cta-section.tsx` - Background gradient, orbs, buttons
+- `footer.tsx` - Logo, social hovers, link hovers
+- `comparison-section.tsx` - CTA button
+- `mobile-cta-bar.tsx` - Sticky mobile CTA
+
+**Additional Improvements:**
+- Added floating orb effects for depth
+- Added animated ping indicator on regulation badge
+- Improved shadow system (`shadow-teal-500/25`)
+- Better gradient transitions on hover
+- Consistent slate-900 dark backgrounds
+
+**Visual Result:**
+Landing (Teal) → Login (Teal) → Dashboard (Teal) = **ONE Premium Brand**
+
+**Status:** ✅ Killed
+
+---
+
 ## Git Commits Today
 
 1. `docs: add gap analysis comparing North Star vs actual code`
@@ -687,6 +732,7 @@ report = Report(
 13. `fix: 500 error - company_id NOT NULL constraint + Vercel Analytics 404`
 14. `fix: propagate company_id from submission to report`
 15. `feat: complete client request visibility and tracking`
+16. `feat: landing page color glow-up - gold to teal`
 
 ---
 
@@ -729,6 +775,11 @@ report = Report(
 - [ ] Success page shows enhanced UI with next steps
 - [ ] Error boundary catches failures gracefully
 - [ ] Loading states appear during fetch
+- [ ] Landing page hero uses teal accents (no gold)
+- [ ] All CTA buttons use teal gradient
+- [ ] Countdown timer numbers are teal
+- [ ] Pricing "popular" badge is teal gradient
+- [ ] Footer links hover to teal
 
 ---
 

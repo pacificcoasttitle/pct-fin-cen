@@ -17,9 +17,12 @@ export function HeroSection() {
           <div className="max-w-xl">
             <Badge 
               variant="outline" 
-              className="mb-6 py-2 px-4 text-sm border-[#C9A227]/30 bg-[#C9A227]/10 text-[#1E3A5F] font-medium"
+              className="mb-6 py-2 px-4 text-sm border-teal-500/30 bg-teal-500/10 text-teal-700 font-medium"
             >
-              <span className="mr-2">🚨</span>
+              <span className="relative flex h-2 w-2 mr-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-teal-500"></span>
+              </span>
               New Regulation Effective March 1, 2026
             </Badge>
             
@@ -39,14 +42,14 @@ export function HeroSection() {
             <div className="mt-8 flex flex-col sm:flex-row gap-4">
               <Button 
                 size="lg" 
-                className="bg-[#C9A227] hover:bg-[#B8911F] text-[#1E293B] font-semibold px-8 h-12"
+                className="bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white font-semibold px-8 h-12 shadow-lg shadow-teal-500/25 hover:shadow-xl hover:shadow-teal-500/30 transition-all duration-300"
               >
                 Start Free Trial
               </Button>
               <Button 
                 variant="outline" 
                 size="lg" 
-                className="h-12 px-8 border-primary text-primary hover:bg-primary hover:text-primary-foreground bg-transparent"
+                className="h-12 px-8 border-teal-500/50 text-teal-600 hover:bg-teal-50 hover:text-teal-700 hover:border-teal-500 bg-transparent transition-all duration-300"
               >
                 <Play className="w-4 h-4 mr-2" />
                 Watch Demo
@@ -127,7 +130,7 @@ export function HeroSection() {
               
               {/* Floating Elements */}
               <div className="absolute -top-4 -right-4 bg-card rounded-xl shadow-lg border border-border p-3 flex items-center gap-2">
-                <Clock className="w-5 h-5 text-[#C9A227]" />
+                <Clock className="w-5 h-5 text-teal-500" />
                 <span className="text-sm font-semibold text-foreground">10 min</span>
               </div>
               

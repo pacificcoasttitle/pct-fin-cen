@@ -60,10 +60,10 @@ export function Header() {
 
           {/* Desktop CTAs */}
           <div className="hidden lg:flex items-center gap-4">
-            <Button variant="ghost" size="sm" className="text-muted-foreground" asChild>
+            <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground" asChild>
               <Link href="/login">Login</Link>
             </Button>
-            <Button size="sm" className="bg-[#C9A227] hover:bg-[#B8911F] text-[#1E293B] font-semibold">
+            <Button size="sm" className="bg-teal-500 hover:bg-teal-600 text-white font-semibold shadow-md shadow-teal-500/20">
               Start Free Trial
             </Button>
           </div>
@@ -91,7 +91,7 @@ export function Header() {
                 <Button variant="outline" className="w-full bg-transparent" asChild>
                   <Link href="/login">Login</Link>
                 </Button>
-                <Button className="w-full bg-[#C9A227] hover:bg-[#B8911F] text-[#1E293B] font-semibold">
+                <Button className="w-full bg-teal-500 hover:bg-teal-600 text-white font-semibold">
                   Start Free Trial
                 </Button>
               </nav>

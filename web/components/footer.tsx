@@ -29,25 +29,25 @@ export function Footer() {
   ];
 
   return (
-    <footer className="bg-[#1E3A5F] text-white">
+    <footer className="bg-slate-900 text-white">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12 lg:py-16">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8 lg:gap-12">
           {/* Brand Column */}
           <div className="col-span-2 md:col-span-1">
             <Link href="/" className="flex items-center gap-2 mb-4">
-              <div className="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center">
-                <Shield className="w-6 h-6 text-[#C9A227]" />
+              <div className="w-10 h-10 bg-gradient-to-br from-teal-400 to-teal-600 rounded-lg flex items-center justify-center">
+                <Shield className="w-6 h-6 text-white" />
               </div>
               <div>
                 <span className="font-bold text-white">PCT FinCEN</span>
-                <span className="font-medium text-white/70"> Solutions</span>
+                <span className="font-medium text-slate-400"> Solutions</span>
               </div>
             </Link>
-            <p className="text-sm text-white/60 mb-6">FinCEN Compliance Made Simple</p>
+            <p className="text-sm text-slate-400 mb-6">FinCEN Compliance Made Simple</p>
             <div className="flex gap-4">
               <a
                 href="#"
-                className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"
+                className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center hover:bg-teal-500/20 hover:text-teal-400 transition-colors"
                 aria-label="LinkedIn"
               >
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -56,7 +56,7 @@ export function Footer() {
               </a>
               <a
                 href="#"
-                className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"
+                className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center hover:bg-teal-500/20 hover:text-teal-400 transition-colors"
                 aria-label="X (Twitter)"
               >
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -74,7 +74,7 @@ export function Footer() {
                 <li key={index}>
                   <Link
                     href={link.href}
-                    className="text-sm text-white/60 hover:text-white transition-colors inline-flex items-center gap-2"
+                    className="text-sm text-slate-400 hover:text-teal-400 transition-colors inline-flex items-center gap-2"
                   >
                     {link.label}
                     {link.badge && (
@@ -94,7 +94,7 @@ export function Footer() {
                 <li key={index}>
                   <Link
                     href={link.href}
-                    className="text-sm text-white/60 hover:text-white transition-colors"
+                    className="text-sm text-slate-400 hover:text-teal-400 transition-colors"
                   >
                     {link.label}
                   </Link>
@@ -111,7 +111,7 @@ export function Footer() {
                 <li key={index}>
                   <Link
                     href={link.href}
-                    className="text-sm text-white/60 hover:text-white transition-colors inline-flex items-center gap-2"
+                    className="text-sm text-slate-400 hover:text-teal-400 transition-colors inline-flex items-center gap-2"
                   >
                     {link.label}
                     {link.badge && (
@@ -125,11 +125,14 @@ export function Footer() {
         </div>
 
         {/* Bottom Bar */}
-        <div className="mt-12 pt-8 border-t border-white/10 flex flex-col md:flex-row justify-between items-center gap-4">
-          <p className="text-sm text-white/50">
+        <div className="mt-12 pt-8 border-t border-slate-800 flex flex-col md:flex-row justify-between items-center gap-4">
+          <p className="text-sm text-slate-500">
             © 2026 PCT FinCEN Solutions, LLC. A Pacific Coast Title Company.
           </p>
-          <p className="text-sm text-white/50">SOC 2 Certified • CCPA Compliant</p>
+          <div className="flex items-center gap-2 text-sm text-slate-500">
+            <Shield className="h-4 w-4 text-teal-400" />
+            <span>SOC 2 Certified • CCPA Compliant</span>
+          </div>
         </div>
       </div>
     </footer>
