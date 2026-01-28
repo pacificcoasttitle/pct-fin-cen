@@ -22,7 +22,7 @@ const demoCredentials = [
     bgColor: "bg-purple-500/10 border-purple-500/30 hover:border-purple-500/50",
   },
   { 
-    role: "PCT Admin", 
+    role: "FinClear Admin", 
     email: "admin@pctfincen.com", 
     description: "Manage companies, users, reports, filings (no billing)",
     icon: Shield,
@@ -30,7 +30,7 @@ const demoCredentials = [
     bgColor: "bg-blue-500/10 border-blue-500/30 hover:border-blue-500/50",
   },
   { 
-    role: "PCT Staff", 
+    role: "FinClear Staff", 
     email: "staff@pctfincen.com", 
     description: "Process requests, wizards, filings",
     icon: ClipboardList,

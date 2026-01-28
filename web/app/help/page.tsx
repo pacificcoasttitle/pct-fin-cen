@@ -112,7 +112,7 @@ export default function HelpPage() {
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">
-                Pacific Coast Title Company&apos;s FinCEN compliance platform helps title companies 
+                FinClear&apos;s FinCEN compliance platform helps title companies 
                 and escrow officers efficiently manage Real Estate Reporting requirements under 
                 the Corporate Transparency Act.
               </p>

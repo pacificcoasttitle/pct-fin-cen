@@ -56,7 +56,7 @@ export default function AdminSettingsPage() {
                   <Label htmlFor="orgName">Organization Name</Label>
                   <Input
                     id="orgName"
-                    defaultValue="Pacific Coast Title Company"
+                    defaultValue="FinClear Solutions"
                     disabled
                     className="bg-slate-50"
                   />
@@ -65,7 +65,7 @@ export default function AdminSettingsPage() {
                   <Label htmlFor="orgCode">Organization Code</Label>
                   <Input
                     id="orgCode"
-                    defaultValue="PCT"
+                    defaultValue="FC"
                     disabled
                     className="bg-slate-50"
                   />

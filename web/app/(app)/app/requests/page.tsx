@@ -69,7 +69,7 @@ const statusConfig = {
     label: "In Progress",
     variant: "default" as const,
     icon: RefreshCw,
-    description: "PCT staff is processing your request",
+    description: "FinClear staff is processing your request",
     className: "bg-blue-50 text-blue-700 border-blue-200",
   },
   completed: {

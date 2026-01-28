@@ -198,7 +198,7 @@ export function AppSidebar() {
           </div>
         ))}
 
-        {/* Demo Tools - only for PCT internal staff in staging */}
+        {/* Demo Tools - only for FinClear internal staff in staging */}
         {isInternal && role !== "coo" && process.env.NEXT_PUBLIC_ENVIRONMENT === "staging" && (
           <div className="mb-4">
             <h4 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-slate-500">

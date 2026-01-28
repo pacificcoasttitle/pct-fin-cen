@@ -44,7 +44,7 @@ import { UserDetailSheet, type UserData } from "@/components/admin/user-detail-s
 
 // Mock users data - 41 users across 12 companies
 const mockUsers: UserData[] = [
-  // PCT Staff (8 users)
+  // FinClear Staff (8 users)
   { id: "u1", name: "Sarah Mitchell", email: "sarah.mitchell@finclear.com", companyId: null, companyName: "FinClear", role: "pct_admin", status: "active", lastLogin: "2026-01-26T14:30:00Z" },
   { id: "u2", name: "James Rodriguez", email: "james.rodriguez@finclear.com", companyId: null, companyName: "FinClear", role: "pct_admin", status: "active", lastLogin: "2026-01-26T13:45:00Z" },
   { id: "u3", name: "Emily Chen", email: "emily.chen@finclear.com", companyId: null, companyName: "FinClear", role: "pct_staff", status: "active", lastLogin: "2026-01-26T15:00:00Z" },

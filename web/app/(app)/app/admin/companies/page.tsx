@@ -45,8 +45,8 @@ import { CompanyDetailSheet, type Company } from "@/components/admin/company-det
 const mockCompanies: Company[] = [
   {
     id: "1",
-    name: "Pacific Coast Title Company",
-    code: "PCT",
+    name: "FinClear Solutions",
+    code: "FC",
     companyType: "internal",
     status: "active",
     billingEmail: "billing@pacificcoasttitle.com",

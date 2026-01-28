@@ -101,7 +101,7 @@ export const cooNavigation: NavSection[] = [
 ];
 
 // ============================================
-// PCT Admin - Full Admin (NO Executive Dashboard, NO Billing)
+// FinClear Admin - Full Admin (NO Executive Dashboard, NO Billing)
 // ============================================
 export const pctAdminNavigation: NavSection[] = [
   {
@@ -157,7 +157,7 @@ export const pctAdminNavigation: NavSection[] = [
 ];
 
 // ============================================
-// PCT Staff - Operational Work Only
+// FinClear Staff - Operational Work Only
 // ============================================
 export const pctStaffNavigation: NavSection[] = [
   {

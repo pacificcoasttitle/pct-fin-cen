@@ -818,6 +818,49 @@ export const BRAND = {
 
 ---
 
+### 17. Role Display Update (PCT → FinClear) ✅
+
+**Task:** Update display text from "PCT Staff/Admin" to "FinClear Staff/Admin"
+
+**Scope:** Display/UI text ONLY - no functional changes to role values, auth, or middleware
+
+**Changes Made:**
+
+| Location | Before | After |
+|----------|--------|-------|
+| Login buttons | "PCT Admin" | "FinClear Admin" |
+| Login buttons | "PCT Staff" | "FinClear Staff" |
+| Status messages | "PCT staff is processing" | "FinClear staff is processing" |
+| Comments | "// PCT Admin" | "// FinClear Admin" |
+| Company names | "Pacific Coast Title" | "FinClear Solutions" |
+| Wizard headers | "Pacific Coast Title Company" | "FinClear" |
+| Form labels | "Is Pacific Coast Title..." | "Is FinClear..." |
+| Settings defaults | "PCT" code | "FC" code |
+
+**NOT Changed (Preserved):**
+- Database role values (`pct_admin`, `pct_staff` - functional)
+- Role type definitions
+- Authorization checks (`isPCTInternal` function)
+- API request/response payloads
+- Route guards
+- Middleware logic
+
+**Files Updated:**
+- `web/app/login/page.tsx` (role display names)
+- `web/lib/navigation.ts` (comments only)
+- `web/app/(app)/app/requests/page.tsx`
+- `web/app/(app)/app/admin/users/page.tsx`
+- `web/app/(app)/app/admin/settings/page.tsx`
+- `web/app/(app)/app/admin/companies/page.tsx`
+- `web/app/(app)/app/settings/page.tsx`
+- `web/app/help/page.tsx`
+- `web/components/rrer-questionnaire.tsx`
+- `web/components/app-sidebar.tsx` (comments only)
+
+**Status:** ✅ Killed
+
+---
+
 ## Git Commits Today
 
 1. `docs: add gap analysis comparing North Star vs actual code`
@@ -838,6 +881,7 @@ export const BRAND = {
 16. `feat: landing page color glow-up - gold to teal`
 17. `feat: configure custom domain fincenclear.com`
 18. `feat: FinClear branding update - logos and name everywhere`
+19. `feat: role display update - PCT Staff/Admin to FinClear`
 
 ---
 

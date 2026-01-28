@@ -699,7 +699,7 @@ export function RRERQuestionnaire({
     "party-setup",           // Add parties (name, email, type), send links
     "monitor-progress",      // Track party submissions with polling
     "review-submissions",    // View all submitted party data
-    "reporting-person",      // PCT internal info
+    "reporting-person",      // FinClear internal info
     "file-report",           // Final certification and file
   ]
 
@@ -863,7 +863,7 @@ export function RRERQuestionnaire({
                 <Building2 className="w-7 h-7" />
               </div>
               <div>
-                <h1 className="text-lg font-bold tracking-tight">Pacific Coast Title Company</h1>
+                <h1 className="text-lg font-bold tracking-tight">FinClear</h1>
                 <p className="text-sm text-primary-foreground/80">FinCEN RRER Compliance Wizard</p>
               </div>
             </div>
@@ -3737,7 +3737,7 @@ export function RRERQuestionnaire({
                       </div>
 
                       <div className="grid gap-4">
-                        <Label>Is Pacific Coast Title Company the designated reporting person? *</Label>
+                        <Label>Is FinClear the designated reporting person? *</Label>
                         <div className="flex gap-2">
                           <Button
                             variant={collection.reportingPerson?.isPCTC === "yes" ? "default" : "outline"}
@@ -4406,7 +4406,7 @@ export function RRERQuestionnaire({
 
         {/* Footer */}
         <footer className="border-t py-4 px-4 md:px-8 text-center text-sm text-muted-foreground print:hidden">
-          <p>Pacific Coast Title Company - FinCEN RRER Compliance Tool</p>
+          <p>FinClear - FinCEN RRER Compliance Tool</p>
           <p className="mt-1">Effective March 1, 2026 | Per 31 CFR 1031.320</p>
         </footer>
       </div>

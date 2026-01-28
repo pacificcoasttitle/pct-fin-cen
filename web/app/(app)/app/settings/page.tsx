@@ -43,7 +43,7 @@ export default function SettingsPage() {
               <Label htmlFor="company-name">Company Name</Label>
               <Input
                 id="company-name"
-                defaultValue="Pacific Coast Title Company"
+                defaultValue="FinClear Solutions"
                 disabled
                 className="bg-slate-50"
               />
