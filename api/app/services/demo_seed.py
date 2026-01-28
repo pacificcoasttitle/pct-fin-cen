@@ -91,56 +91,140 @@ def seed_demo_data(db: Session) -> Dict[str, Any]:
         print(f"   🏢 Created Demo company: {demo_company.id}")
     
     # =========================================================================
-    # GET OR CREATE USERS
+    # GET OR CREATE SECOND CLIENT COMPANY (for variety)
     # =========================================================================
     
-    # FinClear Staff (company_id = NULL for PCT internal)
-    staff_user = db.query(User).filter(User.email == "staff@pctfincen.com").first()
-    if not staff_user:
-        staff_user = db.query(User).filter(User.role == "pct_staff").first()
-    if not staff_user:
-        staff_user = User(
-            email="staff@pctfincen.com",
-            name="Sarah Mitchell",
-            company_id=None,  # PCT staff have NULL company_id
-            role="pct_staff",
+    acme_company = db.query(Company).filter(Company.code == "ACME").first()
+    if not acme_company:
+        acme_company = Company(
+            name="Acme Title & Escrow",
+            code="ACME",
+            company_type="client",
+            billing_email="billing@acmetitle.com",
+            billing_contact_name="Robert Johnson",
+            address={
+                "street": "456 Commerce Blvd",
+                "city": "San Diego",
+                "state": "CA",
+                "zip": "92101"
+            },
+            phone="(619) 555-0199",
             status="active",
+            settings={},
+            created_at=datetime.utcnow() - timedelta(days=45),
+            updated_at=datetime.utcnow(),
         )
-        db.add(staff_user)
+        db.add(acme_company)
         db.flush()
-        print(f"   👤 Created staff user: {staff_user.email}")
+        print(f"   🏢 Created Acme company: {acme_company.name}")
     
-    # FinClear Admin (company_id = NULL for PCT internal)
+    # =========================================================================
+    # GET OR CREATE USERS - All 5 Demo Roles
+    # =========================================================================
+    
+    print("👤 Seeding demo users...")
+    
+    # 1. COO (Internal - no company)
+    coo_user = db.query(User).filter(User.email == "coo@pct.com").first()
+    if not coo_user:
+        coo_user = User(
+            email="coo@pct.com",
+            name="James Richardson",
+            company_id=None,  # Internal
+            role="coo",
+            status="active",
+            settings={},
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
+        )
+        db.add(coo_user)
+        db.flush()
+        print(f"   👤 COO: {coo_user.email}")
+    
+    # 2. FinClear Admin (Internal - no company)
     admin_user = db.query(User).filter(User.email == "admin@pctfincen.com").first()
-    if not admin_user:
-        admin_user = db.query(User).filter(User.role == "pct_admin").first()
     if not admin_user:
         admin_user = User(
             email="admin@pctfincen.com",
-            name="Michael Chen",
-            company_id=None,
+            name="Sarah Mitchell",
+            company_id=None,  # Internal
             role="pct_admin",
             status="active",
+            settings={},
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
         )
         db.add(admin_user)
         db.flush()
-        print(f"   👤 Created admin user: {admin_user.email}")
+        print(f"   👤 FinClear Admin: {admin_user.email}")
     
-    # Client Admin
+    # 3. FinClear Staff (Internal - no company)
+    staff_user = db.query(User).filter(User.email == "staff@pctfincen.com").first()
+    if not staff_user:
+        staff_user = User(
+            email="staff@pctfincen.com",
+            name="Michael Chen",
+            company_id=None,  # Internal
+            role="pct_staff",
+            status="active",
+            settings={},
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
+        )
+        db.add(staff_user)
+        db.flush()
+        print(f"   👤 FinClear Staff: {staff_user.email}")
+    
+    # 4. Client Admin (Demo company - Pacific Coast Title)
     client_admin = db.query(User).filter(User.email == "admin@demotitle.com").first()
-    if not client_admin:
-        client_admin = db.query(User).filter(User.role == "client_admin").first()
     if not client_admin:
         client_admin = User(
             email="admin@demotitle.com",
             name="Jennifer Walsh",
-            company_id=demo_company.id,
+            company_id=demo_company.id,  # Linked to Demo company
             role="client_admin",
             status="active",
+            settings={},
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
         )
         db.add(client_admin)
         db.flush()
-        print(f"   👤 Created client admin: {client_admin.email}")
+        print(f"   👤 Client Admin: {client_admin.email} (Pacific Coast Title)")
+    
+    # 5. Client User (Demo company - Pacific Coast Title)
+    client_user = db.query(User).filter(User.email == "user@demotitle.com").first()
+    if not client_user:
+        client_user = User(
+            email="user@demotitle.com",
+            name="David Park",
+            company_id=demo_company.id,  # Linked to Demo company
+            role="client_user",
+            status="active",
+            settings={},
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
+        )
+        db.add(client_user)
+        db.flush()
+        print(f"   👤 Client User: {client_user.email} (Pacific Coast Title)")
+    
+    # 6. Acme Admin (Second demo company)
+    acme_admin = db.query(User).filter(User.email == "admin@acmetitle.com").first()
+    if not acme_admin:
+        acme_admin = User(
+            email="admin@acmetitle.com",
+            name="Robert Johnson",
+            company_id=acme_company.id,
+            role="client_admin",
+            status="active",
+            settings={},
+            created_at=datetime.utcnow() - timedelta(days=45),
+            updated_at=datetime.utcnow(),
+        )
+        db.add(acme_admin)
+        db.flush()
+        print(f"   👤 Acme Admin: {acme_admin.email} (Acme Title & Escrow)")
     
     db.flush()
     

@@ -23,15 +23,15 @@ interface DemoUser {
   companyName: string
 }
 
-// Demo users configuration
+// Demo users configuration - matches seed data in api/app/services/demo_seed.py
 const DEMO_USERS: Record<string, DemoUser> = {
   "coo@pct.com": {
     id: "demo-coo",
     email: "coo@pct.com",
-    name: "Patricia Chen",
+    name: "James Richardson",
     role: "coo",
     companyId: null,
-    companyName: "PCT FinCEN Solutions",
+    companyName: "FinClear Solutions",
   },
   "admin@pctfincen.com": {
     id: "demo-pct-admin",
@@ -39,31 +39,31 @@ const DEMO_USERS: Record<string, DemoUser> = {
     name: "Sarah Mitchell",
     role: "pct_admin",
     companyId: null,
-    companyName: "PCT FinCEN Solutions",
+    companyName: "FinClear Solutions",
   },
   "staff@pctfincen.com": {
     id: "demo-pct-staff",
     email: "staff@pctfincen.com",
-    name: "Emily Chen",
+    name: "Michael Chen",
     role: "pct_staff",
     companyId: null,
-    companyName: "PCT FinCEN Solutions",
+    companyName: "FinClear Solutions",
   },
   "admin@demotitle.com": {
     id: "demo-client-admin",
     email: "admin@demotitle.com",
-    name: "Mike Thompson",
+    name: "Jennifer Walsh",
     role: "client_admin",
     companyId: "demo-client-company",
-    companyName: "Demo Title & Escrow",
+    companyName: "Pacific Coast Title",
   },
   "user@demotitle.com": {
     id: "demo-client-user",
     email: "user@demotitle.com",
-    name: "Lisa Garcia",
+    name: "David Park",
     role: "client_user",
     companyId: "demo-client-company",
-    companyName: "Demo Title & Escrow",
+    companyName: "Pacific Coast Title",
   },
 }
 

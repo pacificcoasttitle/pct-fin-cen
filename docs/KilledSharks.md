@@ -1184,18 +1184,114 @@ ImportError: cannot import name 'seed_demo_reports' from 'app.services.demo_seed
 
 ---
 
+### 22. Company & User Management System - Complete Implementation ✅ 🦈 GIANT SHARK
+
+**Problem:** Foundational multi-tenant infrastructure was missing:
+- No Company CRUD API (pages used mock data)
+- No User CRUD API (pages used mock data)
+- Seed data only had 3 of 5 demo users
+- Admin pages had "Coming soon" disabled buttons
+- Team settings page was non-functional
+
+**Solution:**
+
+**1. Company API** (`api/app/routes/companies.py` - NEW, 380+ lines)
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/companies` | GET | List with filters (type, status, search) |
+| `/companies/{id}` | GET | Detail with stats & recent reports |
+| `/companies` | POST | Create new client company |
+| `/companies/{id}` | PATCH | Update company details |
+| `/companies/{id}/status` | PATCH | Activate/suspend/deactivate |
+| `/companies/{id}/users` | GET | List users in company |
+| `/companies/stats/summary` | GET | Dashboard stats |
+
+**2. User API** (`api/app/routes/users.py` - NEW, 400+ lines)
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/users` | GET | List with filters (company, role, status, search) |
+| `/users/{id}` | GET | Detail with activity stats |
+| `/users` | POST | Create user directly |
+| `/users/invite` | POST | Invite user to company |
+| `/users/{id}` | PATCH | Update name, role, status |
+| `/users/{id}` | DELETE | Deactivate (soft delete) |
+| `/users/{id}/reactivate` | POST | Reactivate disabled user |
+| `/users/my-team` | GET | Get team for client company |
+| `/users/stats/summary` | GET | Dashboard stats |
+
+**3. Frontend Wiring - Admin Companies Page**
+- Replaced 12-item mock array with real `GET /companies` call
+- Stats cards fetch from `GET /companies/stats/summary`
+- "Add Company" dialog → real `POST /companies`
+- Company detail sheet → real `GET /companies/{id}`
+- Suspend/reactivate → real `PATCH /companies/{id}/status`
+- Auto-refresh on status/filter changes
+
+**4. Frontend Wiring - Admin Users Page**
+- Replaced 41-item mock array with real `GET /users` call
+- Stats cards fetch from `GET /users/stats/summary`
+- "Invite User" dialog → real `POST /users/invite`
+- User detail sheet → real `GET /users/{id}`
+- Role change dropdown → real `PATCH /users/{id}`
+- Deactivate/reactivate → real API calls
+
+**5. Frontend Wiring - Team Settings Page (Client)**
+- Gets company_id from session cookie
+- Fetches team via `GET /users/my-team?company_id=xxx`
+- "Invite User" dialog → real `POST /users/invite`
+- Role change (Admin/User) → real `PATCH /users/{id}`
+- Remove member → real `DELETE /users/{id}`
+- Internal staff see "FinClear Staff" message
+
+**6. Seed Data Fixed**
+- Added COO user: `coo@pct.com` (James Richardson)
+- Added Client User: `user@demotitle.com` (David Park)
+- Added second company: Acme Title & Escrow (ACME)
+- Added Acme admin: `admin@acmetitle.com` (Robert Johnson)
+- All 5 demo roles now properly seeded with matching names
+
+**7. Demo Login Updated**
+- User names match seed data
+- Company names match seed data ("FinClear Solutions", "Pacific Coast Title")
+
+**Role Validation Rules Enforced:**
+- Internal roles (coo, pct_admin, pct_staff) → company_id must be NULL
+- Client roles (client_admin, client_user) → company_id required
+- Cannot change between internal ↔ client role types
+- Suspending company cascades to disable all users
+
+**Files Created:**
+- `api/app/routes/companies.py` (NEW - 380+ lines)
+- `api/app/routes/users.py` (NEW - 400+ lines)
+
+**Files Changed:**
+- `api/app/routes/__init__.py` (register both routers)
+- `api/app/main.py` (include both routers)
+- `api/app/services/demo_seed.py` (add missing users + company)
+- `web/app/(app)/app/admin/companies/page.tsx` (complete rewrite with API)
+- `web/app/(app)/app/admin/users/page.tsx` (complete rewrite with API)
+- `web/app/(app)/app/settings/team/page.tsx` (complete rewrite with API)
+- `web/app/api/auth/login/route.ts` (match seeded user names)
+
+**Status:** ✅ Killed (GIANT SHARK)
+
+---
+
 ## Updated Summary
 
 | Category | Count |
 |----------|-------|
 | 🔴 Critical Fixes | 9 |
-| 🟠 Major Features | 9 |
+| 🟠 Major Features | 10 |
 | 🎨 UX/Design | 2 |
 | 🔧 Configuration | 2 |
 | 📄 Documentation | 3 |
 | 🎯 Demo Data & API | 1 |
+| 🏗️ Multi-Tenant Infrastructure | 1 |
 
-**Total Sharks Killed: 26** 🦈
+**Total Sharks Killed: 27** 🦈
 
 ---
 
@@ -1220,6 +1316,24 @@ ImportError: cannot import name 'seed_demo_reports' from 'app.services.demo_seed
 - [ ] Payment sources with running total
 - [ ] Certification section displays
 - [ ] Form submits successfully
+
+### Company & User Management
+- [ ] `GET /companies` returns list of companies
+- [ ] `GET /companies/{id}` returns detail with stats
+- [ ] `POST /companies` creates new company
+- [ ] `PATCH /companies/{id}/status` changes status
+- [ ] Suspending company cascades to users
+- [ ] `GET /users` returns list with filters
+- [ ] `GET /users/{id}` returns detail with stats
+- [ ] `POST /users/invite` creates user in company
+- [ ] `PATCH /users/{id}` updates role/status
+- [ ] `DELETE /users/{id}` deactivates user
+- [ ] `GET /users/my-team` returns company team
+- [ ] Admin Companies page shows real data
+- [ ] Admin Users page shows real data
+- [ ] Team Settings page shows real team
+- [ ] All 5 demo logins work correctly
+- [ ] Seed data creates all expected users
 
 ---
 

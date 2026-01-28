@@ -7,6 +7,8 @@ from app.routes.demo import router as demo_router
 from app.routes.admin import router as admin_router
 from app.routes.submission_requests import router as submission_requests_router
 from app.routes.invoices import router as invoices_router
+from app.routes.companies import router as companies_router
+from app.routes.users import router as users_router
 
 __all__ = [
     "reports_router",
@@ -15,4 +17,6 @@ __all__ = [
     "admin_router",
     "submission_requests_router",
     "invoices_router",
+    "companies_router",
+    "users_router",
 ]
