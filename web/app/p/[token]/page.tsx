@@ -19,8 +19,10 @@ import {
   XCircle,
   Info
 } from "lucide-react"
+import Image from "next/image"
 import { getParty, saveParty, submitParty, type PartyData } from "@/lib/api"
 import { DynamicPartyForm, type PartySubmissionData } from "@/components/party-portal"
+import { BRAND } from "@/lib/brand"
 
 export default function PartyPortalPage() {
   const params = useParams()
@@ -454,13 +456,17 @@ function Header() {
   return (
     <header className="border-b border-border bg-white/80 backdrop-blur sticky top-0 z-10">
       <div className="container mx-auto px-4 py-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary/80 rounded-xl flex items-center justify-center shadow-sm">
-            <Shield className="w-5 h-5 text-primary-foreground" />
-          </div>
-          <div>
-            <span className="font-bold text-foreground">PCT FinCEN</span>
-            <span className="font-medium text-muted-foreground"> Solutions</span>
+        <div className="flex items-center justify-between">
+          <Image 
+            src={BRAND.logo}
+            alt={BRAND.name}
+            width={120}
+            height={36}
+            className="h-9 w-auto"
+          />
+          <div className="text-sm text-muted-foreground flex items-center gap-2">
+            <Shield className="h-4 w-4 text-teal-500" />
+            Secure Portal
           </div>
         </div>
       </div>

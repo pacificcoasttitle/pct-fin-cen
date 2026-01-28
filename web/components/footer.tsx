@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { Shield } from "lucide-react";
+import { BRAND } from "@/lib/brand";
 
 export function Footer() {
   const productLinks = [
@@ -34,16 +36,16 @@ export function Footer() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8 lg:gap-12">
           {/* Brand Column */}
           <div className="col-span-2 md:col-span-1">
-            <Link href="/" className="flex items-center gap-2 mb-4">
-              <div className="w-10 h-10 bg-gradient-to-br from-teal-400 to-teal-600 rounded-lg flex items-center justify-center">
-                <Shield className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <span className="font-bold text-white">PCT FinCEN</span>
-                <span className="font-medium text-slate-400"> Solutions</span>
-              </div>
+            <Link href="/" className="block mb-4">
+              <Image 
+                src={BRAND.logoWhite}
+                alt={BRAND.name}
+                width={140}
+                height={40}
+                className="h-10 w-auto"
+              />
             </Link>
-            <p className="text-sm text-slate-400 mb-6">FinCEN Compliance Made Simple</p>
+            <p className="text-sm text-slate-400 mb-6">{BRAND.tagline}</p>
             <div className="flex gap-4">
               <a
                 href="#"
@@ -127,7 +129,7 @@ export function Footer() {
         {/* Bottom Bar */}
         <div className="mt-12 pt-8 border-t border-slate-800 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-sm text-slate-500">
-            © 2026 PCT FinCEN Solutions, LLC. A Pacific Coast Title Company.
+            © 2026 {BRAND.legalName}. All rights reserved.
           </p>
           <div className="flex items-center gap-2 text-sm text-slate-500">
             <Shield className="h-4 w-4 text-teal-400" />

@@ -107,7 +107,7 @@ export default function HelpPage() {
                 <div className="p-2 rounded-lg bg-primary text-primary-foreground">
                   <FileText className="h-5 w-5" />
                 </div>
-                About PCT FinCEN Solutions
+                About FinClear
               </CardTitle>
             </CardHeader>
             <CardContent>

@@ -15,7 +15,7 @@ export default function AdminSettingsPage() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-slate-900">System Settings</h1>
-        <p className="text-slate-500">Configure system-wide settings for PCT FinCEN Solutions</p>
+        <p className="text-slate-500">Configure system-wide settings for FinClear</p>
       </div>
 
       <Tabs defaultValue="general" className="space-y-6">

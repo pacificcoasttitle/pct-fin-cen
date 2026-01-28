@@ -6,8 +6,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { AlertCircle, Loader2, Shield, TrendingUp, ClipboardList, Building2, User } from "lucide-react"
+import { AlertCircle, Loader2, TrendingUp, ClipboardList, Building2, User, Shield } from "lucide-react"
 import { cn } from "@/lib/utils"
+import Image from "next/image"
+import { BRAND } from "@/lib/brand"
 
 // Demo credentials for quick access - 5 roles
 const demoCredentials = [
@@ -227,11 +229,15 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Logo / Brand */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-cyan-400 rounded-2xl mb-4">
-            <Shield className="h-8 w-8 text-white" />
-          </div>
-          <h1 className="text-2xl font-bold text-white">PCT FinCEN Solutions</h1>
-          <p className="text-slate-400 mt-1">Compliance made simple</p>
+          <Image 
+            src={BRAND.logoWhite}
+            alt={BRAND.name}
+            width={200}
+            height={56}
+            className="h-14 w-auto mx-auto mb-4"
+            priority
+          />
+          <p className="text-slate-400 mt-1">{BRAND.tagline}</p>
         </div>
 
         <Suspense fallback={<LoginFormFallback />}>
@@ -239,7 +245,7 @@ export default function LoginPage() {
         </Suspense>
 
         <p className="mt-6 text-center text-xs text-slate-500">
-          © 2026 Pacific Coast Title. All rights reserved.
+          © 2026 {BRAND.legalName}. All rights reserved.
         </p>
       </div>
     </div>

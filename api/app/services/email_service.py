@@ -12,12 +12,18 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
+# Brand Configuration
+BRAND_NAME = "FinClear"
+BRAND_TAGLINE = "FinCEN Compliance Made Simple"
+BRAND_SUPPORT_EMAIL = "support@fincenclear.com"
+
 # Configuration
 SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
-SENDGRID_FROM_EMAIL = os.getenv("SENDGRID_FROM_EMAIL", "noreply@example.com")
-SENDGRID_FROM_NAME = os.getenv("SENDGRID_FROM_NAME", "FinCEN Compliance")
+SENDGRID_FROM_EMAIL = os.getenv("SENDGRID_FROM_EMAIL", "noreply@fincenclear.com")
+SENDGRID_FROM_NAME = os.getenv("SENDGRID_FROM_NAME", BRAND_NAME)
 SENDGRID_ENABLED = os.getenv("SENDGRID_ENABLED", "false").lower() == "true"
 FRONTEND_URL = os.getenv("FRONTEND_URL", "https://fincenclear.com")
+LOGO_URL = f"{FRONTEND_URL}/logo.png"
 
 
 class EmailResult:
@@ -206,7 +212,7 @@ def get_party_invite_html(
                     <tr>
                         <td style="background-color: #1e293b; padding: 25px 40px; text-align: center;">
                             <p style="margin: 0 0 10px; color: #94a3b8; font-size: 12px;">
-                                This is an automated message from the FinCEN Compliance System.
+                                Powered by {BRAND_NAME} • {BRAND_TAGLINE}
                             </p>
                             <p style="margin: 0; color: #64748b; font-size: 11px;">
                                 Please do not reply directly to this email. If you need assistance, contact your title company.
@@ -359,7 +365,7 @@ def get_confirmation_html(
                     <tr>
                         <td style="background-color: #1e293b; padding: 25px 40px; text-align: center;">
                             <p style="margin: 0; color: #94a3b8; font-size: 12px;">
-                                This is an automated confirmation from the FinCEN Compliance System.
+                                Powered by {BRAND_NAME} • {BRAND_TAGLINE}
                             </p>
                         </td>
                     </tr>
@@ -401,7 +407,7 @@ No further action is required from you at this time. If you have any questions a
 
 ---
 
-This is an automated confirmation from the FinCEN Compliance System.
+Powered by {BRAND_NAME} • {BRAND_TAGLINE}
 """
 
 

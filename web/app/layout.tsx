@@ -27,8 +27,8 @@ export const metadata: Metadata = {
     'Beneficial Ownership',
     '31 CFR 1031.320',
   ],
-  authors: [{ name: 'PCT FinCEN Solutions' }],
-  creator: 'PCT FinCEN Solutions',
+  authors: [{ name: 'FinClear Solutions' }],
+  creator: 'FinClear Solutions',
   icons: {
     icon: [
       {

@@ -19,7 +19,7 @@ export function CTASection() {
             Ready to Simplify Your FinCEN Compliance?
           </h2>
           <p className="text-lg text-slate-300 mb-10">
-            Join hundreds of title companies who trust PCT FinCEN Solutions
+            Join hundreds of title companies who trust FinClear
           </p>
 
           {/* CTAs */}

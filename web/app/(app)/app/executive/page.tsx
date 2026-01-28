@@ -48,7 +48,7 @@ export default function ExecutiveDashboardPage() {
       <div>
         <h1 className="text-3xl font-bold text-slate-900">Executive Dashboard</h1>
         <p className="text-slate-500">
-          Business overview for PCT FinCEN Solutions • January 2026
+          Business overview for FinClear • January 2026
         </p>
       </div>
 

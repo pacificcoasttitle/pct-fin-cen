@@ -38,7 +38,7 @@ export default function CompanySettingsPage() {
               disabled
             />
             <p className="text-xs text-slate-500">
-              Contact PCT FinCEN to update your company name
+              Contact FinClear to update your company name
             </p>
           </div>
 

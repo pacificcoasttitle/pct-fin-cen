@@ -45,14 +45,14 @@ import { UserDetailSheet, type UserData } from "@/components/admin/user-detail-s
 // Mock users data - 41 users across 12 companies
 const mockUsers: UserData[] = [
   // PCT Staff (8 users)
-  { id: "u1", name: "Sarah Mitchell", email: "sarah.mitchell@pctfincen.com", companyId: null, companyName: "PCT FinCEN", role: "pct_admin", status: "active", lastLogin: "2026-01-26T14:30:00Z" },
-  { id: "u2", name: "James Rodriguez", email: "james.rodriguez@pctfincen.com", companyId: null, companyName: "PCT FinCEN", role: "pct_admin", status: "active", lastLogin: "2026-01-26T13:45:00Z" },
-  { id: "u3", name: "Emily Chen", email: "emily.chen@pctfincen.com", companyId: null, companyName: "PCT FinCEN", role: "pct_staff", status: "active", lastLogin: "2026-01-26T15:00:00Z" },
-  { id: "u4", name: "Michael Thompson", email: "michael.t@pctfincen.com", companyId: null, companyName: "PCT FinCEN", role: "pct_staff", status: "active", lastLogin: "2026-01-26T12:30:00Z" },
-  { id: "u5", name: "Jessica Wang", email: "jessica.wang@pctfincen.com", companyId: null, companyName: "PCT FinCEN", role: "pct_staff", status: "active", lastLogin: "2026-01-26T11:15:00Z" },
-  { id: "u6", name: "Daniel Kim", email: "daniel.kim@pctfincen.com", companyId: null, companyName: "PCT FinCEN", role: "pct_staff", status: "active", lastLogin: "2026-01-25T16:00:00Z" },
-  { id: "u7", name: "Rachel Foster", email: "rachel.f@pctfincen.com", companyId: null, companyName: "PCT FinCEN", role: "pct_staff", status: "active", lastLogin: "2026-01-26T09:30:00Z" },
-  { id: "u8", name: "Andrew Park", email: "andrew.park@pctfincen.com", companyId: null, companyName: "PCT FinCEN", role: "pct_staff", status: "invited", lastLogin: null },
+  { id: "u1", name: "Sarah Mitchell", email: "sarah.mitchell@finclear.com", companyId: null, companyName: "FinClear", role: "pct_admin", status: "active", lastLogin: "2026-01-26T14:30:00Z" },
+  { id: "u2", name: "James Rodriguez", email: "james.rodriguez@finclear.com", companyId: null, companyName: "FinClear", role: "pct_admin", status: "active", lastLogin: "2026-01-26T13:45:00Z" },
+  { id: "u3", name: "Emily Chen", email: "emily.chen@finclear.com", companyId: null, companyName: "FinClear", role: "pct_staff", status: "active", lastLogin: "2026-01-26T15:00:00Z" },
+  { id: "u4", name: "Michael Thompson", email: "michael.t@finclear.com", companyId: null, companyName: "FinClear", role: "pct_staff", status: "active", lastLogin: "2026-01-26T12:30:00Z" },
+  { id: "u5", name: "Jessica Wang", email: "jessica.wang@finclear.com", companyId: null, companyName: "FinClear", role: "pct_staff", status: "active", lastLogin: "2026-01-26T11:15:00Z" },
+  { id: "u6", name: "Daniel Kim", email: "daniel.kim@finclear.com", companyId: null, companyName: "FinClear", role: "pct_staff", status: "active", lastLogin: "2026-01-25T16:00:00Z" },
+  { id: "u7", name: "Rachel Foster", email: "rachel.f@finclear.com", companyId: null, companyName: "FinClear", role: "pct_staff", status: "active", lastLogin: "2026-01-26T09:30:00Z" },
+  { id: "u8", name: "Andrew Park", email: "andrew.park@finclear.com", companyId: null, companyName: "FinClear", role: "pct_staff", status: "invited", lastLogin: null },
   
   // Golden State Escrow (4 users)
   { id: "u9", name: "Mike Chen", email: "mike.chen@goldenescrow.com", companyId: "2", companyName: "Golden State Escrow", role: "client_admin", status: "active", lastLogin: "2026-01-26T10:15:00Z" },

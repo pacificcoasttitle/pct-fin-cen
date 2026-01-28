@@ -6,8 +6,10 @@ import { cn } from "@/lib/utils";
 import { getNavigationForRole, getPortalLabel, isPCTInternal, type UserRole } from "@/lib/navigation";
 import { useDemo } from "@/hooks/use-demo";
 import { Badge } from "@/components/ui/badge";
-import { LogOut, HelpCircle, Shield, Wrench } from "lucide-react";
+import { LogOut, HelpCircle, Wrench } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import Image from "next/image";
+import { BRAND } from "@/lib/brand";
 
 export function AppSidebar() {
   const pathname = usePathname();
@@ -98,13 +100,17 @@ export function AppSidebar() {
   return (
     <aside className="flex h-screen w-64 flex-col border-r border-slate-700 bg-slate-900">
       {/* Logo/Header */}
-      <div className="flex h-16 items-center border-b border-slate-700 px-6">
-        <Link href={getHomeRoute()} className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-cyan-400">
-            <Shield className="h-5 w-5 text-white" />
-          </div>
+      <div className="flex h-16 items-center border-b border-slate-700 px-4">
+        <Link href={getHomeRoute()} className="flex items-center gap-3">
+          <Image 
+            src={BRAND.logoIcon}
+            alt={BRAND.name}
+            width={32}
+            height={32}
+            className="h-8 w-8"
+          />
           <div className="flex flex-col">
-            <span className="text-sm font-semibold text-white">PCT FinCEN</span>
+            <span className="text-sm font-semibold text-white">{BRAND.name}</span>
             <span className="text-xs text-slate-400">{portalLabel}</span>
           </div>
         </Link>
@@ -121,7 +127,7 @@ export function AppSidebar() {
               {getDisplayName()}
             </span>
             <span className="truncate text-xs text-slate-400">
-              {user?.companyName || (isInternal ? "PCT FinCEN Solutions" : "Demo Company")}
+              {user?.companyName || (isInternal ? BRAND.legalName : "Demo Company")}
             </span>
           </div>
         </div>

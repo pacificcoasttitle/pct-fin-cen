@@ -69,7 +69,7 @@ export function ComparisonSection() {
         {/* Header */}
         <div className="text-center max-w-3xl mx-auto mb-12 lg:mb-16">
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground mb-4 text-balance">
-            Why Title Companies Choose PCT FinCEN Solutions
+            Why Title Companies Choose FinClear
           </h2>
         </div>
 
@@ -90,7 +90,7 @@ export function ComparisonSection() {
                       Other Software
                     </th>
                     <th className="px-4 py-5 text-center text-sm font-semibold text-primary sm:px-6 bg-primary/5">
-                      PCT FinCEN Solutions
+                      FinClear
                     </th>
                   </tr>
                 </thead>

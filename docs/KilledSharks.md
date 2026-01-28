@@ -10,7 +10,7 @@
 |----------|-------|
 | 🔴 Critical Fixes | 7 |
 | 🟠 Major Features | 6 |
-| 🎨 UX/Design | 1 |
+| 🎨 UX/Design | 2 |
 | 🔧 Configuration | 1 |
 | 📄 Documentation | 3 |
 
@@ -763,6 +763,61 @@ CNAME   www     cname.vercel-dns.com
 
 ---
 
+### 16. FinClear Branding Update ✅
+
+**Task:** Replace all "PCT FinCEN Solutions" branding with new "FinClear" brand identity
+
+**Logo Files Added:**
+- `web/public/logo.png` - Full logo, dark text (light backgrounds)
+- `web/public/logo-white.png` - Full logo, white text (dark backgrounds)
+- `web/public/logo-icon.png` - Compact "FC" coin icon (sidebar, favicon)
+
+**Brand Config Created:**
+
+```typescript
+// web/lib/brand.ts
+export const BRAND = {
+  name: "FinClear",
+  legalName: "FinClear Solutions",
+  tagline: "FinCEN Compliance Made Simple",
+  domain: "fincenclear.com",
+  logo: "/logo.png",
+  logoWhite: "/logo-white.png",
+  logoIcon: "/logo-icon.png",
+}
+```
+
+**Logo Usage by Context:**
+
+| Location | Background | Logo Used |
+|----------|------------|-----------|
+| Landing navbar | Light/transparent | `logo.png` |
+| Landing footer | Dark (slate-900) | `logo-white.png` |
+| Login page | Dark | `logo-white.png` |
+| App sidebar | Dark | `logo-icon.png` |
+| Party portal header | Light | `logo.png` |
+| Email templates | Light | `logo.png` (via URL) |
+
+**Files Updated:**
+- `web/lib/brand.ts` (NEW)
+- `web/components/header.tsx`
+- `web/components/footer.tsx`
+- `web/app/login/page.tsx`
+- `web/components/app-sidebar.tsx`
+- `web/app/p/[token]/page.tsx`
+- `web/app/layout.tsx`
+- `api/app/services/email_service.py`
+- Plus 10+ files with text "PCT FinCEN" → "FinClear"
+
+**Search & Replace:**
+- "PCT FinCEN Solutions" → "FinClear" or "FinClear Solutions"
+- "PCT FinCEN" → "FinClear"
+- "@pctfincen.com" → "@finclear.com" (in mock data)
+
+**Status:** ✅ Killed
+
+---
+
 ## Git Commits Today
 
 1. `docs: add gap analysis comparing North Star vs actual code`
@@ -782,6 +837,7 @@ CNAME   www     cname.vercel-dns.com
 15. `feat: complete client request visibility and tracking`
 16. `feat: landing page color glow-up - gold to teal`
 17. `feat: configure custom domain fincenclear.com`
+18. `feat: FinClear branding update - logos and name everywhere`
 
 ---
 

@@ -30,8 +30,7 @@ export function AboutSection() {
 
             <div className="space-y-4 text-muted-foreground leading-relaxed">
               <p>
-                {`PCT FinCEN Solutions was born from Pacific Coast Title Company's own compliance needs. 
-                When we saw how complex the new FinCEN reporting requirements were, we built the solution we wished existed.`}
+                {`FinClear was built by title industry professionals who understood the complexity of the new FinCEN reporting requirements. We built the solution we wished existed - simple, comprehensive, and reliable.`}
               </p>
               <p>Unlike generic compliance software companies, we understand:</p>
             </div>

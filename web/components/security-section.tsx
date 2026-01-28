@@ -65,7 +65,7 @@ export function SecuritySection() {
           <div className="bg-card rounded-2xl border border-border p-8 lg:p-10 relative">
             <Quote className="absolute top-6 left-6 w-10 h-10 text-primary/10" />
             <blockquote className="text-lg lg:text-xl text-foreground text-center leading-relaxed mb-6">
-              {`"PCT FinCEN Solutions gave us peace of mind knowing our compliance data is secure and our filings are accurate. The platform handles the complexity so we can focus on our clients."`}
+              {`"FinClear gave us peace of mind knowing our compliance data is secure and our filings are accurate. The platform handles the complexity so we can focus on our clients."`}
             </blockquote>
             <div className="text-center">
               <p className="font-semibold text-foreground">Sarah Mitchell</p>

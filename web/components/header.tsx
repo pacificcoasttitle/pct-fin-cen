@@ -3,8 +3,10 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Menu, Shield } from "lucide-react";
+import { Menu } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
+import { BRAND } from "@/lib/brand";
 
 export function Header() {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -35,14 +37,23 @@ export function Header() {
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 lg:h-20">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-              <Shield className="w-6 h-6 text-primary-foreground" />
-            </div>
-            <div className="hidden sm:block">
-              <span className="font-bold text-lg text-foreground">PCT FinCEN</span>
-              <span className="font-medium text-lg text-muted-foreground"> Solutions</span>
-            </div>
+          <Link href="/" className="flex items-center gap-3">
+            <Image 
+              src={BRAND.logo}
+              alt={BRAND.name}
+              width={140}
+              height={40}
+              className="h-8 w-auto hidden sm:block"
+              priority
+            />
+            <Image 
+              src={BRAND.logoIcon}
+              alt={BRAND.name}
+              width={40}
+              height={40}
+              className="h-9 w-9 sm:hidden"
+              priority
+            />
           </Link>
 
           {/* Desktop Navigation */}
