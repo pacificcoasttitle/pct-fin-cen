@@ -516,3 +516,76 @@ export async function setFilingOutcome(
     body: JSON.stringify(outcome),
   });
 }
+
+// ============================================
+// SUBMISSION REQUESTS API
+// ============================================
+
+export interface SubmissionStats {
+  total: number;
+  pending: number;
+  in_progress: number;
+  completed: number;
+  this_month: number;
+}
+
+export interface SubmissionRequest {
+  id: string;
+  status: string;
+  property_address: {
+    street: string;
+    city: string;
+    state: string;
+    zip: string;
+    county?: string;
+  };
+  purchase_price_cents: number;
+  expected_closing_date: string;
+  escrow_number: string | null;
+  financing_type: string;
+  buyer_name: string;
+  buyer_email: string;
+  buyer_type: string;
+  seller_name: string;
+  seller_email: string | null;
+  notes: string | null;
+  report_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Get submission statistics for client dashboard
+ */
+export async function getSubmissionStats(): Promise<SubmissionStats> {
+  return apiFetch<SubmissionStats>('/submission-requests/stats');
+}
+
+/**
+ * Get all submission requests for the current user's company
+ */
+export async function getMyRequests(): Promise<SubmissionRequest[]> {
+  return apiFetch<SubmissionRequest[]>('/submission-requests/my-requests');
+}
+
+// ============================================
+// EXECUTIVE STATS API
+// ============================================
+
+export interface ExecutiveStats {
+  total_reports: number;
+  filed_reports: number;
+  exempt_reports: number;
+  pending_reports: number;
+  filed_this_month: number;
+  mtd_revenue_cents: number;
+  compliance_rate: number;
+  avg_completion_days: number;
+}
+
+/**
+ * Get executive-level statistics for COO dashboard
+ */
+export async function getExecutiveStats(): Promise<ExecutiveStats> {
+  return apiFetch<ExecutiveStats>('/reports/executive-stats');
+}

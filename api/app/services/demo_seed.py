@@ -1,209 +1,158 @@
 """
-Demo seed service for staging environment.
-
-Provides functions to reset and seed demo data safely.
+Demo Seed Service - Complete Data Chains
+Every scenario is fully linked and traceable.
 """
-from datetime import datetime, timedelta
-from typing import Dict, Any, Tuple, List, Optional
-from sqlalchemy.orm import Session
 
-from app.models import (
-    Report, ReportParty, PartyLink, Document, AuditLog, FilingSubmission,
-    NotificationEvent, Company, User, SubmissionRequest, BillingEvent, Invoice,
-)
+from datetime import datetime, date, timedelta
+from uuid import uuid4
+from sqlalchemy.orm import Session
+from sqlalchemy import text
+from typing import Dict, Any
+
+from app.models.company import Company
+from app.models.user import User
+from app.models.submission_request import SubmissionRequest
+from app.models.report import Report
+from app.models.report_party import ReportParty
+from app.models.party_link import PartyLink
+
 
 # Re-export for easy import
 __all__ = [
     "reset_demo_data",
-    "seed_demo_reports",
-    "seed_demo_submission_requests",
-    "seed_foundation_data",
-    "create_single_demo_report",
+    "seed_demo_data",
 ]
 
 
 def reset_demo_data(db: Session) -> None:
-    """
-    Delete all demo data in correct FK order to avoid constraint errors.
+    """Clear all demo data in correct FK order."""
+    print("🗑️ Clearing existing demo data...")
     
-    Order: billing_events → invoices → submission_requests → documents → party_links → 
-           filing_submissions → report_parties → audit_log → reports → users → companies
-    
-    Note: We preserve the PCT company and its users since those are foundational.
-    """
-    # Delete billing/invoices first
-    db.query(BillingEvent).delete()
-    db.query(Invoice).delete()
-    
-    # Delete submission requests (they reference reports)
-    db.query(SubmissionRequest).delete()
-    
-    # Delete report-related data
-    db.query(NotificationEvent).delete()
-    db.query(Document).delete()
-    db.query(PartyLink).delete()
-    db.query(FilingSubmission).delete()
-    db.query(ReportParty).delete()
-    db.query(AuditLog).delete()
-    db.query(Report).delete()
-    
-    # Note: We don't delete Companies or Users - those are foundational
-    db.flush()
-
-
-def seed_pct_company(db: Session) -> Company:
-    """
-    Seed Pacific Coast Title as the internal company.
-    
-    This is idempotent - if PCT already exists, returns the existing record.
-    """
-    pct = db.query(Company).filter(Company.code == "PCT").first()
-    if not pct:
-        pct = Company(
-            name="Pacific Coast Title Company",
-            code="PCT",
-            company_type="internal",
-            billing_email="billing@pacificcoasttitle.com",
-            billing_contact_name="Accounting Department",
-            phone="(555) 123-4567",
-            address={
-                "street": "1234 Title Way",
-                "city": "Los Angeles",
-                "state": "CA",
-                "zip": "90001",
-            },
-            status="active",
-            settings={
-                "default_filing_fee_cents": 15000,  # $150 per filing
-                "expedite_fee_cents": 7500,  # $75 expedite fee
-            },
-        )
-        db.add(pct)
-        db.flush()
-    return pct
-
-
-def seed_demo_users(db: Session, pct_company: Optional[Company] = None) -> List[User]:
-    """
-    Seed demo users for PCT.
-    
-    PCT internal staff have company_id = NULL (they're not a client).
-    This is idempotent - only creates users that don't exist.
-    """
-    users = []
-    demo_users = [
-        {
-            "email": "admin@pctfincen.com",
-            "name": "Demo Admin",
-            "role": "pct_admin",
-            "company_id": None,  # PCT staff have NULL company_id
-        },
-        {
-            "email": "staff@pctfincen.com",
-            "name": "Demo Staff",
-            "role": "pct_staff",
-            "company_id": None,
-        },
-    ]
-    
-    for user_data in demo_users:
-        user = db.query(User).filter(User.email == user_data["email"]).first()
-        if not user:
-            user = User(**user_data)
-            db.add(user)
-        users.append(user)
-    
-    db.flush()
-    return users
-
-
-def seed_demo_client_company(db: Session) -> Tuple[Company, List[User]]:
-    """
-    Seed a demo client company with users for testing multi-tenancy.
-    
-    Returns: (company, users)
-    """
-    # Create demo client company
-    client = db.query(Company).filter(Company.code == "DEMO").first()
-    if not client:
-        client = Company(
-            name="Demo Title & Escrow",
-            code="DEMO",
-            company_type="client",
-            billing_email="billing@demotitle.com",
-            billing_contact_name="Jane Billing",
-            phone="(555) 987-6543",
-            address={
-                "street": "100 Escrow Blvd",
-                "city": "San Diego",
-                "state": "CA",
-                "zip": "92101",
-            },
-            status="active",
-        )
-        db.add(client)
-        db.flush()
-    
-    # Create client users
-    client_users = []
-    client_user_data = [
-        {
-            "email": "admin@demotitle.com",
-            "name": "Client Admin",
-            "role": "client_admin",
-            "company_id": client.id,
-        },
-        {
-            "email": "user@demotitle.com",
-            "name": "Client User",
-            "role": "client_user",
-            "company_id": client.id,
-        },
-    ]
-    
-    for user_data in client_user_data:
-        user = db.query(User).filter(User.email == user_data["email"]).first()
-        if not user:
-            user = User(**user_data)
-            db.add(user)
-        client_users.append(user)
-    
-    db.flush()
-    return client, client_users
-
-
-def seed_foundation_data(db: Session) -> Dict[str, Any]:
-    """
-    Seed all foundation data: PCT company, demo users, demo client.
-    
-    Call this once after migration to set up the base data.
-    Returns dict with created entities.
-    """
-    pct = seed_pct_company(db)
-    pct_users = seed_demo_users(db, pct)
-    demo_client, client_users = seed_demo_client_company(db)
+    # Delete in FK dependency order
+    db.execute(text("DELETE FROM party_links"))
+    db.execute(text("DELETE FROM report_parties"))
+    db.execute(text("DELETE FROM reports"))
+    db.execute(text("DELETE FROM submission_requests"))
+    # Don't delete companies/users - they're needed for auth
     
     db.commit()
-    
-    return {
-        "pct_company": pct,
-        "pct_users": pct_users,
-        "demo_client": demo_client,
-        "client_users": client_users,
-    }
+    print("✅ Demo data cleared")
 
 
-def seed_demo_submission_requests(db: Session, client_company_id=None) -> int:
+def seed_demo_data(db: Session) -> Dict[str, Any]:
     """
-    Create demo submission requests showing various stages.
+    Create comprehensive demo data with COMPLETE linked chains.
     
-    Returns the number of requests created.
+    Scenarios:
+    1. Fresh pending request (no report yet)
+    2. In-progress: Request + Report in determination
+    3. Collecting: Request + Report + Parties (1/2 submitted)
+    4. Ready to file: Request + Report + All parties submitted
+    5. FILED: Complete chain with receipt ID
+    6. Exempt: Request + Report marked exempt
     """
-    from datetime import date
-    requests_created = 0
     
-    # 1. Pending Request - Just submitted, waiting for staff
-    req1 = SubmissionRequest(
+    print("🌱 Seeding comprehensive demo data...")
+    
+    # =========================================================================
+    # GET OR CREATE COMPANIES
+    # =========================================================================
+    
+    # FinClear internal company (for staff/admin users)
+    finclear_company = db.query(Company).filter(Company.code == "FINCLEAR").first()
+    if not finclear_company:
+        finclear_company = db.query(Company).filter(Company.code == "PCT").first()
+    if not finclear_company:
+        finclear_company = Company(
+            name="FinClear Solutions",
+            code="FINCLEAR",
+            company_type="internal",
+            billing_email="billing@finclear.com",
+            status="active",
+        )
+        db.add(finclear_company)
+        db.flush()
+        print(f"   🏢 Created FinClear company: {finclear_company.id}")
+    
+    # Demo client company
+    demo_company = db.query(Company).filter(Company.code == "DEMO").first()
+    if not demo_company:
+        demo_company = Company(
+            name="Pacific Coast Title",
+            code="DEMO",
+            company_type="client",
+            billing_email="billing@demo.com",
+            status="active",
+        )
+        db.add(demo_company)
+        db.flush()
+        print(f"   🏢 Created Demo company: {demo_company.id}")
+    
+    # =========================================================================
+    # GET OR CREATE USERS
+    # =========================================================================
+    
+    # FinClear Staff (company_id = NULL for PCT internal)
+    staff_user = db.query(User).filter(User.email == "staff@pctfincen.com").first()
+    if not staff_user:
+        staff_user = db.query(User).filter(User.role == "pct_staff").first()
+    if not staff_user:
+        staff_user = User(
+            email="staff@pctfincen.com",
+            name="Sarah Mitchell",
+            company_id=None,  # PCT staff have NULL company_id
+            role="pct_staff",
+            status="active",
+        )
+        db.add(staff_user)
+        db.flush()
+        print(f"   👤 Created staff user: {staff_user.email}")
+    
+    # FinClear Admin (company_id = NULL for PCT internal)
+    admin_user = db.query(User).filter(User.email == "admin@pctfincen.com").first()
+    if not admin_user:
+        admin_user = db.query(User).filter(User.role == "pct_admin").first()
+    if not admin_user:
+        admin_user = User(
+            email="admin@pctfincen.com",
+            name="Michael Chen",
+            company_id=None,
+            role="pct_admin",
+            status="active",
+        )
+        db.add(admin_user)
+        db.flush()
+        print(f"   👤 Created admin user: {admin_user.email}")
+    
+    # Client Admin
+    client_admin = db.query(User).filter(User.email == "admin@demotitle.com").first()
+    if not client_admin:
+        client_admin = db.query(User).filter(User.role == "client_admin").first()
+    if not client_admin:
+        client_admin = User(
+            email="admin@demotitle.com",
+            name="Jennifer Walsh",
+            company_id=demo_company.id,
+            role="client_admin",
+            status="active",
+        )
+        db.add(client_admin)
+        db.flush()
+        print(f"   👤 Created client admin: {client_admin.email}")
+    
+    db.flush()
+    
+    # Track portal links for output
+    active_portal_link = None
+    
+    # =========================================================================
+    # SCENARIO 1: Fresh Pending Request (No Report Yet)
+    # Client just submitted, staff hasn't started wizard
+    # =========================================================================
+    
+    request_1 = SubmissionRequest(
+        company_id=demo_company.id,
+        requested_by_user_id=client_admin.id,
         status="pending",
         property_address={
             "street": "742 Evergreen Terrace",
@@ -222,39 +171,46 @@ def seed_demo_submission_requests(db: Session, client_company_id=None) -> int:
         seller_name="Homer Simpson",
         seller_email="homer@springfield.net",
         notes="Urgent - client needs fast turnaround",
-        company_id=client_company_id,
-        created_at=datetime.utcnow() - timedelta(hours=2),
+        created_at=datetime.utcnow() - timedelta(hours=3),
     )
-    db.add(req1)
-    requests_created += 1
+    db.add(request_1)
+    print(f"   📋 Scenario 1: Pending request - 742 Evergreen Terrace")
     
-    # 2. Another Pending Request - High value property
-    req2 = SubmissionRequest(
-        status="pending",
-        property_address={
-            "street": "1600 Pennsylvania Avenue",
-            "city": "Washington",
-            "state": "DC",
-            "zip": "20500",
+    # =========================================================================
+    # SCENARIO 2: In Progress - Determination Phase
+    # Staff started wizard, working through determination questions
+    # =========================================================================
+    
+    report_2 = Report(
+        company_id=demo_company.id,
+        created_by_user_id=staff_user.id,
+        property_address_text="221B Baker Street, Los Angeles, CA 90028",
+        closing_date=date.today() + timedelta(days=10),
+        filing_deadline=date.today() + timedelta(days=40),
+        status="draft",
+        wizard_step=4,
+        wizard_data={
+            "phase": "determination",
+            "determinationStep": "buyer-type",
+            "determination": {
+                "isResidential": "yes",
+                "isNonFinanced": "yes",
+            },
+            "collection": {
+                "purchasePrice": 725000,
+                "escrowNumber": "ESC-2026-0998",
+            }
         },
-        purchase_price_cents=250000000,  # $2,500,000
-        expected_closing_date=date.today() + timedelta(days=21),
-        escrow_number="ESC-2026-1002",
-        financing_type="cash",
-        buyer_name="Capitol Trust Holdings",
-        buyer_email="legal@capitoltrust.com",
-        buyer_type="trust",
-        seller_name="Federal Properties Inc",
-        seller_email="sales@fedprops.com",
-        company_id=client_company_id,
-        created_at=datetime.utcnow() - timedelta(hours=5),
+        created_at=datetime.utcnow() - timedelta(hours=6),
     )
-    db.add(req2)
-    requests_created += 1
+    db.add(report_2)
+    db.flush()
     
-    # 3. In-Progress Request - Staff started working on it
-    req3 = SubmissionRequest(
+    request_2 = SubmissionRequest(
+        company_id=demo_company.id,
+        requested_by_user_id=client_admin.id,
         status="in_progress",
+        assigned_to_user_id=staff_user.id,
         property_address={
             "street": "221B Baker Street",
             "city": "Los Angeles",
@@ -270,357 +226,360 @@ def seed_demo_submission_requests(db: Session, client_company_id=None) -> int:
         buyer_type="entity",
         seller_name="Sherlock Holdings Trust",
         seller_email="trustee@sherlockholdings.com",
-        company_id=client_company_id,
+        report_id=report_2.id,  # LINKED!
         created_at=datetime.utcnow() - timedelta(days=1),
     )
-    db.add(req3)
-    requests_created += 1
+    db.add(request_2)
     
-    db.flush()
-    print(f"   📋 Created {requests_created} submission requests")
-    return requests_created
-
-
-def seed_demo_reports(db: Session) -> int:
-    """
-    Create 6 demo reports with varied statuses.
+    # Update report with submission_request_id
+    report_2.submission_request_id = request_2.id
+    print(f"   📊 Scenario 2: In determination - 221B Baker Street")
     
-    Returns the number of reports created.
-    """
-    reports_created = 0
+    # =========================================================================
+    # SCENARIO 3: Collecting - Waiting on Parties (1 of 2 submitted)
+    # Determination done, party links sent, seller submitted, buyer pending
+    # =========================================================================
     
-    # ===== EXEMPT REPORTS =====
-    
-    # 1. Exempt: Commercial property
-    r1 = Report(
-        status="exempt",
-        property_address_text="500 Commerce Drive, Suite 200, Business City, CA 90210",
-        closing_date=datetime.utcnow().date() + timedelta(days=14),
-        filing_deadline=datetime.utcnow().date() + timedelta(days=44),
-        wizard_step=5,
-        wizard_data={
-            "phase": "determination",
-            "determinationStep": "determination-result",
-            "determination": {
-                "isResidential": "no",
-                "hasIntentToBuild": "no",
-            },
-        },
+    report_3 = Report(
+        company_id=demo_company.id,
+        created_by_user_id=staff_user.id,
+        property_address_text="350 Fifth Avenue, New York, NY 10118",
+        closing_date=date.today() + timedelta(days=7),
+        filing_deadline=date.today() + timedelta(days=37),
+        status="collecting",
+        wizard_step=8,
         determination={
-            "reportable": False,
-            "reason_code": "non_residential",
-            "reason_text": "Non-residential property with no intent to build residential",
-            "required_sections": [],
-            "required_certifications": [],
-            "path_trace": ["residential_check", "non_residential_exempt"],
+            "final_result": "reportable",
+            "reason": "Non-financed transfer to entity, no exemptions apply",
+            "buyer_type": "entity",
         },
-    )
-    db.add(r1)
-    reports_created += 1
-    
-    # 2. Exempt: Conventional mortgage
-    r2 = Report(
-        status="exempt",
-        property_address_text="123 Maple Street, Suburbia, CA 91001",
-        closing_date=datetime.utcnow().date() + timedelta(days=7),
-        filing_deadline=datetime.utcnow().date() + timedelta(days=37),
-        wizard_step=5,
-        wizard_data={
-            "phase": "determination",
-            "determinationStep": "determination-result",
-            "determination": {
-                "isResidential": "yes",
-                "isNonFinanced": "no",
-                "lenderHasAml": "yes",
-            },
-        },
-        determination={
-            "reportable": False,
-            "reason_code": "lender_aml",
-            "reason_text": "Lender has active AML program covering this transaction",
-            "required_sections": [],
-            "required_certifications": [],
-            "path_trace": ["residential_check", "financing_check", "lender_aml_exempt"],
-        },
-    )
-    db.add(r2)
-    reports_created += 1
-    
-    # 3. Exempt: Government entity buyer
-    r3 = Report(
-        status="exempt",
-        property_address_text="789 Federal Way, Government Heights, CA 92001",
-        closing_date=datetime.utcnow().date() + timedelta(days=21),
-        filing_deadline=datetime.utcnow().date() + timedelta(days=51),
-        wizard_step=5,
-        wizard_data={
-            "phase": "determination",
-            "determinationStep": "determination-result",
-            "determination": {
-                "isResidential": "yes",
-                "isNonFinanced": "yes",
-                "buyerType": "entity",
-                "entityExemptions": ["government"],
-            },
-        },
-        determination={
-            "reportable": False,
-            "reason_code": "exempt_entity_government",
-            "reason_text": "Buyer is a governmental authority (exempt entity)",
-            "required_sections": [],
-            "required_certifications": [],
-            "path_trace": ["residential_check", "cash_transaction", "entity_exemption_government"],
-        },
-    )
-    db.add(r3)
-    reports_created += 1
-    
-    # ===== REPORTABLE REPORTS =====
-    
-    # 4. Reportable: Cash LLC buyer (draft/awaiting parties)
-    r4 = Report(
-        status="awaiting_parties",
-        property_address_text="456 Oak Avenue, Richville, CA 90402",
-        closing_date=datetime.utcnow().date() + timedelta(days=10),
-        filing_deadline=datetime.utcnow().date() + timedelta(days=40),
-        wizard_step=5,
         wizard_data={
             "phase": "collection",
-            "determinationStep": "determination-result",
-            "collectionStep": "buyer-info",
-            "determination": {
-                "isResidential": "yes",
-                "isNonFinanced": "yes",
-                "buyerType": "entity",
-                "entityExemptions": ["none"],
-            },
+            "collectionStep": "monitor-progress",
         },
-        determination={
-            "reportable": True,
-            "reason_code": "reportable_entity",
-            "reason_text": "Cash purchase by non-exempt entity - FinCEN report required",
-            "required_sections": ["buyer", "seller", "transaction"],
-            "required_certifications": ["buyer_certification"],
-            "path_trace": ["residential_check", "cash_transaction", "entity_no_exemption"],
-        },
+        created_at=datetime.utcnow() - timedelta(days=2),
     )
-    db.add(r4)
+    db.add(report_3)
     db.flush()
     
-    # Add parties for r4
-    buyer_party = ReportParty(
-        report_id=r4.id,
-        party_role="buyer",
-        entity_type="llc",
-        display_name="Oak Investments LLC",
-        status="pending",
-        party_data={},
+    request_3 = SubmissionRequest(
+        company_id=demo_company.id,
+        requested_by_user_id=client_admin.id,
+        status="in_progress",
+        assigned_to_user_id=staff_user.id,
+        property_address={
+            "street": "350 Fifth Avenue",
+            "city": "New York",
+            "state": "NY",
+            "zip": "10118",
+        },
+        purchase_price_cents=125000000,  # $1,250,000
+        expected_closing_date=date.today() + timedelta(days=7),
+        escrow_number="ESC-2026-0995",
+        financing_type="cash",
+        buyer_name="Empire State Holdings LLC",
+        buyer_email="legal@empireholdings.com",
+        buyer_type="entity",
+        seller_name="Margaret Chen",
+        seller_email="mchen@email.com",
+        report_id=report_3.id,
+        created_at=datetime.utcnow() - timedelta(days=3),
     )
-    db.add(buyer_party)
+    db.add(request_3)
+    report_3.submission_request_id = request_3.id
     db.flush()
     
-    buyer_link = PartyLink(
-        report_party_id=buyer_party.id,
-        expires_at=datetime.utcnow() + timedelta(days=30),
-        status="active",
-    )
-    db.add(buyer_link)
-    
-    seller_party = ReportParty(
-        report_id=r4.id,
-        party_role="seller",
+    # Seller - SUBMITTED
+    party3_seller = ReportParty(
+        report_id=report_3.id,
+        party_role="transferor",
         entity_type="individual",
-        display_name="Jane Seller",
-        status="pending",
-        party_data={},
-    )
-    db.add(seller_party)
-    db.flush()
-    
-    seller_link = PartyLink(
-        report_party_id=seller_party.id,
-        expires_at=datetime.utcnow() + timedelta(days=30),
-        status="active",
-    )
-    db.add(seller_link)
-    reports_created += 1
-    
-    # 5. Reportable: Trust buyer (collecting - parties partially submitted)
-    r5 = Report(
-        status="awaiting_parties",
-        property_address_text="999 Investment Blvd, Wealthton, CA 94301",
-        closing_date=datetime.utcnow().date() + timedelta(days=5),
-        filing_deadline=datetime.utcnow().date() + timedelta(days=35),
-        wizard_step=5,
-        wizard_data={
-            "phase": "collection",
-            "determinationStep": "determination-result",
-            "collectionStep": "certifications",
-            "determination": {
-                "isResidential": "yes",
-                "isNonFinanced": "yes",
-                "buyerType": "trust",
-                "trustExemptions": ["none"],
-            },
-        },
-        determination={
-            "reportable": True,
-            "reason_code": "reportable_trust",
-            "reason_text": "Cash purchase by non-exempt trust - FinCEN report required",
-            "required_sections": ["buyer", "seller", "transaction", "beneficial_owner"],
-            "required_certifications": ["buyer_certification", "seller_certification"],
-            "path_trace": ["residential_check", "cash_transaction", "trust_no_exemption"],
-        },
-    )
-    db.add(r5)
-    db.flush()
-    
-    # Add submitted buyer party
-    trust_party = ReportParty(
-        report_id=r5.id,
-        party_role="buyer",
-        entity_type="trust",
-        display_name="Sunset Family Trust",
+        display_name="Margaret Chen",
+        email="mchen@email.com",
         status="submitted",
+        submitted_at=datetime.utcnow() - timedelta(hours=12),
         party_data={
-            "entity_name": "Sunset Family Trust",
-            "trust_date": "2015-06-01",
-            "trustee_name": "First National Bank",
-            "email": "trust@example.com",
-            "address_line1": "999 Investment Blvd",
-            "city": "Wealthton",
-            "state": "CA",
-            "zip_code": "94301",
+            "first_name": "Margaret",
+            "last_name": "Chen",
+            "date_of_birth": "1968-03-15",
+            "ssn_last_four": "6789",
+            "citizenship": "us_citizen",
+            "certified": True,
         },
     )
-    db.add(trust_party)
+    db.add(party3_seller)
     db.flush()
     
-    # Add pending seller party
-    seller5 = ReportParty(
-        report_id=r5.id,
-        party_role="seller",
-        entity_type="individual",
-        display_name="Robert Previous Owner",
+    # Buyer - PENDING (has link, hasn't submitted yet)
+    party3_buyer = ReportParty(
+        report_id=report_3.id,
+        party_role="transferee",
+        entity_type="entity",
+        display_name="Empire State Holdings LLC",
+        email="legal@empireholdings.com",
         status="pending",
-        party_data={"first_name": "Robert", "last_name": "Previous Owner"},
+        party_data={},
     )
-    db.add(seller5)
+    db.add(party3_buyer)
     db.flush()
     
-    seller5_link = PartyLink(
-        report_party_id=seller5.id,
-        expires_at=datetime.utcnow() + timedelta(days=14),
+    # Active link for pending buyer
+    link3_buyer = PartyLink(
+        report_party_id=party3_buyer.id,
+        expires_at=datetime.utcnow() + timedelta(days=28),
         status="active",
+        created_at=datetime.utcnow() - timedelta(days=2),
     )
-    db.add(seller5_link)
-    reports_created += 1
+    db.add(link3_buyer)
+    db.flush()
+    active_portal_link = link3_buyer.token
     
-    # 6. Reportable: Ready to file (all parties submitted)
-    r6 = Report(
+    print(f"   📊 Scenario 3: Collecting (1/2) - 350 Fifth Avenue")
+    print(f"      🔗 Active buyer portal: /p/{active_portal_link}")
+    
+    # =========================================================================
+    # SCENARIO 4: Ready to File - All Parties Submitted
+    # All info collected, ready for staff to review and file
+    # =========================================================================
+    
+    report_4 = Report(
+        company_id=demo_company.id,
+        created_by_user_id=staff_user.id,
+        property_address_text="123 Ocean Drive, Miami Beach, FL 33139",
+        closing_date=date.today() + timedelta(days=3),
+        filing_deadline=date.today() + timedelta(days=33),
         status="ready_to_file",
-        property_address_text="777 Trust Lane, Estate Hills, CA 94027",
-        closing_date=datetime.utcnow().date() + timedelta(days=3),
-        filing_deadline=datetime.utcnow().date() + timedelta(days=33),
-        wizard_step=5,
-        wizard_data={
-            "phase": "summary",
-            "determinationStep": "determination-result",
-            "collectionStep": "certifications",
-            "determination": {
-                "isResidential": "yes",
-                "isNonFinanced": "yes",
-                "buyerType": "entity",
-                "entityExemptions": ["none"],
-            },
-            "collection": {
-                "closingDate": (datetime.utcnow().date() + timedelta(days=3)).isoformat(),
-                "purchasePrice": 2500000,
-            },
-        },
+        wizard_step=9,
         determination={
-            "reportable": True,
-            "reason_code": "reportable_entity",
-            "reason_text": "Cash purchase by non-exempt LLC - FinCEN report required",
-            "required_sections": ["buyer", "seller", "transaction"],
-            "required_certifications": ["buyer_certification"],
-            "path_trace": ["residential_check", "cash_transaction", "entity_no_exemption"],
+            "final_result": "reportable",
+            "reason": "Non-financed transfer to entity, no exemptions apply",
+            "buyer_type": "entity",
         },
-    )
-    db.add(r6)
-    db.flush()
-    
-    # Add submitted parties for r6
-    buyer6 = ReportParty(
-        report_id=r6.id,
-        party_role="buyer",
-        entity_type="llc",
-        display_name="Estate Holdings LLC",
-        status="submitted",
-        party_data={
-            "entity_name": "Estate Holdings LLC",
-            "ein": "12-3456789",
-            "formation_state": "Delaware",
-            "email": "contact@estateholdings.com",
-            "address_line1": "777 Trust Lane",
-            "city": "Estate Hills",
-            "state": "CA",
-            "zip_code": "94027",
-        },
-    )
-    db.add(buyer6)
-    
-    seller6 = ReportParty(
-        report_id=r6.id,
-        party_role="seller",
-        entity_type="individual",
-        display_name="Charles Johnson",
-        status="submitted",
-        party_data={
-            "first_name": "Charles",
-            "last_name": "Johnson",
-            "date_of_birth": "1960-11-22",
-            "email": "charles@example.com",
-            "address_line1": "100 Previous Home Dr",
-            "city": "Estate Hills",
-            "state": "CA",
-            "zip_code": "94027",
-        },
-    )
-    db.add(seller6)
-    reports_created += 1
-    
-    db.flush()
-    return reports_created
-
-
-def create_single_demo_report(db: Session) -> Tuple[str, str]:
-    """
-    Create a single demo report with minimal data for quick testing.
-    
-    Returns tuple of (report_id, wizard_url_path).
-    """
-    from app.config import get_settings
-    settings = get_settings()
-    
-    report = Report(
-        status="draft",
-        property_address_text=f"Demo Property {datetime.utcnow().strftime('%H:%M:%S')}",
-        closing_date=datetime.utcnow().date() + timedelta(days=14),
-        wizard_step=1,
         wizard_data={
-            "phase": "determination",
-            "determinationStep": "property",
-            "determination": {
-                "isResidential": "yes",
-                "isNonFinanced": "yes",
-                "buyerType": "entity",
-            },
+            "phase": "collection",
+            "collectionStep": "file-report",
         },
+        created_at=datetime.utcnow() - timedelta(days=4),
     )
-    db.add(report)
+    db.add(report_4)
     db.flush()
     
-    wizard_url = f"{settings.APP_BASE_URL}/app/reports/{report.id}/wizard"
+    request_4 = SubmissionRequest(
+        company_id=demo_company.id,
+        requested_by_user_id=client_admin.id,
+        status="in_progress",
+        assigned_to_user_id=staff_user.id,
+        property_address={
+            "street": "123 Ocean Drive",
+            "city": "Miami Beach",
+            "state": "FL",
+            "zip": "33139",
+        },
+        purchase_price_cents=195000000,  # $1,950,000
+        expected_closing_date=date.today() + timedelta(days=3),
+        escrow_number="ESC-2026-0990",
+        financing_type="cash",
+        buyer_name="Sunshine Ventures LLC",
+        buyer_email="acquisitions@sunshineventures.com",
+        buyer_type="entity",
+        seller_name="Carlos Rodriguez",
+        seller_email="crodriguez@email.com",
+        report_id=report_4.id,
+        created_at=datetime.utcnow() - timedelta(days=5),
+    )
+    db.add(request_4)
+    report_4.submission_request_id = request_4.id
+    db.flush()
     
-    return str(report.id), wizard_url
+    # Seller - Submitted
+    party4_seller = ReportParty(
+        report_id=report_4.id,
+        party_role="transferor",
+        entity_type="individual",
+        display_name="Carlos Rodriguez",
+        email="crodriguez@email.com",
+        status="submitted",
+        submitted_at=datetime.utcnow() - timedelta(days=2),
+        party_data={
+            "first_name": "Carlos",
+            "last_name": "Rodriguez",
+            "certified": True,
+        },
+    )
+    db.add(party4_seller)
+    
+    # Buyer - Submitted
+    party4_buyer = ReportParty(
+        report_id=report_4.id,
+        party_role="transferee",
+        entity_type="entity",
+        display_name="Sunshine Ventures LLC",
+        email="acquisitions@sunshineventures.com",
+        status="submitted",
+        submitted_at=datetime.utcnow() - timedelta(days=1),
+        party_data={
+            "entity_name": "Sunshine Ventures LLC",
+            "ein": "87-1234567",
+            "certified": True,
+        },
+    )
+    db.add(party4_buyer)
+    
+    print(f"   📊 Scenario 4: Ready to file - 123 Ocean Drive")
+    
+    # =========================================================================
+    # SCENARIO 5: FILED - Complete Success Story
+    # Full lifecycle complete with receipt ID
+    # =========================================================================
+    
+    report_5 = Report(
+        company_id=demo_company.id,
+        created_by_user_id=staff_user.id,
+        property_address_text="8842 Sunset Boulevard, West Hollywood, CA 90069",
+        closing_date=date.today() - timedelta(days=10),
+        filing_deadline=date.today() + timedelta(days=20),
+        status="filed",  # FILED!
+        filing_status="filed_mock",
+        receipt_id="BSA-20260118-A1B2C3D4",  # HAS RECEIPT!
+        wizard_step=10,
+        determination={
+            "final_result": "reportable",
+            "reason": "Non-financed transfer to entity, no exemptions apply",
+            "buyer_type": "entity",
+        },
+        filed_at=datetime.utcnow() - timedelta(days=8),
+        created_at=datetime.utcnow() - timedelta(days=14),
+    )
+    db.add(report_5)
+    db.flush()
+    
+    request_5 = SubmissionRequest(
+        company_id=demo_company.id,
+        requested_by_user_id=client_admin.id,
+        status="completed",  # COMPLETED!
+        assigned_to_user_id=staff_user.id,
+        property_address={
+            "street": "8842 Sunset Boulevard",
+            "city": "West Hollywood",
+            "state": "CA",
+            "zip": "90069",
+        },
+        purchase_price_cents=275000000,  # $2,750,000
+        expected_closing_date=date.today() - timedelta(days=10),
+        escrow_number="ESC-2026-0985",
+        financing_type="cash",
+        buyer_name="Sunset Entertainment Group",
+        buyer_email="legal@sunsetent.com",
+        buyer_type="entity",
+        seller_name="Jennifer Walsh",
+        seller_email="jwalsh@email.com",
+        report_id=report_5.id,
+        created_at=datetime.utcnow() - timedelta(days=15),
+    )
+    db.add(request_5)
+    report_5.submission_request_id = request_5.id
+    db.flush()
+    
+    # Add parties for filed report
+    party5_seller = ReportParty(
+        report_id=report_5.id,
+        party_role="transferor",
+        entity_type="individual",
+        display_name="Jennifer Walsh",
+        email="jwalsh@email.com",
+        status="submitted",
+        submitted_at=datetime.utcnow() - timedelta(days=10),
+        party_data={"first_name": "Jennifer", "last_name": "Walsh", "certified": True},
+    )
+    db.add(party5_seller)
+    
+    party5_buyer = ReportParty(
+        report_id=report_5.id,
+        party_role="transferee",
+        entity_type="entity",
+        display_name="Sunset Entertainment Group",
+        email="legal@sunsetent.com",
+        status="submitted",
+        submitted_at=datetime.utcnow() - timedelta(days=9),
+        party_data={"entity_name": "Sunset Entertainment Group", "certified": True},
+    )
+    db.add(party5_buyer)
+    
+    print(f"   ✅ Scenario 5: FILED - 8842 Sunset Boulevard (Receipt: BSA-20260118-A1B2C3D4)")
+    
+    # =========================================================================
+    # SCENARIO 6: Exempt - No Filing Required
+    # Completed determination, found exemption applies
+    # =========================================================================
+    
+    report_6 = Report(
+        company_id=demo_company.id,
+        created_by_user_id=staff_user.id,
+        property_address_text="500 Corporate Plaza, San Francisco, CA 94105",
+        closing_date=date.today() - timedelta(days=5),
+        status="exempt",  # EXEMPT!
+        wizard_step=6,
+        determination={
+            "final_result": "exempt",
+            "reason": "Transaction is financed - has mortgage from qualified lender",
+            "exemption_type": "financed_transaction",
+        },
+        created_at=datetime.utcnow() - timedelta(days=9),
+    )
+    db.add(report_6)
+    db.flush()
+    
+    request_6 = SubmissionRequest(
+        company_id=demo_company.id,
+        requested_by_user_id=client_admin.id,
+        status="completed",
+        assigned_to_user_id=staff_user.id,
+        property_address={
+            "street": "500 Corporate Plaza",
+            "city": "San Francisco",
+            "state": "CA",
+            "zip": "94105",
+        },
+        purchase_price_cents=450000000,  # $4,500,000
+        expected_closing_date=date.today() - timedelta(days=5),
+        escrow_number="ESC-2026-0980",
+        financing_type="financed",  # Has mortgage!
+        buyer_name="BigCorp Inc",
+        buyer_email="legal@bigcorp.com",
+        buyer_type="entity",
+        seller_name="Previous Owner LLC",
+        seller_email="sales@previousowner.com",
+        report_id=report_6.id,
+        created_at=datetime.utcnow() - timedelta(days=10),
+    )
+    db.add(request_6)
+    report_6.submission_request_id = request_6.id
+    
+    print(f"   ⚪ Scenario 6: Exempt (financed) - 500 Corporate Plaza")
+    
+    # =========================================================================
+    # COMMIT ALL
+    # =========================================================================
+    
+    db.commit()
+    
+    print("")
+    print("✅ Demo seed complete!")
+    print("")
+    print("📊 Summary:")
+    print(f"   • 6 SubmissionRequests (1 pending, 3 in_progress, 2 completed)")
+    print(f"   • 5 Reports (1 draft, 1 collecting, 1 ready_to_file, 1 filed, 1 exempt)")
+    print(f"   • All requests properly linked to their reports")
+    print(f"   • 1 active party portal link for testing")
+    print("")
+    if active_portal_link:
+        print(f"🔗 Demo portal link: /p/{active_portal_link}")
+    
+    return {
+        "requests_created": 6,
+        "reports_created": 5,
+        "parties_created": 6,
+        "filed_reports": 1,
+        "exempt_reports": 1,
+        "active_portal_link": f"/p/{active_portal_link}" if active_portal_link else None,
+    }

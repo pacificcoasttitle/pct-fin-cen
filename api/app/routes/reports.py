@@ -162,6 +162,57 @@ def list_reports_with_parties(
     )
 
 
+@router.get("/executive-stats")
+def get_executive_stats(db: Session = Depends(get_db)):
+    """
+    Get executive-level statistics for the COO dashboard.
+    Returns aggregated metrics across all companies.
+    """
+    from sqlalchemy import func
+    
+    # Total reports
+    total_reports = db.query(Report).count()
+    
+    # Filed reports
+    filed_reports = db.query(Report).filter(Report.status == "filed").count()
+    
+    # Exempt reports
+    exempt_reports = db.query(Report).filter(Report.status == "exempt").count()
+    
+    # Pending reports (not yet filed)
+    pending_reports = db.query(Report).filter(
+        Report.status.in_(["draft", "collecting", "ready_to_file"])
+    ).count()
+    
+    # This month's filings
+    start_of_month = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    filed_this_month = db.query(Report).filter(
+        Report.status == "filed",
+        Report.filed_at >= start_of_month
+    ).count()
+    
+    # Calculate revenue (mock: $75 per filing)
+    revenue_per_filing = 7500  # cents
+    mtd_revenue_cents = filed_this_month * revenue_per_filing
+    
+    # Average completion time (from creation to filing) - mock for now
+    avg_completion_days = 3.2
+    
+    # Compliance rate (filed on time vs total filed)
+    compliance_rate = 98.2  # Mock for now
+    
+    return {
+        "total_reports": total_reports,
+        "filed_reports": filed_reports,
+        "exempt_reports": exempt_reports,
+        "pending_reports": pending_reports,
+        "filed_this_month": filed_this_month,
+        "mtd_revenue_cents": mtd_revenue_cents,
+        "compliance_rate": compliance_rate,
+        "avg_completion_days": avg_completion_days,
+    }
+
+
 @router.get("/{report_id}", response_model=ReportDetailResponse)
 def get_report(
     report_id: UUID,

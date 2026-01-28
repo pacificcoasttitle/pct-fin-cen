@@ -1,7 +1,10 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import {
   TrendingUp,
   DollarSign,
@@ -12,44 +15,70 @@ import {
   Clock,
   AlertTriangle,
   ArrowUpRight,
+  RefreshCw,
+  ShieldCheck,
+  XCircle,
 } from "lucide-react";
+import { getExecutiveStats, type ExecutiveStats } from "@/lib/api";
 
 export default function ExecutiveDashboardPage() {
-  // Executive-level KPIs
-  const kpis = {
-    // Revenue
-    mtdRevenue: 28500,
-    mtdRevenueChange: 12.5,
-    projectedRevenue: 52000,
-    outstandingAR: 8750,
-    overdueInvoices: 2,
+  const [stats, setStats] = useState<ExecutiveStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-    // Operations
-    totalFilingsThisMonth: 47,
-    filingsChange: 8.3,
-    acceptanceRate: 98.2,
-    avgProcessingHours: 4.2,
-    pendingRequests: 8,
-
-    // Clients
-    activeClients: 10,
-    totalClients: 12,
-    newClientsThisMonth: 2,
-    clientRetention: 100,
-
-    // Team
-    activeStaff: 6,
-    avgRequestsPerStaff: 7.8,
+  const fetchData = async (showRefresh = false) => {
+    if (showRefresh) setRefreshing(true);
+    try {
+      const data = await getExecutiveStats();
+      setStats(data);
+    } catch (error) {
+      console.error("Failed to fetch executive stats:", error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  // Auto-refresh every 60 seconds
+  useEffect(() => {
+    const interval = setInterval(() => fetchData(false), 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Format currency from cents
+  const formatCurrency = (cents: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      maximumFractionDigits: 0,
+    }).format(cents / 100);
+  };
+
+  // Get month name
+  const currentMonth = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-slate-900">Executive Dashboard</h1>
-        <p className="text-slate-500">
-          Business overview for FinClear • January 2026
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900">Executive Dashboard</h1>
+          <p className="text-slate-500">
+            Business overview for FinClear • {currentMonth}
+          </p>
+        </div>
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          onClick={() => fetchData(true)}
+          disabled={refreshing}
+        >
+          <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+        </Button>
       </div>
 
       {/* Revenue Section */}
@@ -61,58 +90,62 @@ export default function ExecutiveDashboardPage() {
         <div className="grid gap-4 md:grid-cols-4">
           <Card>
             <CardHeader className="pb-2">
-              <CardDescription>Month to Date</CardDescription>
-              <CardTitle className="text-3xl">
-                ${kpis.mtdRevenue.toLocaleString()}
-              </CardTitle>
+              <CardDescription>Month to Date Revenue</CardDescription>
+              {loading ? (
+                <Skeleton className="h-9 w-32" />
+              ) : (
+                <CardTitle className="text-3xl">
+                  {formatCurrency(stats?.mtd_revenue_cents ?? 0)}
+                </CardTitle>
+              )}
             </CardHeader>
             <CardContent>
               <div className="flex items-center text-sm text-green-600">
                 <ArrowUpRight className="h-4 w-4 mr-1" />
-                {kpis.mtdRevenueChange}% vs last month
+                Based on {stats?.filed_this_month ?? 0} filings
               </div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="pb-2">
-              <CardDescription>Projected (EOM)</CardDescription>
-              <CardTitle className="text-3xl">
-                ${kpis.projectedRevenue.toLocaleString()}
-              </CardTitle>
+              <CardDescription>Revenue Per Filing</CardDescription>
+              <CardTitle className="text-3xl">$75.00</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-slate-500">Based on current pace</p>
+              <p className="text-sm text-slate-500">Standard rate</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="pb-2">
-              <CardDescription>Outstanding A/R</CardDescription>
-              <CardTitle className="text-3xl">
-                ${kpis.outstandingAR.toLocaleString()}
-              </CardTitle>
+              <CardDescription>Filings This Month</CardDescription>
+              {loading ? (
+                <Skeleton className="h-9 w-16" />
+              ) : (
+                <CardTitle className="text-3xl">
+                  {stats?.filed_this_month ?? 0}
+                </CardTitle>
+              )}
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-slate-500">Awaiting payment</p>
+              <p className="text-sm text-slate-500">Completed filings</p>
             </CardContent>
           </Card>
 
-          <Card
-            className={
-              kpis.overdueInvoices > 0 ? "border-red-200 bg-red-50" : ""
-            }
-          >
+          <Card>
             <CardHeader className="pb-2">
-              <CardDescription>Overdue Invoices</CardDescription>
-              <CardTitle className="text-3xl">{kpis.overdueInvoices}</CardTitle>
+              <CardDescription>Total Reports</CardDescription>
+              {loading ? (
+                <Skeleton className="h-9 w-16" />
+              ) : (
+                <CardTitle className="text-3xl">
+                  {stats?.total_reports ?? 0}
+                </CardTitle>
+              )}
             </CardHeader>
             <CardContent>
-              {kpis.overdueInvoices > 0 ? (
-                <Badge variant="destructive">Needs attention</Badge>
-              ) : (
-                <Badge variant="secondary">All current</Badge>
-              )}
+              <p className="text-sm text-slate-500">All time</p>
             </CardContent>
           </Card>
         </div>
@@ -127,188 +160,207 @@ export default function ExecutiveDashboardPage() {
         <div className="grid gap-4 md:grid-cols-5">
           <Card>
             <CardHeader className="pb-2">
-              <CardDescription>Filings (MTD)</CardDescription>
-              <CardTitle className="text-3xl">
-                {kpis.totalFilingsThisMonth}
-              </CardTitle>
+              <CardDescription>Total Filed</CardDescription>
+              {loading ? (
+                <Skeleton className="h-9 w-16" />
+              ) : (
+                <CardTitle className="text-3xl">
+                  {stats?.filed_reports ?? 0}
+                </CardTitle>
+              )}
             </CardHeader>
             <CardContent>
-              <div className="flex items-center text-sm text-green-600">
-                <ArrowUpRight className="h-4 w-4 mr-1" />
-                {kpis.filingsChange}% vs last month
-              </div>
+              <Badge className="bg-green-100 text-green-700">Completed</Badge>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="pb-2">
-              <CardDescription>Acceptance Rate</CardDescription>
-              <CardTitle className="text-3xl">{kpis.acceptanceRate}%</CardTitle>
+              <CardDescription>Exempt</CardDescription>
+              {loading ? (
+                <Skeleton className="h-9 w-16" />
+              ) : (
+                <CardTitle className="text-3xl">{stats?.exempt_reports ?? 0}</CardTitle>
+              )}
             </CardHeader>
             <CardContent>
-              <Badge>Excellent</Badge>
+              <Badge variant="secondary">No filing required</Badge>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="pb-2">
-              <CardDescription>Avg Processing</CardDescription>
-              <CardTitle className="text-3xl">
-                {kpis.avgProcessingHours} hrs
-              </CardTitle>
+              <CardDescription>In Progress</CardDescription>
+              {loading ? (
+                <Skeleton className="h-9 w-16" />
+              ) : (
+                <CardTitle className="text-3xl">{stats?.pending_reports ?? 0}</CardTitle>
+              )}
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-slate-500">Awaiting completion</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>Compliance Rate</CardDescription>
+              {loading ? (
+                <Skeleton className="h-9 w-16" />
+              ) : (
+                <CardTitle className="text-3xl">{stats?.compliance_rate ?? 0}%</CardTitle>
+              )}
+            </CardHeader>
+            <CardContent>
+              <Badge className="bg-green-100 text-green-700">Excellent</Badge>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>Avg Completion</CardDescription>
+              {loading ? (
+                <Skeleton className="h-9 w-16" />
+              ) : (
+                <CardTitle className="text-3xl">
+                  {stats?.avg_completion_days ?? 0} days
+                </CardTitle>
+              )}
             </CardHeader>
             <CardContent>
               <p className="text-sm text-slate-500">Request → Filed</p>
             </CardContent>
           </Card>
+        </div>
+      </section>
 
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Pending Requests</CardDescription>
-              <CardTitle className="text-3xl">{kpis.pendingRequests}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-slate-500">In queue</p>
+      {/* Status Breakdown */}
+      <section>
+        <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+          <TrendingUp className="h-5 w-5 text-teal-600" />
+          Report Status Breakdown
+        </h2>
+        <div className="grid gap-4 md:grid-cols-4">
+          <Card className="border-green-200 bg-green-50/50">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <CheckCircle className="h-6 w-6 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{loading ? "-" : stats?.filed_reports ?? 0}</p>
+                  <p className="text-sm text-slate-600">Filed with FinCEN</p>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Requests/Staff</CardDescription>
-              <CardTitle className="text-3xl">
-                {kpis.avgRequestsPerStaff}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-slate-500">Avg workload</p>
+          <Card className="border-gray-200 bg-gray-50/50">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-gray-100 rounded-lg">
+                  <ShieldCheck className="h-6 w-6 text-gray-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{loading ? "-" : stats?.exempt_reports ?? 0}</p>
+                  <p className="text-sm text-slate-600">Exempt (No Filing)</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-blue-200 bg-blue-50/50">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <Clock className="h-6 w-6 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{loading ? "-" : stats?.pending_reports ?? 0}</p>
+                  <p className="text-sm text-slate-600">In Progress</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-slate-200">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-slate-100 rounded-lg">
+                  <FileText className="h-6 w-6 text-slate-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{loading ? "-" : stats?.total_reports ?? 0}</p>
+                  <p className="text-sm text-slate-600">Total Reports</p>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
       </section>
 
-      {/* Clients & Team Row */}
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Clients Section */}
-        <section>
-          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-            <Building2 className="h-5 w-5 text-purple-600" />
-            Clients
-          </h2>
-          <div className="grid gap-4 grid-cols-2">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Active Clients</CardDescription>
-                <CardTitle className="text-3xl">{kpis.activeClients}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-slate-500">
-                  of {kpis.totalClients} total
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>New This Month</CardDescription>
-                <CardTitle className="text-3xl text-green-600">
-                  +{kpis.newClientsThisMonth}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Badge variant="secondary">Growing</Badge>
-              </CardContent>
-            </Card>
-          </div>
-        </section>
-
-        {/* Team Section */}
-        <section>
-          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-            <Users className="h-5 w-5 text-orange-600" />
-            Team
-          </h2>
-          <div className="grid gap-4 grid-cols-2">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Active Staff</CardDescription>
-                <CardTitle className="text-3xl">{kpis.activeStaff}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-slate-500">Processing requests</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Retention</CardDescription>
-                <CardTitle className="text-3xl">
-                  {kpis.clientRetention}%
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Badge>Perfect</Badge>
-              </CardContent>
-            </Card>
-          </div>
-        </section>
-      </div>
-
       {/* Alerts Section */}
       <section>
         <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
           <AlertTriangle className="h-5 w-5 text-yellow-600" />
-          Items Requiring Attention
+          System Status
         </h2>
         <Card>
           <CardContent className="p-4">
             <div className="space-y-3">
-              {kpis.overdueInvoices > 0 && (
-                <div className="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-200">
-                  <div className="flex items-center gap-3">
-                    <DollarSign className="h-5 w-5 text-red-600" />
-                    <div>
-                      <p className="font-medium">
-                        {kpis.overdueInvoices} Overdue Invoices
-                      </p>
-                      <p className="text-sm text-slate-500">
-                        ${kpis.outstandingAR.toLocaleString()} outstanding
-                      </p>
-                    </div>
-                  </div>
-                  <Badge variant="destructive">Action Needed</Badge>
+              {loading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-16 w-full" />
                 </div>
-              )}
+              ) : (
+                <>
+                  {(stats?.pending_reports ?? 0) > 5 && (
+                    <div className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                      <div className="flex items-center gap-3">
+                        <Clock className="h-5 w-5 text-yellow-600" />
+                        <div>
+                          <p className="font-medium">
+                            {stats?.pending_reports} Reports In Progress
+                          </p>
+                          <p className="text-sm text-slate-500">
+                            Monitor workload distribution
+                          </p>
+                        </div>
+                      </div>
+                      <Badge variant="outline">Monitor</Badge>
+                    </div>
+                  )}
 
-              {kpis.pendingRequests > 5 && (
-                <div className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                  <div className="flex items-center gap-3">
-                    <Clock className="h-5 w-5 text-yellow-600" />
-                    <div>
-                      <p className="font-medium">
-                        {kpis.pendingRequests} Pending Requests
-                      </p>
-                      <p className="text-sm text-slate-500">
-                        Consider additional staffing
-                      </p>
+                  {(stats?.pending_reports ?? 0) <= 5 && (
+                    <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-200">
+                      <div className="flex items-center gap-3">
+                        <CheckCircle className="h-5 w-5 text-green-600" />
+                        <div>
+                          <p className="font-medium">All Systems Operational</p>
+                          <p className="text-sm text-slate-500">
+                            No issues requiring attention
+                          </p>
+                        </div>
+                      </div>
+                      <Badge className="bg-green-100 text-green-700">Healthy</Badge>
                     </div>
-                  </div>
-                  <Badge variant="outline">Monitor</Badge>
-                </div>
-              )}
+                  )}
 
-              {kpis.overdueInvoices === 0 && kpis.pendingRequests <= 5 && (
-                <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-200">
-                  <div className="flex items-center gap-3">
-                    <CheckCircle className="h-5 w-5 text-green-600" />
-                    <div>
-                      <p className="font-medium">All Systems Operational</p>
-                      <p className="text-sm text-slate-500">
-                        No issues requiring attention
-                      </p>
+                  {stats?.compliance_rate && stats.compliance_rate >= 95 && (
+                    <div className="flex items-center justify-between p-3 bg-teal-50 rounded-lg border border-teal-200">
+                      <div className="flex items-center gap-3">
+                        <ShieldCheck className="h-5 w-5 text-teal-600" />
+                        <div>
+                          <p className="font-medium">Excellent Compliance Rate</p>
+                          <p className="text-sm text-slate-500">
+                            {stats.compliance_rate}% of filings accepted by FinCEN
+                          </p>
+                        </div>
+                      </div>
+                      <Badge className="bg-teal-100 text-teal-700">Excellent</Badge>
                     </div>
-                  </div>
-                  <Badge>Healthy</Badge>
-                </div>
+                  )}
+                </>
               )}
             </div>
           </CardContent>

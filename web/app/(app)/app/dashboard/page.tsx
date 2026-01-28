@@ -1,28 +1,50 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useDemo } from "@/hooks/use-demo";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { FileText, Send, Clock, CheckCircle, AlertCircle } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { FileText, Send, Clock, CheckCircle, AlertCircle, RefreshCw, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { getSubmissionStats, getMyRequests, type SubmissionStats, type SubmissionRequest } from "@/lib/api";
+import { formatDistanceToNow } from "date-fns";
 
 export default function ClientDashboardPage() {
   const { user } = useDemo();
   const isClientAdmin = user?.role === "client_admin";
 
-  const stats = {
-    pendingRequests: 3,
-    inProgress: 2,
-    completedThisMonth: 8,
-    totalReports: 45,
+  const [stats, setStats] = useState<SubmissionStats | null>(null);
+  const [recentRequests, setRecentRequests] = useState<SubmissionRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchData = async (showRefresh = false) => {
+    if (showRefresh) setRefreshing(true);
+    try {
+      const [statsData, requestsData] = await Promise.all([
+        getSubmissionStats(),
+        getMyRequests(),
+      ]);
+      setStats(statsData);
+      setRecentRequests(requestsData.slice(0, 5)); // Last 5
+    } catch (error) {
+      console.error("Failed to fetch dashboard data:", error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   };
 
-  const recentActivity = [
-    { id: 1, type: "request_submitted", description: "Request DTE-2026-003 submitted", time: "2 hours ago" },
-    { id: 2, type: "report_filed", description: "Report for 123 Main St filed with FinCEN", time: "1 day ago" },
-    { id: 3, type: "party_submitted", description: "Buyer info received for 456 Oak Ave", time: "2 days ago" },
-  ];
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  // Auto-refresh every 60 seconds
+  useEffect(() => {
+    const interval = setInterval(() => fetchData(false), 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -32,13 +54,22 @@ export default function ClientDashboardPage() {
           <h1 className="text-3xl font-bold">Welcome back, {user?.name?.split(" ")[0] || "User"}</h1>
           <p className="text-muted-foreground">{user?.companyName || "Your Company"}</p>
         </div>
-        {/* Only New Request button - NO New Report/Wizard button */}
-        <Button asChild size="lg">
-          <Link href="/app/requests/new">
-            <Send className="mr-2 h-4 w-4" />
-            New Request
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={() => fetchData(true)}
+            disabled={refreshing}
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+          </Button>
+          <Button asChild size="lg">
+            <Link href="/app/requests/new">
+              <Send className="mr-2 h-4 w-4" />
+              New Request
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {/* Quick Action Card */}
@@ -67,8 +98,14 @@ export default function ClientDashboardPage() {
             <Clock className="h-4 w-4 text-yellow-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.pendingRequests}</div>
-            <p className="text-xs text-muted-foreground">Awaiting processing</p>
+            {loading ? (
+              <Skeleton className="h-8 w-16" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{stats?.pending ?? 0}</div>
+                <p className="text-xs text-muted-foreground">Awaiting processing</p>
+              </>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -77,8 +114,14 @@ export default function ClientDashboardPage() {
             <AlertCircle className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.inProgress}</div>
-            <p className="text-xs text-muted-foreground">Being processed</p>
+            {loading ? (
+              <Skeleton className="h-8 w-16" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{stats?.in_progress ?? 0}</div>
+                <p className="text-xs text-muted-foreground">Being processed</p>
+              </>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -87,18 +130,30 @@ export default function ClientDashboardPage() {
             <CheckCircle className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.completedThisMonth}</div>
-            <p className="text-xs text-muted-foreground">This month</p>
+            {loading ? (
+              <Skeleton className="h-8 w-16" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{stats?.completed ?? 0}</div>
+                <p className="text-xs text-muted-foreground">All time</p>
+              </>
+            )}
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Total Reports</CardTitle>
+            <CardTitle className="text-sm font-medium">This Month</CardTitle>
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalReports}</div>
-            <p className="text-xs text-muted-foreground">All time</p>
+            {loading ? (
+              <Skeleton className="h-8 w-16" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{stats?.this_month ?? 0}</div>
+                <p className="text-xs text-muted-foreground">Requests submitted</p>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -106,24 +161,64 @@ export default function ClientDashboardPage() {
       {/* Recent Activity */}
       <Card>
         <CardHeader>
-          <CardTitle>Recent Activity</CardTitle>
-          <CardDescription>Updates on your requests and reports</CardDescription>
+          <CardTitle>Recent Requests</CardTitle>
+          <CardDescription>Your latest submission requests</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {recentActivity.map((item) => (
-              <div key={item.id} className="flex items-center justify-between border-b pb-3 last:border-0">
-                <div className="flex items-center gap-3">
-                  <div className={`h-2 w-2 rounded-full ${
-                    item.type === "report_filed" ? "bg-green-500" :
-                    item.type === "request_submitted" ? "bg-blue-500" : "bg-yellow-500"
-                  }`} />
-                  <span className="text-sm">{item.description}</span>
+          {loading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex items-center justify-between border-b pb-3">
+                  <Skeleton className="h-4 w-[200px]" />
+                  <Skeleton className="h-4 w-[80px]" />
                 </div>
-                <span className="text-xs text-muted-foreground">{item.time}</span>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : recentRequests.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p>No requests yet. Submit your first request!</p>
+              <Button asChild className="mt-4">
+                <Link href="/app/requests/new">Submit Request</Link>
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {recentRequests.map((request) => (
+                <Link 
+                  key={request.id} 
+                  href={`/app/requests/${request.id}`}
+                  className="flex items-center justify-between border-b pb-3 last:border-0 hover:bg-muted/50 rounded px-2 -mx-2 py-2 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`h-2 w-2 rounded-full ${
+                      request.status === "completed" ? "bg-green-500" :
+                      request.status === "in_progress" ? "bg-blue-500" : "bg-yellow-500"
+                    }`} />
+                    <div>
+                      <span className="text-sm font-medium">{request.property_address.street}</span>
+                      <p className="text-xs text-muted-foreground">
+                        {request.property_address.city}, {request.property_address.state} • {request.buyer_name}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xs text-muted-foreground">
+                      {formatDistanceToNow(new Date(request.created_at), { addSuffix: true })}
+                    </span>
+                    <p className="text-xs font-medium capitalize">{request.status.replace(/_/g, " ")}</p>
+                  </div>
+                </Link>
+              ))}
+              {recentRequests.length > 0 && (
+                <div className="pt-2">
+                  <Button variant="outline" asChild className="w-full">
+                    <Link href="/app/requests">View All Requests</Link>
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -137,12 +232,12 @@ export default function ClientDashboardPage() {
             <div className="grid gap-4 md:grid-cols-3">
               <div>
                 <p className="text-sm text-muted-foreground">Current Balance</p>
-                <p className="text-2xl font-bold">$450.00</p>
+                <p className="text-2xl font-bold">$0.00</p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Last Invoice</p>
-                <p className="text-lg font-medium">INV-2026-0012</p>
-                <p className="text-xs text-muted-foreground">Paid Jan 15, 2026</p>
+                <p className="text-sm text-muted-foreground">Filings This Month</p>
+                <p className="text-lg font-medium">{stats?.this_month ?? 0}</p>
+                <p className="text-xs text-muted-foreground">@ $75/filing</p>
               </div>
               <div className="flex items-end">
                 <Button variant="outline" asChild>

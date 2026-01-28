@@ -219,6 +219,66 @@ def get_my_requests(
     return [submission_to_response(r) for r in requests]
 
 
+@router.get("/stats")
+def get_submission_stats(
+    db: Session = Depends(get_db),
+    # current_user: User = Depends(get_current_user),  # When auth ready
+):
+    """
+    Get submission statistics for client dashboard.
+    For demo, returns stats for the demo company.
+    """
+    from app.models.company import Company
+    
+    # For demo, get demo company
+    demo_company = db.query(Company).filter(Company.code == "DEMO").first()
+    if not demo_company:
+        return {
+            "total": 0,
+            "pending": 0,
+            "in_progress": 0,
+            "completed": 0,
+            "this_month": 0,
+        }
+    
+    company_id = demo_company.id
+    
+    # Get counts
+    total = db.query(SubmissionRequest).filter(
+        SubmissionRequest.company_id == company_id
+    ).count()
+    
+    pending = db.query(SubmissionRequest).filter(
+        SubmissionRequest.company_id == company_id,
+        SubmissionRequest.status == "pending"
+    ).count()
+    
+    in_progress = db.query(SubmissionRequest).filter(
+        SubmissionRequest.company_id == company_id,
+        SubmissionRequest.status == "in_progress"
+    ).count()
+    
+    completed = db.query(SubmissionRequest).filter(
+        SubmissionRequest.company_id == company_id,
+        SubmissionRequest.status == "completed"
+    ).count()
+    
+    # This month
+    start_of_month = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    this_month = db.query(SubmissionRequest).filter(
+        SubmissionRequest.company_id == company_id,
+        SubmissionRequest.created_at >= start_of_month
+    ).count()
+    
+    return {
+        "total": total,
+        "pending": pending,
+        "in_progress": in_progress,
+        "completed": completed,
+        "this_month": this_month,
+    }
+
+
 @router.get("/{request_id}", response_model=SubmissionRequestResponse)
 def get_submission_request(
     request_id: UUID,

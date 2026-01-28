@@ -18,7 +18,7 @@ from pydantic import BaseModel
 from app.config import get_settings
 from app.database import get_db
 from app.models import Report, FilingSubmission
-from app.services.demo_seed import reset_demo_data, seed_demo_reports, seed_demo_submission_requests, create_single_demo_report
+from app.services.demo_seed import reset_demo_data, seed_demo_data
 from app.services.notifications import list_notifications, delete_all_notifications
 from app.services.filing_lifecycle import set_demo_outcome, get_or_create_submission
 from app.services.email_service import send_party_invite, SENDGRID_ENABLED, FRONTEND_URL
@@ -80,26 +80,26 @@ async def demo_reset(
         # Delete all data in correct FK order
         reset_demo_data(db)
         
-        # Re-seed demo submission requests
-        requests_created = seed_demo_submission_requests(db)
-        
-        # Re-seed demo reports
-        reports_created = seed_demo_reports(db)
-        
-        # Commit transaction
-        db.commit()
+        # Re-seed with comprehensive linked demo data
+        result = seed_demo_data(db)
         
         return {
             "ok": True,
-            "requests_created": requests_created,
-            "reports_created": reports_created,
+            "requests_created": result.get("requests_created", 0),
+            "reports_created": result.get("reports_created", 0),
+            "parties_created": result.get("parties_created", 0),
+            "filed_reports": result.get("filed_reports", 0),
+            "exempt_reports": result.get("exempt_reports", 0),
+            "active_portal_link": result.get("active_portal_link"),
             "timestamp": datetime.utcnow().isoformat(),
             "environment": settings.ENVIRONMENT,
             "demo_scenarios": [
-                "2 pending requests in queue",
-                "1 in-progress request",
-                "3 exempt reports",
-                "3 reportable reports at various stages",
+                "1 pending request (no report yet)",
+                "1 in-progress request (determination phase)",
+                "1 collecting request (1/2 parties submitted)",
+                "1 ready-to-file request (all parties done)",
+                "1 FILED request with receipt ID",
+                "1 exempt request (financed transaction)",
             ],
         }
     except Exception as e:
@@ -124,13 +124,30 @@ async def demo_create_report(
     
     Returns 404 if requirements not met (to avoid discovery).
     """
+    from datetime import timedelta
+    from app.models.report import Report
+    
     try:
-        report_id, wizard_url = create_single_demo_report(db)
+        report = Report(
+            status="draft",
+            property_address_text=f"Demo Property {datetime.utcnow().strftime('%H:%M:%S')}",
+            closing_date=datetime.utcnow().date() + timedelta(days=14),
+            wizard_step=1,
+            wizard_data={
+                "phase": "determination",
+                "determinationStep": "property",
+            },
+        )
+        db.add(report)
+        db.flush()
+        
+        wizard_url = f"{settings.APP_BASE_URL}/app/reports/{report.id}/wizard"
+        
         db.commit()
         
         return {
             "ok": True,
-            "report_id": report_id,
+            "report_id": str(report.id),
             "wizard_url": wizard_url,
             "timestamp": datetime.utcnow().isoformat(),
         }
