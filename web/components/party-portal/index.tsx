@@ -8,10 +8,13 @@ export { BeneficialOwnerCard, createEmptyBeneficialOwner } from "./BeneficialOwn
 export { PaymentSourceCard, createEmptyPaymentSource } from "./PaymentSourceCard"
 export { SellerIndividualForm } from "./SellerIndividualForm"
 export { BuyerEntityForm } from "./BuyerEntityForm"
+export { TrusteeCard, createEmptyTrustee } from "./TrusteeCard"
+export { BuyerTrustForm } from "./BuyerTrustForm"
 
 // Form selector component
 import { SellerIndividualForm } from "./SellerIndividualForm"
 import { BuyerEntityForm } from "./BuyerEntityForm"
+import { BuyerTrustForm } from "./BuyerTrustForm"
 import { CertificationSection, CERTIFICATION_TEXTS } from "./CertificationSection"
 import { AddressFields } from "./AddressFields"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -87,6 +90,18 @@ export function DynamicPartyForm({
     )
   }
 
+  // Buyer Trust - full form with trustees, settlors, beneficiaries, payment
+  if (isBuyer && entityType === "trust") {
+    return (
+      <BuyerTrustForm
+        data={data}
+        onChange={onChange}
+        disabled={disabled}
+        purchasePrice={purchasePrice}
+      />
+    )
+  }
+
   // Fallback: Generic forms for other combinations
   // These can be expanded into full components later
   
@@ -94,6 +109,7 @@ export function DynamicPartyForm({
     return <GenericEntityForm data={data} onChange={onChange} disabled={disabled} />
   }
 
+  // Seller trust uses generic form (simpler requirements)
   if (entityType === "trust") {
     return <GenericTrustForm data={data} onChange={onChange} disabled={disabled} />
   }

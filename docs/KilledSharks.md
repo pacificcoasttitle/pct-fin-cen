@@ -1044,9 +1044,9 @@ Rewrote to create 6 complete, linked scenarios:
 - [x] Countdown timer numbers are teal
 - [x] Pricing "popular" badge is teal gradient
 - [x] Footer links hover to teal
-- [ ] Custom domain DNS records configured
-- [ ] https://fincenclear.com loads correctly
-- [ ] No CORS errors on production domain
+- [x] Custom domain DNS records configured
+- [x] https://fincenclear.com loads correctly
+- [x] No CORS errors on production domain
 - [ ] OpenGraph/Twitter cards show correctly
 - [x] Demo reset creates 6 linked scenarios
 - [x] Client dashboard fetches real stats from API
@@ -1058,6 +1058,171 @@ Rewrote to create 6 complete, linked scenarios:
 
 ---
 
+### 18. DNS Configuration Complete ✅
+
+**Task:** Configure custom domain fincenclear.com
+
+**Actions Completed:**
+- ✅ DNS A record added: @ → 76.76.21.21 (Vercel)
+- ✅ DNS CNAME added: www → cname.vercel-dns.com
+- ✅ Domain added in Vercel dashboard
+- ✅ SSL certificate auto-provisioned
+- ✅ CORS updated for fincenclear.com
+
+**Result:** https://fincenclear.com now live and functional
+
+**Status:** ✅ Killed
+
+---
+
+### 19. Invoice System - Full Implementation ✅
+
+**Problem:** Invoice page existed but:
+- Used filed reports as proxy (no real invoice records)
+- No billing events created on filing
+- Detail sheet used mock data
+- No invoice API endpoints
+
+**Solution:**
+
+**1. Created Invoice API** (`api/app/routes/invoices.py`)
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /invoices` | List invoices with filters |
+| `GET /invoices/{id}` | Get invoice + line items |
+| `GET /invoices/billing-events/unbilled` | List unbilled events |
+| `POST /invoices/generate` | Generate invoice for period |
+| `PATCH /invoices/{id}/status` | Update status (send/pay/void) |
+
+**2. Auto-Create BillingEvent on Filing**
+- When report is filed and accepted, creates BillingEvent with $75 charge
+- Links to report and includes BSA receipt ID
+
+**3. Updated Seed Data**
+- Created sample invoice (INV-2026-01-0001)
+- Created billing event linked to filed report
+- Status: Paid via ACH
+
+**Files Created:**
+- `api/app/routes/invoices.py` (NEW - 250+ lines)
+
+**Files Changed:**
+- `api/app/main.py` (register router)
+- `api/app/routes/__init__.py` (export router)
+- `api/app/routes/reports.py` (create billing event on file)
+- `api/app/services/demo_seed.py` (add invoice + billing event)
+
+**Status:** ✅ Killed
+
+---
+
+### 20. Trust Buyer Form - Complete Implementation ✅
+
+**Problem:** When buyer is a Trust, party portal used generic form missing:
+- Multiple trustees (only had single trustee field)
+- Settlor/grantor information
+- Beneficiary information  
+- Payment sources (required for buyers)
+
+**Solution:**
+
+**1. Created TrusteeCard Component**
+- Supports individual OR entity trustees
+- Collapsible cards like BeneficialOwnerCard
+- Full fields for each type (SSN, EIN, addresses, etc.)
+
+**2. Created BuyerTrustForm Component**
+
+Complete form with 6 sections:
+
+| Section | Contents |
+|---------|----------|
+| Trust Information | Name, type, date, EIN, state, revocable flag |
+| Trustees | Dynamic list with TrusteeCard components |
+| Settlors/Grantors | Who created the trust |
+| Beneficiaries | Who benefits, percentage interest |
+| Payment Information | Reuses PaymentSourceCard with running total |
+| Certification | Trust-specific certification language |
+
+**3. Updated DynamicPartyForm Routing**
+- `buyer + trust` → BuyerTrustForm (NEW)
+- `seller + trust` → GenericTrustForm (existing)
+
+**Files Created:**
+- `web/components/party-portal/TrusteeCard.tsx` (NEW - 270+ lines)
+- `web/components/party-portal/BuyerTrustForm.tsx` (NEW - 480+ lines)
+
+**Files Changed:**
+- `web/components/party-portal/index.tsx` (routing + exports)
+
+**Type Infrastructure Used (already existed):**
+- ✅ TrusteeData interface
+- ✅ SettlorData interface
+- ✅ BeneficiaryData interface
+- ✅ TRUST_TYPES constant
+- ✅ CERTIFICATION_TEXTS.buyer_trust
+
+**Status:** ✅ Killed
+
+---
+
+### 21. Deployment Import Fix ✅
+
+**Problem:** 
+```
+ImportError: cannot import name 'seed_demo_reports' from 'app.services.demo_seed'
+```
+
+**Cause:** After rewriting `demo_seed.py`, the old function names (`seed_demo_reports`, `create_single_demo_report`) were removed but `api/app/services/__init__.py` still tried to import them.
+
+**Fix:** Updated `api/app/services/__init__.py` to import the new function names:
+- `seed_demo_reports` → `seed_demo_data`
+- Removed `create_single_demo_report` import
+
+**Status:** ✅ Killed
+
+---
+
+## Updated Summary
+
+| Category | Count |
+|----------|-------|
+| 🔴 Critical Fixes | 9 |
+| 🟠 Major Features | 9 |
+| 🎨 UX/Design | 2 |
+| 🔧 Configuration | 2 |
+| 📄 Documentation | 3 |
+| 🎯 Demo Data & API | 1 |
+
+**Total Sharks Killed: 26** 🦈
+
+---
+
+## Updated Testing Checklist
+
+### Invoice System
+- [ ] `GET /invoices` returns list of invoices
+- [ ] `GET /invoices/{id}` returns invoice with line items
+- [ ] Filing a report creates BillingEvent
+- [ ] Demo reset creates sample invoice
+- [ ] Invoice page shows real data
+- [ ] Invoice detail sheet shows line items
+- [ ] Stats cards show correct totals
+
+### Trust Buyer Form
+- [ ] Party portal routes buyer+trust to BuyerTrustForm
+- [ ] Trust information section works
+- [ ] Can add/remove multiple trustees
+- [ ] TrusteeCard supports individual and entity
+- [ ] Can add/remove settlors
+- [ ] Can add/remove beneficiaries
+- [ ] Payment sources with running total
+- [ ] Certification section displays
+- [ ] Form submits successfully
+
+---
+
 ## Next Steps
 
 1. ~~**P1:** Expand party portal with required FinCEN fields~~ ✅ DONE
@@ -1065,7 +1230,7 @@ Rewrote to create 6 complete, linked scenarios:
 3. ~~**P2:** Refactor wizard collection phase~~ ✅ DONE
 4. ~~**P0:** Wire wizard steps to backend APIs~~ ✅ DONE
 5. ~~**P0:** Demo data and dashboard fixes~~ ✅ DONE
-6. **P2:** Add Trust buyer form with trustees/settlors/beneficiaries
+6. ~~**P2:** Add Trust buyer form with trustees/settlors/beneficiaries~~ ✅ DONE
 7. **P3:** Add more comprehensive form validation
 
 ---

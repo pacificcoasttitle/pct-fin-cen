@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.config import get_settings
 from app.models import Report, ReportParty, PartyLink, AuditLog
+from app.models.billing_event import BillingEvent
 from app.schemas.report import (
     ReportCreate,
     ReportResponse,
@@ -700,6 +701,22 @@ def file_report(
     outcome, submission = perform_mock_submit(db, report_id, client_ip)
     
     db.commit()
+    
+    # Create billing event for accepted filings
+    if outcome == "accepted" and report.company_id:
+        billing_event = BillingEvent(
+            company_id=report.company_id,
+            report_id=report.id,
+            submission_request_id=report.submission_request_id,
+            event_type="filing_accepted",
+            description=f"FinCEN filing for {report.property_address_text}",
+            amount_cents=7500,  # $75.00 per filing
+            quantity=1,
+            bsa_id=submission.receipt_id,
+            created_at=datetime.utcnow(),
+        )
+        db.add(billing_event)
+        db.commit()
     
     # Return appropriate response based on outcome
     if outcome == "accepted":
