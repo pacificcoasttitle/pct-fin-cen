@@ -63,7 +63,7 @@ export function Header() {
             <Button variant="ghost" size="sm" className="text-muted-foreground">
               Login
             </Button>
-            <Button size="sm" className="bg-[#C9A227] hover:bg-[#B8911F] text-[#1E293B] font-semibold">
+            <Button size="sm" className="bg-teal-500 hover:bg-teal-600 text-white font-semibold">
               Start Free Trial
             </Button>
           </div>
@@ -91,7 +91,7 @@ export function Header() {
                 <Button variant="outline" className="w-full bg-transparent">
                   Login
                 </Button>
-                <Button className="w-full bg-[#C9A227] hover:bg-[#B8911F] text-[#1E293B] font-semibold">
+                <Button className="w-full bg-teal-500 hover:bg-teal-600 text-white font-semibold">
                   Start Free Trial
                 </Button>
               </nav>

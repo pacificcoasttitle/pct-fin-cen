@@ -128,7 +128,7 @@ export function ComparisonSection() {
 
         {/* CTA */}
         <div className="text-center mt-10">
-          <Button size="lg" className="bg-[#C9A227] hover:bg-[#B8911F] text-[#1E293B] font-semibold px-8">
+          <Button size="lg" className="bg-[#0D9488] hover:bg-[#0F766E] text-[#1E293B] font-semibold px-8">
             Start Your Free Trial
           </Button>
         </div>

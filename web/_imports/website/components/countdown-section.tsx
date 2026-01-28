@@ -60,7 +60,7 @@ export function CountdownSection() {
         <div className="flex flex-col lg:flex-row items-center justify-between gap-6 lg:gap-8">
           {/* Left - Warning */}
           <div className="flex items-center gap-3 text-white">
-            <AlertTriangle className="w-6 h-6 text-[#C9A227] flex-shrink-0 animate-pulse" />
+            <AlertTriangle className="w-6 h-6 text-amber-500 flex-shrink-0 animate-pulse" />
             <span className="text-sm sm:text-base font-medium">
               FinCEN Reporting Goes Live In:
             </span>

@@ -17,7 +17,7 @@ export function HeroSection() {
           <div className="max-w-xl">
             <Badge 
               variant="outline" 
-              className="mb-6 py-2 px-4 text-sm border-[#C9A227]/30 bg-[#C9A227]/10 text-[#1E3A5F] font-medium"
+              className="mb-6 py-2 px-4 text-sm border-teal-500/30 bg-teal-500/10 text-[#1E3A5F] font-medium"
             >
               <span className="mr-2">🚨</span>
               New Regulation Effective March 1, 2026
@@ -39,7 +39,7 @@ export function HeroSection() {
             <div className="mt-8 flex flex-col sm:flex-row gap-4">
               <Button 
                 size="lg" 
-                className="bg-[#C9A227] hover:bg-[#B8911F] text-[#1E293B] font-semibold px-8 h-12"
+                className="bg-teal-500 hover:bg-teal-600 text-white font-semibold px-8 h-12"
               >
                 Start Free Trial
               </Button>
@@ -127,7 +127,7 @@ export function HeroSection() {
               
               {/* Floating Elements */}
               <div className="absolute -top-4 -right-4 bg-card rounded-xl shadow-lg border border-border p-3 flex items-center gap-2">
-                <Clock className="w-5 h-5 text-[#C9A227]" />
+                <Clock className="w-5 h-5 text-teal-500" />
                 <span className="text-sm font-semibold text-foreground">10 min</span>
               </div>
               

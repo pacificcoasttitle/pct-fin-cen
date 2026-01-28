@@ -36,7 +36,7 @@ export function Footer() {
           <div className="col-span-2 md:col-span-1">
             <Link href="/" className="flex items-center gap-2 mb-4">
               <div className="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center">
-                <Shield className="w-6 h-6 text-[#C9A227]" />
+                <Shield className="w-6 h-6 text-teal-400" />
               </div>
               <div>
                 <span className="font-bold text-white">PCT FinCEN</span>

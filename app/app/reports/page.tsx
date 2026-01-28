@@ -90,7 +90,7 @@ export default function ReportsPage() {
         <Button 
           onClick={handleNewReport} 
           disabled={creating}
-          className="bg-[#C9A227] hover:bg-[#B8911F] text-[#1E293B] font-semibold"
+          className="bg-teal-500 hover:bg-teal-600 text-white font-semibold"
         >
           {creating ? (
             <Loader2 className="h-4 w-4 animate-spin mr-2" />

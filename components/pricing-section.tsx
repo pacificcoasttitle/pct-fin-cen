@@ -84,12 +84,12 @@ export function PricingSection() {
               key={index}
               className={`relative bg-card rounded-2xl border-2 p-6 lg:p-8 transition-all duration-300 hover:shadow-xl ${
                 plan.popular
-                  ? "border-[#C9A227] shadow-lg scale-[1.02] lg:scale-105"
+                  ? "border-teal-500 shadow-lg scale-[1.02] lg:scale-105"
                   : "border-border hover:border-primary/30"
               }`}
             >
               {plan.popular && (
-                <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#C9A227] text-[#1E293B] font-semibold px-4 py-1 hover:bg-[#C9A227]">
+                <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-teal-500 text-white font-semibold px-4 py-1 hover:bg-teal-500">
                   Most Popular
                 </Badge>
               )}
@@ -130,7 +130,7 @@ export function PricingSection() {
               <Button
                 className={`w-full ${
                   plan.popular
-                    ? "bg-[#C9A227] hover:bg-[#B8911F] text-[#1E293B] font-semibold"
+                    ? "bg-teal-500 hover:bg-teal-600 text-white font-semibold"
                     : plan.name === "Enterprise"
                     ? "bg-primary hover:bg-primary/90 text-primary-foreground"
                     : "bg-secondary hover:bg-secondary/80 text-secondary-foreground"

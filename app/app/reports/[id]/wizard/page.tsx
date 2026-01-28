@@ -639,7 +639,7 @@ export default function WizardPage() {
                 <Button 
                   onClick={handleFile} 
                   disabled={filing}
-                  className="w-full sm:w-auto bg-[#C9A227] hover:bg-[#B8911F] text-[#1E293B] font-semibold"
+                  className="w-full sm:w-auto bg-teal-500 hover:bg-teal-600 text-white font-semibold"
                 >
                   {filing ? (
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
