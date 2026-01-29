@@ -622,6 +622,7 @@ function RequestsTable({
           <TableHead className="text-right">Price</TableHead>
           <TableHead>Closing</TableHead>
           <TableHead>Status</TableHead>
+          <TableHead>Party Status</TableHead>
           <TableHead>Submitted</TableHead>
           <TableHead className="w-[50px]"></TableHead>
         </TableRow>
@@ -630,6 +631,12 @@ function RequestsTable({
         {requests.map((request) => {
           const status = statusConfig[request.status] || statusConfig.pending;
           const StatusIcon = status.icon;
+          
+          // Calculate party progress
+          const partiesTotal = request.parties_total || (request.parties?.length ?? 0);
+          const partiesSubmitted = request.parties_submitted || 
+            (request.parties?.filter(p => p.status === "submitted").length ?? 0);
+          const partyProgress = partiesTotal > 0 ? (partiesSubmitted / partiesTotal) * 100 : 0;
 
           return (
             <TableRow
@@ -663,22 +670,39 @@ function RequestsTable({
                 {formatDate(request.expected_closing_date)}
               </TableCell>
               <TableCell>
-                <div className="space-y-1">
-                  <Badge
-                    variant="outline"
-                    className={`flex items-center gap-1 w-fit ${status.className}`}
-                  >
-                    <StatusIcon className="h-3 w-3" />
-                    {status.label}
-                  </Badge>
-                  {/* Show party progress if in_progress and has parties */}
-                  {request.status === "in_progress" && request.parties_total && request.parties_total > 0 && (
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <Users className="h-3 w-3" />
-                      <span>{request.parties_submitted || 0}/{request.parties_total} parties</span>
-                    </div>
-                  )}
-                </div>
+                <Badge
+                  variant="outline"
+                  className={`flex items-center gap-1 w-fit ${status.className}`}
+                >
+                  <StatusIcon className="h-3 w-3" />
+                  {status.label}
+                </Badge>
+              </TableCell>
+              <TableCell>
+                {/* Party Status Column - GAP 1 Fix */}
+                {partiesTotal > 0 ? (
+                  <div className="flex items-center gap-2 min-w-[100px]">
+                    <Progress 
+                      value={partyProgress} 
+                      className={`h-2 w-16 ${partyProgress === 100 ? "bg-green-200" : ""}`}
+                    />
+                    <span className={`text-xs font-medium ${
+                      partyProgress === 100 ? "text-green-600" : "text-muted-foreground"
+                    }`}>
+                      {partiesSubmitted}/{partiesTotal}
+                    </span>
+                    {partyProgress === 100 && (
+                      <CheckCircle2 className="h-3 w-3 text-green-600" />
+                    )}
+                  </div>
+                ) : (
+                  <span className="text-xs text-muted-foreground">
+                    {request.status === "pending" || request.status === "reportable" 
+                      ? "Awaiting setup" 
+                      : "—"
+                    }
+                  </span>
+                )}
               </TableCell>
               <TableCell className="text-muted-foreground">
                 {formatTimeAgo(request.created_at)}

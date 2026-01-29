@@ -305,6 +305,24 @@ def get_download_url(
     if not download_url:
         raise HTTPException(status_code=500, detail="Failed to generate download URL")
     
+    # GAP 9 Fix: Audit log for download tracking
+    party = document.report_party
+    report_id = str(party.report_id) if party and party.report_id else None
+    
+    log_document_event(
+        db=db,
+        document_id=document_id,
+        event_type=EVENT_DOCUMENT_DOWNLOADED,
+        party_id=str(document.report_party_id) if document.report_party_id else None,
+        report_id=report_id,
+        details={
+            "filename": document.file_name,
+            "document_type": document.document_type,
+        },
+        actor_type="staff",  # Downloads are typically by staff
+    )
+    db.commit()
+    
     return {
         "download_url": download_url,
         "file_name": document.file_name,
@@ -501,3 +519,81 @@ def verify_document(
     logger.info(f"Verified document {document_id}")
     
     return {"status": "verified", "document_id": document_id, "verified_at": document.verified_at.isoformat()}
+
+
+# =============================================================================
+# ADMIN ENDPOINTS - GAP 3 Fix
+# =============================================================================
+
+@router.get("/admin/list")
+def list_all_documents(
+    status: str = Query(None, description="Filter by status: pending, verified, unconfirmed"),
+    document_type: str = Query(None, description="Filter by document type"),
+    report_id: str = Query(None, description="Filter by report ID"),
+    limit: int = Query(50, le=100),
+    offset: int = 0,
+    db: Session = Depends(get_db)
+):
+    """
+    List all documents for admin review.
+    Returns documents across all parties with associated metadata.
+    """
+    from app.models import Report
+    
+    query = db.query(Document).join(ReportParty).join(Report)
+    
+    # Apply filters
+    if status:
+        if status == "pending":
+            query = query.filter(Document.upload_confirmed == True, Document.verified_at.is_(None))
+        elif status == "verified":
+            query = query.filter(Document.verified_at.isnot(None))
+        elif status == "unconfirmed":
+            query = query.filter(Document.upload_confirmed == False)
+    
+    if document_type:
+        query = query.filter(Document.document_type == document_type)
+    
+    if report_id:
+        query = query.filter(Report.id == report_id)
+    
+    total = query.count()
+    documents = query.order_by(Document.created_at.desc()).offset(offset).limit(limit).all()
+    
+    # Build response with party and report info
+    doc_responses = []
+    for doc in documents:
+        party = doc.report_party
+        report = party.report if party else None
+        
+        # Get download URL if document is confirmed
+        download_url = None
+        if doc.upload_confirmed and doc.storage_key and storage_service.is_configured:
+            download_url = storage_service.generate_download_url(
+                key=doc.storage_key,
+                filename=doc.file_name
+            )
+        
+        doc_responses.append({
+            "id": str(doc.id),
+            "party_id": str(doc.report_party_id) if doc.report_party_id else None,
+            "party_name": party.display_name if party else None,
+            "party_role": party.party_role if party else None,
+            "report_id": str(report.id) if report else None,
+            "property_address": report.property_address_text if report else None,
+            "document_type": doc.document_type,
+            "file_name": doc.file_name,
+            "mime_type": doc.mime_type,
+            "size_bytes": doc.size_bytes,
+            "upload_confirmed": doc.upload_confirmed,
+            "verified_at": doc.verified_at.isoformat() if doc.verified_at else None,
+            "uploaded_at": doc.uploaded_at.isoformat() if doc.uploaded_at else None,
+            "created_at": doc.created_at.isoformat() if doc.created_at else None,
+            "download_url": download_url,
+        })
+    
+    return {
+        "documents": doc_responses,
+        "total": total,
+        "has_more": offset + limit < total
+    }

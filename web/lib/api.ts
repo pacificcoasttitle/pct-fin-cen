@@ -601,6 +601,7 @@ export interface ExecutiveStats {
   exempt_submissions?: number;
   reportable_submissions?: number;
   exemption_rate?: number;  // Percentage of submissions that were exempt
+  exemption_reasons_breakdown?: Record<string, number>;  // Breakdown by reason
 }
 
 /**

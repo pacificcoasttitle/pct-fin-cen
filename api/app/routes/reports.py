@@ -297,6 +297,19 @@ def get_executive_stats(db: Session = Depends(get_db)):
     if total_submissions > 0:
         exemption_rate = round((exempt_submissions / total_submissions) * 100, 1)
     
+    # ==========================================================================
+    # Exemption Reasons Breakdown
+    # ==========================================================================
+    exemption_reasons_breakdown = {}
+    exempt_requests = db.query(SubmissionRequest).filter(
+        SubmissionRequest.determination_result == "exempt"
+    ).all()
+    
+    for req in exempt_requests:
+        if req.exemption_reasons:
+            for reason in req.exemption_reasons:
+                exemption_reasons_breakdown[reason] = exemption_reasons_breakdown.get(reason, 0) + 1
+    
     return {
         "total_reports": total_reports,
         "filed_reports": filed_reports,
@@ -311,6 +324,7 @@ def get_executive_stats(db: Session = Depends(get_db)):
         "exempt_submissions": exempt_submissions,
         "reportable_submissions": reportable_submissions,
         "exemption_rate": exemption_rate,
+        "exemption_reasons_breakdown": exemption_reasons_breakdown,
     }
 
 

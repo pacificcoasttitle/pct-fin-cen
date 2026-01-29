@@ -5,7 +5,8 @@ import { useDemo } from "@/hooks/use-demo";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, Send, Clock, CheckCircle, AlertCircle, RefreshCw, Loader2 } from "lucide-react";
+import { FileText, Send, Clock, CheckCircle, AlertCircle, RefreshCw, Loader2, Users } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import Link from "next/link";
 import { getSubmissionStats, getMyRequests, type SubmissionStats, type SubmissionRequest } from "@/lib/api";
 import { formatDistanceToNow } from "date-fns";
@@ -184,32 +185,53 @@ export default function ClientDashboardPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {recentRequests.map((request) => (
-                <Link 
-                  key={request.id} 
-                  href={`/app/requests/${request.id}`}
-                  className="flex items-center justify-between border-b pb-3 last:border-0 hover:bg-muted/50 rounded px-2 -mx-2 py-2 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`h-2 w-2 rounded-full ${
-                      request.status === "completed" ? "bg-green-500" :
-                      request.status === "in_progress" ? "bg-blue-500" : "bg-yellow-500"
-                    }`} />
-                    <div>
-                      <span className="text-sm font-medium">{request.property_address.street}</span>
-                      <p className="text-xs text-muted-foreground">
-                        {request.property_address.city}, {request.property_address.state} • {request.buyer_name}
-                      </p>
+              {recentRequests.map((request) => {
+                // Calculate party progress (GAP 1 Fix)
+                const partiesTotal = request.parties_total || (request.parties?.length ?? 0);
+                const partiesSubmitted = request.parties_submitted || 
+                  (request.parties?.filter((p: { status: string }) => p.status === "submitted").length ?? 0);
+                const partyProgress = partiesTotal > 0 ? (partiesSubmitted / partiesTotal) * 100 : 0;
+                
+                return (
+                  <Link 
+                    key={request.id} 
+                    href={`/app/requests/${request.id}`}
+                    className="flex items-center justify-between border-b pb-3 last:border-0 hover:bg-muted/50 rounded px-2 -mx-2 py-2 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`h-2 w-2 rounded-full ${
+                        request.status === "completed" ? "bg-green-500" :
+                        request.status === "exempt" ? "bg-green-500" :
+                        request.status === "in_progress" ? "bg-blue-500" : "bg-yellow-500"
+                      }`} />
+                      <div>
+                        <span className="text-sm font-medium">{request.property_address.street}</span>
+                        <p className="text-xs text-muted-foreground">
+                          {request.property_address.city}, {request.property_address.state} • {request.buyer_name}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-xs text-muted-foreground">
-                      {formatDistanceToNow(new Date(request.created_at), { addSuffix: true })}
-                    </span>
-                    <p className="text-xs font-medium capitalize">{request.status.replace(/_/g, " ")}</p>
-                  </div>
-                </Link>
-              ))}
+                    <div className="text-right flex flex-col items-end gap-1">
+                      <span className="text-xs text-muted-foreground">
+                        {formatDistanceToNow(new Date(request.created_at), { addSuffix: true })}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        {/* Party Status - GAP 1 Fix */}
+                        {partiesTotal > 0 && request.status !== "completed" && request.status !== "exempt" && (
+                          <div className="flex items-center gap-1">
+                            <Users className="h-3 w-3 text-muted-foreground" />
+                            <Progress value={partyProgress} className="w-12 h-1.5" />
+                            <span className={`text-[10px] ${partyProgress === 100 ? "text-green-600" : "text-muted-foreground"}`}>
+                              {partiesSubmitted}/{partiesTotal}
+                            </span>
+                          </div>
+                        )}
+                        <p className="text-xs font-medium capitalize">{request.status.replace(/_/g, " ")}</p>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
               {recentRequests.length > 0 && (
                 <div className="pt-2">
                   <Button variant="outline" asChild className="w-full">

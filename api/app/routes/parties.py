@@ -11,6 +11,7 @@ from app.database import get_db
 from app.models import PartyLink, ReportParty, AuditLog
 from app.schemas.party import PartyResponse, PartySave, PartySubmitResponse, ReportSummary
 from app.services.notifications import log_notification, send_party_confirmation_notification
+from app.services.audit import log_event, ENTITY_PARTY_LINK, EVENT_PARTY_LINK_OPENED
 
 router = APIRouter(prefix="/party", tags=["party"])
 
@@ -54,6 +55,27 @@ def get_party_by_token(
     link = get_valid_link(token, db)
     party = link.party
     report = party.report
+    
+    # GAP 5 Fix: Track when party first opens their link
+    if link.opened_at is None:
+        link.opened_at = datetime.utcnow()
+        
+        # Audit log
+        log_event(
+            db=db,
+            entity_type=ENTITY_PARTY_LINK,
+            entity_id=str(link.id),
+            event_type=EVENT_PARTY_LINK_OPENED,
+            details={
+                "party_id": str(party.id),
+                "party_role": party.party_role,
+                "report_id": str(report.id) if report else None,
+            },
+            actor_type="party",
+            report_id=str(report.id) if report else None,
+        )
+        
+        db.commit()
     
     # Extract purchase price from wizard_data if available
     purchase_price = None

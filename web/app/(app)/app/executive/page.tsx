@@ -398,6 +398,45 @@ export default function ExecutiveDashboardPage() {
             </CardContent>
           </Card>
         )}
+        
+        {/* Exemption Reasons Breakdown */}
+        {stats && stats.exemption_reasons_breakdown && Object.keys(stats.exemption_reasons_breakdown).length > 0 && (
+          <Card className="mt-4">
+            <CardHeader>
+              <CardTitle className="text-lg">Exemption Reasons Breakdown</CardTitle>
+              <CardDescription>Why submissions were automatically exempted</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {Object.entries(stats.exemption_reasons_breakdown)
+                  .sort(([, a], [, b]) => b - a)
+                  .map(([reason, count]) => (
+                    <div key={reason} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <ShieldCheck className="h-4 w-4 text-green-500" />
+                        <span className="text-sm font-medium capitalize">
+                          {reason.replace(/_/g, ' ')}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="w-32 bg-slate-200 rounded-full h-2">
+                          <div
+                            className="bg-green-500 h-2 rounded-full"
+                            style={{
+                              width: `${Math.round((count / (stats.exempt_submissions || 1)) * 100)}%`
+                            }}
+                          />
+                        </div>
+                        <span className="text-sm text-slate-600 w-12 text-right">
+                          {count}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </section>
 
       {/* Alerts Section */}

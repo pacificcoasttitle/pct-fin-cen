@@ -62,6 +62,7 @@ class PartyLink(Base):
     
     # Timestamps
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    opened_at = Column(DateTime, nullable=True, comment="When party first opened the link")
     submitted_at = Column(DateTime, nullable=True, comment="When party submitted their data")
     
     # Relationships

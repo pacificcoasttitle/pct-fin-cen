@@ -12,6 +12,7 @@ import {
   UserCircle,
   DollarSign,
   Settings,
+  FileImage,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -119,6 +120,11 @@ function getCOONavigation(counts: BadgeCounts): NavSection[] {
           icon: Building2,
         },
         {
+          label: "Invoices",
+          href: "/app/admin/invoices",
+          icon: Receipt,
+        },
+        {
           label: "Billing",
           href: "/app/admin/billing",
           icon: DollarSign,
@@ -132,6 +138,11 @@ function getCOONavigation(counts: BadgeCounts): NavSection[] {
           label: "Users",
           href: "/app/admin/users",
           icon: Users,
+        },
+        {
+          label: "Documents",
+          href: "/app/admin/documents",
+          icon: FileImage,
         },
         {
           label: "Notifications",
@@ -188,6 +199,11 @@ function getPCTAdminNavigation(counts: BadgeCounts): NavSection[] {
           href: "/app/admin/filings",
           icon: Send,
         },
+        {
+          label: "Invoices",
+          href: "/app/admin/invoices",
+          icon: Receipt,
+        },
       ],
     },
     {
@@ -197,6 +213,11 @@ function getPCTAdminNavigation(counts: BadgeCounts): NavSection[] {
           label: "Users",
           href: "/app/admin/users",
           icon: Users,
+        },
+        {
+          label: "Documents",
+          href: "/app/admin/documents",
+          icon: FileImage,
         },
         {
           label: "Notifications",

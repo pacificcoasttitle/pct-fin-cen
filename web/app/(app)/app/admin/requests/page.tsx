@@ -426,11 +426,17 @@ export default function AdminRequestsPage() {
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                   <Input
-                    placeholder="Search requests..."
+                    placeholder="Search or enter Certificate ID..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9 w-[200px]"
+                    className="pl-9 w-[280px]"
                   />
+                  {searchQuery.toUpperCase().startsWith("EXM-") && (
+                    <Badge className="absolute right-2 top-1/2 -translate-y-1/2 bg-green-100 text-green-700 border-green-200">
+                      <Shield className="h-3 w-3 mr-1" />
+                      Cert Search
+                    </Badge>
+                  )}
                 </div>
                 <Select value={priorityFilter} onValueChange={setPriorityFilter}>
                   <SelectTrigger className="w-[120px]">

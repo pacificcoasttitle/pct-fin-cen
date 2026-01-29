@@ -686,6 +686,176 @@ def seed_demo_data(db: Session) -> Dict[str, Any]:
     print(f"   ⚪ Scenario 6: Exempt (financed) - 500 Corporate Plaza")
     
     # =========================================================================
+    # SCENARIO 7-10: AUTO-EXEMPT VIA EARLY DETERMINATION
+    # These showcase the new early determination system with various reasons
+    # =========================================================================
+    
+    # --- SCENARIO 7: Auto-Exempt - Financed Transaction ---
+    request_7 = SubmissionRequest(
+        company_id=demo_company.id,
+        requested_by_user_id=client_admin.id,
+        status="exempt",  # Auto-determined exempt
+        property_address={
+            "street": "1500 Main Street",
+            "city": "Denver",
+            "state": "CO",
+            "zip": "80202",
+        },
+        purchase_price_cents=350000000,  # $3,500,000
+        expected_closing_date=date.today() + timedelta(days=20),
+        escrow_number="ESC-2026-0975",
+        financing_type="mortgage",  # Financed = Exempt
+        buyer_name="Johnson Properties LLC",
+        buyer_email="legal@johnsonprop.com",
+        buyer_type="entity",
+        seller_name="Mountain View Realty",
+        seller_email="sales@mvrealty.com",
+        # Early determination fields
+        determination_result="exempt",
+        exemption_reasons=["financed_transaction"],
+        determination_timestamp=datetime.utcnow() - timedelta(days=3),
+        determination_method="auto",
+        exemption_certificate_id="EXM-2026-0001-FC",
+        exemption_certificate_generated_at=datetime.utcnow() - timedelta(days=3),
+        created_at=datetime.utcnow() - timedelta(days=3),
+    )
+    db.add(request_7)
+    print(f"   ⚪ Scenario 7: Auto-Exempt (financed_transaction) - 1500 Main Street")
+    
+    # --- SCENARIO 8: Auto-Exempt - SEC Reporting Company ---
+    request_8 = SubmissionRequest(
+        company_id=demo_company.id,
+        requested_by_user_id=client_admin.id,
+        status="exempt",
+        property_address={
+            "street": "200 Park Avenue",
+            "city": "New York",
+            "state": "NY",
+            "zip": "10166",
+        },
+        purchase_price_cents=1200000000,  # $12,000,000
+        expected_closing_date=date.today() + timedelta(days=45),
+        escrow_number="ESC-2026-0970",
+        financing_type="cash",
+        buyer_name="Fortune 500 Corp (NYSE: F5C)",
+        buyer_email="legal@fortune500corp.com",
+        buyer_type="entity",
+        property_type="commercial",
+        entity_subtype="public_company",  # SEC reporting = Exempt
+        seller_name="Manhattan Holdings Trust",
+        seller_email="trustee@manhattanholdings.com",
+        # Early determination fields
+        determination_result="exempt",
+        exemption_reasons=["public_company"],
+        determination_timestamp=datetime.utcnow() - timedelta(days=7),
+        determination_method="auto",
+        exemption_certificate_id="EXM-2026-0002-PC",
+        exemption_certificate_generated_at=datetime.utcnow() - timedelta(days=7),
+        created_at=datetime.utcnow() - timedelta(days=7),
+    )
+    db.add(request_8)
+    print(f"   ⚪ Scenario 8: Auto-Exempt (public_company) - 200 Park Avenue")
+    
+    # --- SCENARIO 9: Auto-Exempt - Government Entity ---
+    request_9 = SubmissionRequest(
+        company_id=acme_company.id,  # Different company for variety
+        requested_by_user_id=acme_admin.id,
+        status="exempt",
+        property_address={
+            "street": "100 Government Plaza",
+            "city": "Sacramento",
+            "state": "CA",
+            "zip": "95814",
+        },
+        purchase_price_cents=890000000,  # $8,900,000
+        expected_closing_date=date.today() + timedelta(days=60),
+        escrow_number="ACME-2026-0100",
+        financing_type="cash",
+        buyer_name="State of California - General Services",
+        buyer_email="procurement@ca.gov",
+        buyer_type="entity",
+        property_type="commercial",
+        entity_subtype="government",  # Government = Exempt
+        seller_name="California Office Partners LLC",
+        seller_email="legal@caoffice.com",
+        # Early determination fields
+        determination_result="exempt",
+        exemption_reasons=["government_entity"],
+        determination_timestamp=datetime.utcnow() - timedelta(days=5),
+        determination_method="auto",
+        exemption_certificate_id="EXM-2026-0003-GV",
+        exemption_certificate_generated_at=datetime.utcnow() - timedelta(days=5),
+        created_at=datetime.utcnow() - timedelta(days=5),
+    )
+    db.add(request_9)
+    print(f"   ⚪ Scenario 9: Auto-Exempt (government_entity) - 100 Government Plaza")
+    
+    # --- SCENARIO 10: Auto-Exempt - Individual Buyer (Non-Entity) ---
+    request_10 = SubmissionRequest(
+        company_id=demo_company.id,
+        requested_by_user_id=client_user.id,  # Different user
+        status="exempt",
+        property_address={
+            "street": "456 Residential Lane",
+            "city": "Austin",
+            "state": "TX",
+            "zip": "78701",
+        },
+        purchase_price_cents=75000000,  # $750,000
+        expected_closing_date=date.today() + timedelta(days=30),
+        escrow_number="ESC-2026-0965",
+        financing_type="cash",
+        buyer_name="Robert Smith",  # Individual buyer
+        buyer_email="rsmith@personal.com",
+        buyer_type="individual",  # Individual = Exempt from FinCEN (for this rule)
+        seller_name="Austin Investments LLC",
+        seller_email="sales@austinenvestments.com",
+        # Early determination fields
+        determination_result="exempt",
+        exemption_reasons=["individual_buyer"],
+        determination_timestamp=datetime.utcnow() - timedelta(days=2),
+        determination_method="auto",
+        exemption_certificate_id="EXM-2026-0004-IB",
+        exemption_certificate_generated_at=datetime.utcnow() - timedelta(days=2),
+        created_at=datetime.utcnow() - timedelta(days=2),
+    )
+    db.add(request_10)
+    print(f"   ⚪ Scenario 10: Auto-Exempt (individual_buyer) - 456 Residential Lane")
+    
+    # --- SCENARIO 11: Reportable - Requires Filing ---
+    request_11 = SubmissionRequest(
+        company_id=demo_company.id,
+        requested_by_user_id=client_admin.id,
+        status="reportable",  # Determined as reportable
+        property_address={
+            "street": "999 Investment Drive",
+            "city": "Phoenix",
+            "state": "AZ",
+            "zip": "85001",
+        },
+        purchase_price_cents=135000000,  # $1,350,000
+        expected_closing_date=date.today() + timedelta(days=25),
+        escrow_number="ESC-2026-0960",
+        financing_type="cash",
+        buyer_name="Desert Holdings LLC",
+        buyer_email="acquisitions@desertholdings.com",
+        buyer_type="entity",
+        property_type="residential",
+        entity_subtype="llc",  # Private LLC = Reportable
+        seller_name="Arizona Properties Inc",
+        seller_email="legal@azproperties.com",
+        # Early determination fields
+        determination_result="reportable",
+        exemption_reasons=None,  # No exemption
+        determination_timestamp=datetime.utcnow() - timedelta(days=1),
+        determination_method="auto",
+        exemption_certificate_id=None,
+        created_at=datetime.utcnow() - timedelta(days=1),
+    )
+    db.add(request_11)
+    print(f"   📋 Scenario 11: Reportable (no exemption) - 999 Investment Drive")
+    
+    # =========================================================================
     # COMMIT ALL
     # =========================================================================
     
@@ -695,19 +865,31 @@ def seed_demo_data(db: Session) -> Dict[str, Any]:
     print("✅ Demo seed complete!")
     print("")
     print("📊 Summary:")
-    print(f"   • 6 SubmissionRequests (1 pending, 3 in_progress, 2 completed)")
+    print(f"   • 11 SubmissionRequests:")
+    print(f"      - 1 pending (no report yet)")
+    print(f"      - 3 in_progress (linked to reports)")
+    print(f"      - 2 completed (filed/exempt with manual review)")
+    print(f"      - 4 auto-exempt (early determination)")
+    print(f"      - 1 reportable (awaiting wizard start)")
     print(f"   • 5 Reports (1 draft, 1 collecting, 1 ready_to_file, 1 filed, 1 exempt)")
     print(f"   • All requests properly linked to their reports")
     print(f"   • 1 active party portal link for testing")
+    print(f"   • Early Exemption Reasons Showcased:")
+    print(f"      - financed_transaction")
+    print(f"      - public_company")
+    print(f"      - government_entity")
+    print(f"      - individual_buyer")
     print("")
     if active_portal_link:
         print(f"🔗 Demo portal link: /p/{active_portal_link}")
     
     return {
-        "requests_created": 6,
+        "requests_created": 11,
         "reports_created": 5,
         "parties_created": 6,
         "filed_reports": 1,
         "exempt_reports": 1,
+        "auto_exempt_submissions": 4,
+        "reportable_submissions": 1,
         "active_portal_link": f"/p/{active_portal_link}" if active_portal_link else None,
     }
