@@ -9,13 +9,13 @@
 | Category | Count |
 |----------|-------|
 | 🔴 Critical Fixes | 10 |
-| 🟠 Major Features | 8 |
+| 🟠 Major Features | 9 |
 | 🎨 UX/Design | 3 |
 | 🔧 Configuration | 1 |
 | 📄 Documentation | 5 |
 | 🎯 Demo Data & API | 1 |
 
-**Total Sharks Killed: 38 🦈**
+**Total Sharks Killed: 39 🦈**
 
 ---
 
@@ -1902,7 +1902,57 @@ Report: draft → collecting → ready_to_file → filed
 
 ---
 
-### Updated Shark Count: 38 🦈
+---
+
+### 39. Party Data Visibility Wiring ✅
+
+**Date:** January 29, 2026
+
+**Problem:** Party data collected in forms wasn't visible across all user roles. Staff couldn't see party completion status, clients couldn't track their parties' progress.
+
+**Solution:**
+
+**Phase 1 - Reusable Components:**
+| Component | Purpose |
+|-----------|---------|
+| `PartyStatusBadge` | Status indicators (pending, link_sent, submitted) |
+| `PartyTypeBadge` | Type badges (individual, entity, LLC, trust) |
+| `PartyCompletionProgress` | Progress bar with error indicator |
+| `PartySummaryCard` | Summary card with BO/trustee counts |
+| `PartyDetailCard` | Full detail view (masked sensitive data) |
+
+**Phase 2 - Backend Validation Service:**
+- `calculate_completion_percentage()` - Field-based completion
+- `validate_party_data()` - Validation errors
+- `get_party_warnings()` - Non-blocking warnings
+- `calculate_party_summary()` - Summary computation
+
+**Phase 3 - API Enhancement:**
+- `PartyStatusItem` schema enhanced with completion %, counts, validation
+- `list_reports_with_parties` returns full party summaries
+
+**Phase 4 - Frontend Updates:**
+- Staff Queue: Expandable rows with party details
+- Wizard: Enhanced party cards with completion progress
+- Client Requests: Party progress for in_progress requests
+
+**Files Created:**
+- `web/components/party/` (6 new components)
+- `api/app/services/party_validation.py`
+
+**Files Modified:**
+- `api/app/schemas/report.py`
+- `api/app/routes/reports.py`
+- `web/app/(app)/app/staff/queue/page.tsx`
+- `web/app/(app)/app/reports/[id]/wizard/page.tsx`
+- `web/app/(app)/app/requests/page.tsx`
+- `web/lib/api.ts`
+
+**Status:** ✅ Killed
+
+---
+
+### Updated Shark Count: 39 🦈
 
 ---
 
