@@ -10,12 +10,12 @@
 |----------|-------|
 | 🔴 Critical Fixes | 10 |
 | 🟠 Major Features | 6 |
-| 🎨 UX/Design | 2 |
+| 🎨 UX/Design | 3 |
 | 🔧 Configuration | 1 |
 | 📄 Documentation | 4 |
 | 🎯 Demo Data & API | 1 |
 
-**Total Sharks Killed: 35 🦈**
+**Total Sharks Killed: 36 🦈**
 
 ---
 
@@ -137,6 +137,28 @@ party = ReportParty(..., party_data=initial_party_data)
 - `api/app/routes/parties.py` (return email and purchase_price)
 - `api/app/schemas/party.py` (added email, purchase_price fields)
 - `web/lib/api.ts` (updated PartyData interface)
+
+---
+
+### 11. 🎨 Wizard Progress Shows 100% on Step 1 - FIXED ✅
+
+**Problem:** Progress bar showed 100% on the very first step of the determination wizard.
+
+**Root Cause:** Progress was calculated using a dynamic `relevantDeterminationSteps` array that grew as user answered questions. At start, only 1 step was known, so step 1 of 1 = 100%.
+
+```typescript
+// BUG: relevantDeterminationSteps = ["property"] (length 1)
+// Progress = (0 + 1) / 1 * 100 = 100%
+```
+
+**Fix:**
+- Added `MAX_DETERMINATION_STEPS = 7` constant
+- Progress now calculated against max possible steps
+- Step 1 = 14%, Step 2 = 28%, etc.
+- Updated display from "Step 1 of X" to "Step 1 • Determination Phase"
+
+**Files Changed:**
+- `web/components/rrer-questionnaire.tsx` (progress calculation and display)
 
 ---
 
