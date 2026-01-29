@@ -423,10 +423,12 @@ def create_party_links(
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
     
-    if report.status not in ["determination_complete", "collecting"]:
+    # Allow draft, determination_complete, or collecting status
+    # Status will auto-transition to "collecting" when links are created
+    if report.status not in ["draft", "determination_complete", "collecting"]:
         raise HTTPException(
             status_code=400, 
-            detail=f"Cannot create party links for report in '{report.status}' status"
+            detail=f"Cannot create party links for report in '{report.status}' status. Report must be in draft or collecting phase."
         )
     
     links_created = []

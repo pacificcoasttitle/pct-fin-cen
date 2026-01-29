@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SidebarBadgeProvider } from "@/context/sidebar-badge-context"
+import { parseSessionCookie, type DemoSession } from "@/lib/session"
 
 interface SessionData {
   role: string;
@@ -12,22 +13,14 @@ interface SessionData {
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<SessionData>({ role: "client_user", companyId: null });
 
-  // Read session from cookie
+  // Read session from cookie using shared utility
   useEffect(() => {
-    const cookie = document.cookie
-      .split("; ")
-      .find((row) => row.startsWith("pct_demo_session="));
-    
-    if (cookie) {
-      try {
-        const data = JSON.parse(atob(cookie.split("=")[1]));
-        setSession({
-          role: data.role || "client_user",
-          companyId: data.companyId || null,
-        });
-      } catch (e) {
-        console.error("Failed to parse session cookie:", e);
-      }
+    const sessionData = parseSessionCookie();
+    if (sessionData) {
+      setSession({
+        role: sessionData.role,
+        companyId: sessionData.companyId,
+      });
     }
   }, []);
 

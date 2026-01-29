@@ -1464,7 +1464,7 @@ Returns:
 
 | Category | Count |
 |----------|-------|
-| 🔴 Critical Fixes | 10 |
+| 🔴 Critical Fixes | 11 |
 | 🟠 Major Features | 11 |
 | 🎨 UX/Design | 3 |
 | 🔧 Configuration | 2 |
@@ -1472,7 +1472,7 @@ Returns:
 | 🎯 Demo Data & API | 1 |
 | 🏗️ Multi-Tenant Infrastructure | 1 |
 
-**Total Sharks Killed: 31** 🦈
+**Total Sharks Killed: 32** 🦈
 
 ---
 
@@ -1596,43 +1596,60 @@ clientNotes?: string
 
 ---
 
-## Investigation Completed (Fix Pending)
+### 27. Party Links Status Block + Session Cookie Fix ✅
 
-### 27. Party Links & Report Status Flow (Investigation) 🔍
+**Problem 1:** Staff couldn't send party links
+- Error: "Cannot create party links for report in 'draft' status"
+- Root cause: Endpoint only allowed `determination_complete` or `collecting`
+- Staff didn't realize they needed to run determination first
 
-**Problem:** Staff cannot send party links because the endpoint returns:
+**Problem 2:** Console errors parsing session cookie
+- Error: "Failed to execute 'atob' on 'Window'"
+- Root cause: Cookie value URL-encoded, but `atob` called without `decodeURIComponent` first
+
+**Solution:**
+
+**1. Allow Draft Status for Party Links** (`api/app/routes/reports.py`)
+```python
+# Changed from:
+if report.status not in ["determination_complete", "collecting"]:
+
+# To:
+if report.status not in ["draft", "determination_complete", "collecting"]:
 ```
-Error: Cannot create party links for report in 'draft' status
+Status auto-transitions to `collecting` when links are sent - no extra step needed.
+
+**2. Created Session Parse Utility** (`web/lib/session.ts`)
+```typescript
+export function parseSessionCookie(): DemoSession | null {
+  const cookieValue = cookie.split("=")[1];
+  // 1. URL decode (handles %3D, %2B, etc.)
+  const urlDecoded = decodeURIComponent(cookieValue);
+  // 2. Base64 decode
+  const base64Decoded = atob(urlDecoded);
+  // 3. JSON parse
+  return JSON.parse(base64Decoded);
+}
 ```
 
-**Root Cause Found:**
-1. The `POST /party-links` endpoint only allows status `determination_complete` or `collecting`
-2. Report stays in `draft` until `POST /determine` is called
-3. Wizard doesn't make it obvious that determination must be "run" before proceeding
+Includes helper functions:
+- `getSessionRole()` - Get user role
+- `getSessionCompanyId()` - Get company ID
+- `isAuthenticated()`, `isInternalUser()`, `isClientUser()`, `isAdmin()` - Role checks
 
-**Status Transition Chain:**
-```
-draft → [POST /determine] → determination_complete → [POST /party-links] → collecting
-```
-
-**Additional Issues Found:**
-| Issue | Impact | Priority |
-|-------|--------|----------|
-| Session cookie parse error in layout.tsx | Minor console error | P1 |
-| Missing `decodeURIComponent` before `atob` | Cookie sometimes fails to parse | P1 |
-| Entity type flow | ✅ Working correctly | N/A |
-| Confirmation number | Shows UUID slice, not human-readable | P3 |
-
-**Recommended Fixes:**
-1. **P0:** Auto-run determination when entering party setup, OR allow draft status to send links
-2. **P1:** Fix session cookie parsing in `web/app/(app)/layout.tsx`
-3. **P2:** Add UI warning if determination not yet run
-4. **P3:** Add confirmation_number field to SubmissionRequest model
+**3. Updated All Cookie Parsers**
+- `web/app/(app)/layout.tsx` - Now uses `parseSessionCookie()`
+- `web/app/(app)/app/settings/team/page.tsx` - Now uses `getSessionCompanyId()`
 
 **Files Created:**
-- `docs/INVESTIGATION_PARTY_LINKS_FINDINGS.md` (comprehensive analysis)
+- `web/lib/session.ts` (NEW - shared session utility)
 
-**Status:** 🔍 Investigation Complete (Fix pending)
+**Files Changed:**
+- `api/app/routes/reports.py` (allow draft status for party-links)
+- `web/app/(app)/layout.tsx` (use session utility)
+- `web/app/(app)/app/settings/team/page.tsx` (use session utility)
+
+**Status:** ✅ Killed
 
 ---
 
@@ -1646,11 +1663,12 @@ draft → [POST /determine] → determination_complete → [POST /party-links] �
 6. ~~**P2:** Add Trust buyer form with trustees/settlors/beneficiaries~~ ✅ DONE
 7. ~~**P2:** Implement dynamic sidebar badges~~ ✅ DONE
 8. ~~**P0:** Fix SubmissionRequest → Wizard data flow~~ ✅ DONE
-9. **P0:** Fix Party Links status check (investigation complete, ready to fix)
-10. **P1:** Fix session cookie parsing in layout.tsx
+9. ~~**P0:** Fix Party Links status check~~ ✅ DONE
+10. ~~**P1:** Fix session cookie parsing~~ ✅ DONE
 11. **P3:** Add more comprehensive form validation
 12. **P3:** Add `refreshCounts()` calls after key actions (start wizard, file report)
+13. **P3:** Add human-readable confirmation numbers (currently shows UUID slice)
 
 ---
 
-*Last updated: January 28, 2026 @ 1:30 PM*
+*Last updated: January 28, 2026 @ 2:00 PM*

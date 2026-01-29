@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useDemo } from "@/hooks/use-demo";
 import { useToast } from "@/components/ui/use-toast";
+import { getSessionCompanyId } from "@/lib/session";
 import { Users, UserPlus, MoreHorizontal, RefreshCw, Ban, CheckCircle, Shield, UserCog } from "lucide-react";
 import { format } from "date-fns";
 
@@ -82,22 +83,8 @@ export default function TeamSettingsPage() {
     role: "client_user",
   });
 
-  // Get company_id from session cookie
-  const getCompanyId = () => {
-    if (typeof window === "undefined") return null;
-    const cookie = document.cookie
-      .split("; ")
-      .find((row) => row.startsWith("pct_demo_session="));
-    if (cookie) {
-      try {
-        const session = JSON.parse(atob(cookie.split("=")[1]));
-        return session.companyId;
-      } catch {
-        return null;
-      }
-    }
-    return null;
-  };
+  // Get company_id using shared session utility
+  const getCompanyId = () => getSessionCompanyId();
 
   // Fetch team members
   const fetchTeam = async (showRefresh = false) => {
