@@ -9,13 +9,13 @@
 | Category | Count |
 |----------|-------|
 | 🔴 Critical Fixes | 10 |
-| 🟠 Major Features | 6 |
+| 🟠 Major Features | 8 |
 | 🎨 UX/Design | 3 |
 | 🔧 Configuration | 1 |
-| 📄 Documentation | 4 |
+| 📄 Documentation | 5 |
 | 🎯 Demo Data & API | 1 |
 
-**Total Sharks Killed: 36 🦈**
+**Total Sharks Killed: 38 🦈**
 
 ---
 
@@ -1842,6 +1842,70 @@ Report: draft → collecting → ready_to_file → filed
 
 ---
 
+## 🟠 Major Features (Continued)
+
+### 37. FinCEN Impact Analysis ✅
+
+**Date:** January 29, 2026
+
+**Problem:** Needed to understand current FinCEN compliance gaps in the party portal forms.
+
+**Investigation Findings:**
+- Party portal was **85% complete** for FinCEN compliance
+- Already had: Beneficial owners, Payment sources, Trustees, Settlors, Beneficiaries
+- Missing: Seller entity and trust forms
+
+**Files Created:**
+- `docs/INVESTIGATION_FINCEN_IMPACT_FINDINGS.md`
+
+**Status:** ✅ Investigation Complete
+
+---
+
+### 38. Seller Forms & Validation Enhancement ✅
+
+**Date:** January 29, 2026
+
+**Problem:** Party portal lacked dedicated forms for seller entities and trusts, and comprehensive validation.
+
+**Solution:** 
+
+**Phase 1 - Seller Forms:**
+| Form | Purpose | Features |
+|------|---------|----------|
+| `SellerEntityForm.tsx` | Seller LLC/Corp/Partnership | Entity info, Signing individual, ID collection, Certification |
+| `SellerTrustForm.tsx` | Seller Trust | Trust info, Multiple trustees support, Certification |
+
+**Phase 2 - Validation Utilities:**
+- EIN/SSN format validation and masking
+- Beneficial owner validation (ownership %, required fields)
+- Payment source validation (totals vs purchase price)
+- Trust date validation
+- Entity/Individual form validation
+- Trustee validation
+
+**Phase 3 - UI Components:**
+- `ValidationMessages.tsx` - Error/warning display
+- `ValidationSuccess` - Success state display
+- `FieldError` - Inline field error display
+
+**Files Created:**
+- `web/components/party-portal/SellerEntityForm.tsx` (NEW - 320 lines)
+- `web/components/party-portal/SellerTrustForm.tsx` (NEW - 200 lines)
+- `web/components/party-portal/validation.ts` (NEW - 400+ lines)
+- `web/components/party-portal/ValidationMessages.tsx` (NEW - 70 lines)
+
+**Files Modified:**
+- `web/components/party-portal/index.tsx` (updated routing & exports)
+
+**Status:** ✅ Killed
+
+---
+
+### Updated Shark Count: 38 🦈
+
+---
+
 ## Next Steps
 
 1. ~~**P1:** Expand party portal with required FinCEN fields~~ ✅ DONE
@@ -1857,10 +1921,11 @@ Report: draft → collecting → ready_to_file → filed
 11. ~~**P0:** Fix SubmissionRequest "completed" status on filing~~ ✅ DONE
 12. ~~**P1:** Expand My Queue to show more report statuses~~ ✅ DONE
 13. ~~**P2:** Add inline Start Wizard button to All Requests~~ ✅ DONE
-14. **P3:** Add more comprehensive form validation
+14. ~~**P3:** Add more comprehensive form validation~~ ✅ DONE
 15. **P3:** Add `refreshCounts()` calls after key actions (start wizard, file report)
 16. **P3:** Add human-readable confirmation numbers (currently shows UUID slice)
+17. **P2:** Create FinCEN XML/JSON export functionality
 
 ---
 
-*Last updated: January 28, 2026 @ 3:00 PM*
+*Last updated: January 29, 2026 @ 10:00 AM*
