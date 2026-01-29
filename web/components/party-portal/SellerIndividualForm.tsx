@@ -13,6 +13,7 @@ import {
 import { User, Phone } from "lucide-react"
 import { AddressFields } from "./AddressFields"
 import { CertificationSection, CERTIFICATION_TEXTS } from "./CertificationSection"
+import { DocumentUpload, DOCUMENT_TYPES } from "./DocumentUpload"
 import { 
   type PartySubmissionData, 
   type AddressData,
@@ -26,6 +27,7 @@ interface SellerIndividualFormProps {
   onChange: (data: Partial<PartySubmissionData>) => void
   disabled?: boolean
   email?: string
+  partyId?: string
 }
 
 const emptyAddress: AddressData = {
@@ -41,6 +43,7 @@ export function SellerIndividualForm({
   onChange,
   disabled = false,
   email,
+  partyId,
 }: SellerIndividualFormProps) {
   const update = <K extends keyof PartySubmissionData>(
     field: K,
@@ -288,6 +291,14 @@ export function SellerIndividualForm({
           </div>
         </CardContent>
       </Card>
+
+      {/* Document Upload */}
+      {partyId && (
+        <DocumentUpload
+          partyId={partyId}
+          documentTypes={DOCUMENT_TYPES.individual}
+        />
+      )}
 
       {/* Certification */}
       <CertificationSection

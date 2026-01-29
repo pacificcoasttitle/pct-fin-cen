@@ -25,6 +25,7 @@ import { AddressFields } from "./AddressFields";
 import { TrusteeCard, createEmptyTrustee } from "./TrusteeCard";
 import { PaymentSourceCard, createEmptyPaymentSource } from "./PaymentSourceCard";
 import { CertificationSection, CERTIFICATION_TEXTS } from "./CertificationSection";
+import { DocumentUpload, DOCUMENT_TYPES } from "./DocumentUpload";
 import {
   PartySubmissionData,
   TrusteeData,
@@ -41,6 +42,7 @@ interface BuyerTrustFormProps {
   onChange: (data: Partial<PartySubmissionData>) => void;
   purchasePrice?: number;
   disabled?: boolean;
+  partyId?: string;
 }
 
 const emptyAddress: AddressData = {
@@ -56,6 +58,7 @@ export function BuyerTrustForm({
   onChange,
   purchasePrice = 0,
   disabled = false,
+  partyId,
 }: BuyerTrustFormProps) {
   const updateField = <K extends keyof PartySubmissionData>(field: K, value: PartySubmissionData[K]) => {
     onChange({ ...data, [field]: value });
@@ -593,7 +596,15 @@ export function BuyerTrustForm({
         </CardContent>
       </Card>
 
-      {/* SECTION 6: CERTIFICATION */}
+      {/* SECTION 6: DOCUMENT UPLOAD */}
+      {partyId && (
+        <DocumentUpload
+          partyId={partyId}
+          documentTypes={DOCUMENT_TYPES.trust}
+        />
+      )}
+
+      {/* SECTION 7: CERTIFICATION */}
       <CertificationSection
         certified={data.certified || false}
         signature={data.certification_signature || ""}

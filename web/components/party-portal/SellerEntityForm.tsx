@@ -13,6 +13,7 @@ import {
 import { Building2, UserCircle, Phone } from "lucide-react"
 import { AddressFields } from "./AddressFields"
 import { CertificationSection, CERTIFICATION_TEXTS } from "./CertificationSection"
+import { DocumentUpload, DOCUMENT_TYPES } from "./DocumentUpload"
 import { 
   type PartySubmissionData, 
   type AddressData,
@@ -27,6 +28,7 @@ interface SellerEntityFormProps {
   onChange: (data: Partial<PartySubmissionData>) => void
   disabled?: boolean
   email?: string
+  partyId?: string
 }
 
 const emptyAddress: AddressData = {
@@ -42,6 +44,7 @@ export function SellerEntityForm({
   onChange,
   disabled = false,
   email,
+  partyId,
 }: SellerEntityFormProps) {
   const update = <K extends keyof PartySubmissionData>(
     field: K,
@@ -335,6 +338,14 @@ export function SellerEntityForm({
           </div>
         </CardContent>
       </Card>
+
+      {/* Section 3: Document Upload */}
+      {partyId && (
+        <DocumentUpload
+          partyId={partyId}
+          documentTypes={DOCUMENT_TYPES.entity}
+        />
+      )}
 
       {/* Certification */}
       <CertificationSection

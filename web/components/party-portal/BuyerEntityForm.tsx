@@ -17,6 +17,7 @@ import { AddressFields } from "./AddressFields"
 import { BeneficialOwnerCard, createEmptyBeneficialOwner } from "./BeneficialOwnerCard"
 import { PaymentSourceCard, createEmptyPaymentSource } from "./PaymentSourceCard"
 import { CertificationSection, CERTIFICATION_TEXTS } from "./CertificationSection"
+import { DocumentUpload, DOCUMENT_TYPES } from "./DocumentUpload"
 import { 
   type PartySubmissionData, 
   type AddressData,
@@ -31,6 +32,7 @@ interface BuyerEntityFormProps {
   onChange: (data: Partial<PartySubmissionData>) => void
   disabled?: boolean
   purchasePrice?: number
+  partyId?: string
 }
 
 const emptyAddress: AddressData = {
@@ -46,6 +48,7 @@ export function BuyerEntityForm({
   onChange,
   disabled = false,
   purchasePrice,
+  partyId,
 }: BuyerEntityFormProps) {
   const update = <K extends keyof PartySubmissionData>(
     field: K,
@@ -470,6 +473,14 @@ export function BuyerEntityForm({
           )}
         </CardContent>
       </Card>
+
+      {/* Section 5: Document Upload */}
+      {partyId && (
+        <DocumentUpload
+          partyId={partyId}
+          documentTypes={DOCUMENT_TYPES.entity}
+        />
+      )}
 
       {/* Certification */}
       <CertificationSection

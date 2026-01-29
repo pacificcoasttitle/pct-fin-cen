@@ -9,3 +9,8 @@ export {
   type PartySummaryData 
 } from "./PartySummaryCard"
 export { PartyDetailCard } from "./PartyDetailCard"
+export { 
+  DocumentsTable, 
+  DocumentsSummary,
+  type DocumentItem 
+} from "./DocumentsTable"

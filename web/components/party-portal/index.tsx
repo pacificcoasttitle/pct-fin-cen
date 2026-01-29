@@ -13,6 +13,7 @@ export { BuyerEntityForm } from "./BuyerEntityForm"
 export { TrusteeCard, createEmptyTrustee } from "./TrusteeCard"
 export { BuyerTrustForm } from "./BuyerTrustForm"
 export { ValidationMessages, ValidationSuccess, FieldError } from "./ValidationMessages"
+export { DocumentUpload, DOCUMENT_TYPES } from "./DocumentUpload"
 export * from "./validation"
 
 // Form selector component
@@ -23,6 +24,7 @@ import { BuyerEntityForm } from "./BuyerEntityForm"
 import { BuyerTrustForm } from "./BuyerTrustForm"
 import { CertificationSection, CERTIFICATION_TEXTS } from "./CertificationSection"
 import { AddressFields } from "./AddressFields"
+import { DocumentUpload, DOCUMENT_TYPES } from "./DocumentUpload"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -59,6 +61,7 @@ interface DynamicPartyFormProps {
   disabled?: boolean
   email?: string
   purchasePrice?: number
+  partyId?: string
 }
 
 export function DynamicPartyForm({
@@ -69,6 +72,7 @@ export function DynamicPartyForm({
   disabled = false,
   email,
   purchasePrice,
+  partyId,
 }: DynamicPartyFormProps) {
   const isSeller = partyRole === "transferor"
   const isBuyer = partyRole === "transferee"
@@ -86,6 +90,7 @@ export function DynamicPartyForm({
           onChange={onChange}
           disabled={disabled}
           email={email}
+          partyId={partyId}
         />
       )
     }
@@ -98,6 +103,7 @@ export function DynamicPartyForm({
           onChange={onChange}
           disabled={disabled}
           email={email}
+          partyId={partyId}
         />
       )
     }
@@ -110,6 +116,7 @@ export function DynamicPartyForm({
           onChange={onChange}
           disabled={disabled}
           email={email}
+          partyId={partyId}
         />
       )
     }
@@ -128,6 +135,7 @@ export function DynamicPartyForm({
           onChange={onChange}
           disabled={disabled}
           purchasePrice={purchasePrice}
+          partyId={partyId}
         />
       )
     }
@@ -140,12 +148,13 @@ export function DynamicPartyForm({
           onChange={onChange}
           disabled={disabled}
           purchasePrice={purchasePrice}
+          partyId={partyId}
         />
       )
     }
     
     // Buyer Individual - Generic form (could be enhanced later)
-    return <GenericIndividualForm data={data} onChange={onChange} disabled={disabled} email={email} />
+    return <GenericIndividualForm data={data} onChange={onChange} disabled={disabled} email={email} partyId={partyId} />
   }
 
   // ===========================================================================
@@ -170,11 +179,13 @@ function GenericIndividualForm({
   onChange,
   disabled,
   email,
+  partyId,
 }: {
   data: Partial<PartySubmissionData>
   onChange: (data: Partial<PartySubmissionData>) => void
   disabled?: boolean
   email?: string
+  partyId?: string
 }) {
   const update = <K extends keyof PartySubmissionData>(field: K, value: PartySubmissionData[K]) => {
     onChange({ ...data, [field]: value })
@@ -286,6 +297,13 @@ function GenericIndividualForm({
           </div>
         </CardContent>
       </Card>
+
+      {partyId && (
+        <DocumentUpload
+          partyId={partyId}
+          documentTypes={DOCUMENT_TYPES.individual}
+        />
+      )}
 
       <CertificationSection
         certified={data.certified || false}

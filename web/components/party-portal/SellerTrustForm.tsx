@@ -15,6 +15,7 @@ import {
 import { Landmark, Users, Plus, Info } from "lucide-react"
 import { TrusteeCard, createEmptyTrustee } from "./TrusteeCard"
 import { CertificationSection, CERTIFICATION_TEXTS } from "./CertificationSection"
+import { DocumentUpload, DOCUMENT_TYPES } from "./DocumentUpload"
 import { 
   type PartySubmissionData, 
   type TrusteeData,
@@ -26,6 +27,7 @@ interface SellerTrustFormProps {
   onChange: (data: Partial<PartySubmissionData>) => void
   disabled?: boolean
   email?: string
+  partyId?: string
 }
 
 export function SellerTrustForm({
@@ -33,6 +35,7 @@ export function SellerTrustForm({
   onChange,
   disabled = false,
   email,
+  partyId,
 }: SellerTrustFormProps) {
   const update = <K extends keyof PartySubmissionData>(
     field: K,
@@ -204,6 +207,14 @@ export function SellerTrustForm({
           )}
         </CardContent>
       </Card>
+
+      {/* Section 3: Document Upload */}
+      {partyId && (
+        <DocumentUpload
+          partyId={partyId}
+          documentTypes={DOCUMENT_TYPES.trust}
+        />
+      )}
 
       {/* Certification */}
       <CertificationSection

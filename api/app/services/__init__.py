@@ -22,6 +22,13 @@ from app.services.filing_lifecycle import (
     get_filing_stats,
     list_submissions,
 )
+from app.services.storage import (
+    storage_service,
+    R2StorageService,
+    validate_document_type,
+    get_allowed_document_types,
+    DOCUMENT_TYPE_ALLOWED_CONTENT,
+)
 
 __all__ = [
     "determine_reportability",
@@ -42,4 +49,10 @@ __all__ = [
     "set_demo_outcome",
     "get_filing_stats",
     "list_submissions",
+    # Storage
+    "storage_service",
+    "R2StorageService",
+    "validate_document_type",
+    "get_allowed_document_types",
+    "DOCUMENT_TYPE_ALLOWED_CONTENT",
 ]

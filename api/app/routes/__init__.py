@@ -10,6 +10,7 @@ from app.routes.invoices import router as invoices_router
 from app.routes.companies import router as companies_router
 from app.routes.users import router as users_router
 from app.routes.sidebar import router as sidebar_router
+from app.routes.documents import router as documents_router
 
 __all__ = [
     "reports_router",
@@ -21,4 +22,5 @@ __all__ = [
     "companies_router",
     "users_router",
     "sidebar_router",
+    "documents_router",
 ]

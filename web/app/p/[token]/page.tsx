@@ -400,6 +400,7 @@ export default function PartyPortalPage() {
             disabled={submitted}
             email={partyData.email || undefined}
             purchasePrice={partyData.report_summary.purchase_price}
+            partyId={partyData.id}
           />
         )}
 

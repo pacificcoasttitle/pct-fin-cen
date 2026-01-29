@@ -19,8 +19,12 @@ import {
   FileText,
   AlertCircle,
   CheckCircle2,
-  Shield
+  Shield,
+  Download,
+  Eye,
+  FileImage
 } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
 
@@ -97,6 +101,17 @@ function Section({ title, icon: Icon, children, className }: SectionProps) {
   )
 }
 
+interface Document {
+  id: string
+  document_type: string
+  file_name: string
+  mime_type: string
+  size_bytes?: number
+  download_url?: string
+  uploaded_at?: string
+  verified_at?: string | null
+}
+
 interface PartyDetailCardProps {
   party: {
     id: string
@@ -107,12 +122,36 @@ interface PartyDetailCardProps {
     party_data?: Record<string, any>
     submitted_at?: string | null
   }
+  documents?: Document[]
   showSensitive?: boolean
   className?: string
 }
 
+function formatFileSize(bytes: number): string {
+  if (bytes === 0) return "0 B"
+  const k = 1024
+  const sizes = ["B", "KB", "MB", "GB"]
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i]
+}
+
+function getDocumentTypeLabel(type: string): string {
+  const labels: Record<string, string> = {
+    government_id: "Government ID (Front)",
+    government_id_back: "Government ID (Back)",
+    trust_agreement: "Trust Agreement",
+    formation_docs: "Formation Documents",
+    operating_agreement: "Operating Agreement",
+    articles_of_incorporation: "Articles of Incorporation",
+    beneficial_owner_id: "Beneficial Owner ID",
+    other: "Other Document",
+  }
+  return labels[type] || type.replace(/_/g, " ")
+}
+
 export function PartyDetailCard({ 
   party, 
+  documents = [],
   showSensitive = false,
   className 
 }: PartyDetailCardProps) {
@@ -351,6 +390,58 @@ export function PartyDetailCard({
                     {data.certification_date}
                   </p>
                 )}
+              </div>
+            </Section>
+          </>
+        )}
+
+        {/* Documents */}
+        {documents.length > 0 && (
+          <>
+            <Separator />
+            <Section title={`Documents (${documents.length})`} icon={FileText}>
+              <div className="space-y-2">
+                {documents.map((doc) => (
+                  <div 
+                    key={doc.id} 
+                    className="flex items-center justify-between p-3 bg-muted/50 rounded-lg border"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      {doc.mime_type?.startsWith("image/") ? (
+                        <FileImage className="h-4 w-4 text-blue-500 shrink-0" />
+                      ) : (
+                        <FileText className="h-4 w-4 text-red-500 shrink-0" />
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{doc.file_name}</p>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span>{getDocumentTypeLabel(doc.document_type)}</span>
+                          {doc.size_bytes && (
+                            <>
+                              <span>•</span>
+                              <span>{formatFileSize(doc.size_bytes)}</span>
+                            </>
+                          )}
+                          {doc.verified_at && (
+                            <Badge variant="default" className="text-[10px] px-1 py-0 h-4 bg-green-600">
+                              Verified
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    {doc.download_url && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="shrink-0 h-8 w-8"
+                        onClick={() => window.open(doc.download_url, "_blank")}
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
               </div>
             </Section>
           </>
