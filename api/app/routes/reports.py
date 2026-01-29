@@ -39,6 +39,12 @@ from app.services.filing_lifecycle import (
     perform_mock_submit,
     get_or_create_submission,
 )
+from app.services.party_validation import (
+    calculate_party_summary,
+    validate_party_data,
+    get_party_warnings,
+    calculate_completion_percentage,
+)
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 settings = get_settings()
@@ -169,6 +175,41 @@ def list_reports_with_parties(
         parties_total = len(parties)
         parties_submitted = len([p for p in parties if p.status == "submitted"])
         
+        # Build enhanced party list with summary data
+        party_items = []
+        for party in parties:
+            summary = calculate_party_summary(party)
+            
+            # Get the first active link for this party
+            active_link = None
+            if party.links:
+                active_link = next(
+                    (l for l in party.links if l.expires_at > datetime.utcnow()),
+                    None
+                )
+            
+            party_items.append(PartyStatusItem(
+                id=party.id,
+                party_role=party.party_role,
+                entity_type=party.entity_type,
+                display_name=party.display_name,
+                email=party.party_data.get("email") if party.party_data else None,
+                status=party.status,
+                submitted_at=party.updated_at if party.status == "submitted" else None,
+                token=active_link.token if active_link else None,
+                link=f"{FRONTEND_URL}/p/{active_link.token}" if active_link else None,
+                link_expires_at=active_link.expires_at if active_link else None,
+                created_at=party.created_at,
+                completion_percentage=summary["completion_percentage"],
+                beneficial_owners_count=summary["beneficial_owners_count"],
+                trustees_count=summary["trustees_count"],
+                payment_sources_count=summary["payment_sources_count"],
+                payment_sources_total=summary["payment_sources_total"],
+                documents_count=summary["documents_count"],
+                has_validation_errors=summary["has_validation_errors"],
+                validation_error_count=summary["validation_error_count"],
+            ))
+        
         result.append(ReportWithPartySummary(
             id=report.id,
             status=report.status,
@@ -181,10 +222,12 @@ def list_reports_with_parties(
             filing_status=report.filing_status,
             created_at=report.created_at,
             updated_at=report.updated_at,
+            submission_request_id=report.submission_request_id,
             parties_total=parties_total,
             parties_submitted=parties_submitted,
             parties_pending=parties_total - parties_submitted,
             all_parties_complete=parties_submitted == parties_total if parties_total > 0 else False,
+            parties=party_items,
         ))
     
     return ReportListWithPartiesResponse(

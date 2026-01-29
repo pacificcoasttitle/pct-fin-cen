@@ -39,6 +39,15 @@ class PartyStatusItem(BaseModel):
     link: Optional[str] = None
     link_expires_at: Optional[datetime] = None
     created_at: datetime
+    # Enhanced summary fields
+    completion_percentage: int = 0
+    beneficial_owners_count: Optional[int] = None
+    trustees_count: Optional[int] = None
+    payment_sources_count: Optional[int] = None
+    payment_sources_total: Optional[int] = None
+    documents_count: int = 0
+    has_validation_errors: bool = False
+    validation_error_count: int = 0
 
 
 class PartySummary(BaseModel):
@@ -57,6 +66,31 @@ class ReportPartiesResponse(BaseModel):
     summary: PartySummary
 
 
+class PartyDetailItem(BaseModel):
+    """Full party detail for admin/staff review."""
+    id: UUID
+    party_role: str
+    entity_type: str
+    display_name: Optional[str]
+    email: Optional[str] = None
+    status: str
+    party_data: Optional[Dict[str, Any]] = None  # Full party data
+    submitted_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+    # Summary fields
+    completion_percentage: int = 0
+    beneficial_owners_count: Optional[int] = None
+    trustees_count: Optional[int] = None
+    payment_sources_count: Optional[int] = None
+    payment_sources_total: Optional[int] = None
+    documents_count: int = 0
+    has_validation_errors: bool = False
+    validation_error_count: int = 0
+    validation_errors: List[str] = []
+    validation_warnings: List[str] = []
+
+
 class ReportWithPartySummary(BaseModel):
     """Report with party summary for queue views."""
     id: UUID
@@ -70,11 +104,14 @@ class ReportWithPartySummary(BaseModel):
     filing_status: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+    submission_request_id: Optional[UUID] = None
     # Party summary
     parties_total: int = 0
     parties_submitted: int = 0
     parties_pending: int = 0
     all_parties_complete: bool = False
+    # Enhanced: Include party details for queue views
+    parties: List[PartyStatusItem] = []
 
 
 class ReportListWithPartiesResponse(BaseModel):

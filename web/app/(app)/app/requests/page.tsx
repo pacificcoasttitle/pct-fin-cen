@@ -36,7 +36,19 @@ import {
   FileText,
   Building2,
   MoreHorizontal,
+  Users,
+  Send,
 } from "lucide-react";
+import { PartyTypeBadge, PartyStatusBadge } from "@/components/party";
+import { Progress } from "@/components/ui/progress";
+
+interface PartyBasicInfo {
+  id: string;
+  party_role: string;
+  entity_type: string;
+  display_name: string | null;
+  status: string;
+}
 
 interface SubmissionRequest {
   id: string;
@@ -55,6 +67,12 @@ interface SubmissionRequest {
   created_at: string;
   updated_at: string;
   report_id?: string;
+  report_status?: string;
+  receipt_id?: string;
+  // Party info (limited for clients)
+  parties_total?: number;
+  parties_submitted?: number;
+  parties?: PartyBasicInfo[];
 }
 
 const statusConfig = {
@@ -328,13 +346,22 @@ export default function ClientRequestsPage() {
                         {formatDate(request.expected_closing_date)}
                       </TableCell>
                       <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={`flex items-center gap-1 w-fit ${status.className}`}
-                        >
-                          <StatusIcon className="h-3 w-3" />
-                          {status.label}
-                        </Badge>
+                        <div className="space-y-1">
+                          <Badge
+                            variant="outline"
+                            className={`flex items-center gap-1 w-fit ${status.className}`}
+                          >
+                            <StatusIcon className="h-3 w-3" />
+                            {status.label}
+                          </Badge>
+                          {/* Show party progress if in_progress and has parties */}
+                          {request.status === "in_progress" && request.parties_total && request.parties_total > 0 && (
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <Users className="h-3 w-3" />
+                              <span>{request.parties_submitted || 0}/{request.parties_total} parties</span>
+                            </div>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {formatTimeAgo(request.created_at)}

@@ -332,6 +332,15 @@ export interface PartyStatusItem {
   link: string | null;
   link_expires_at: string | null;
   created_at: string;
+  // Enhanced summary fields
+  completion_percentage?: number;
+  beneficial_owners_count?: number | null;
+  trustees_count?: number | null;
+  payment_sources_count?: number | null;
+  payment_sources_total?: number | null;
+  documents_count?: number;
+  has_validation_errors?: boolean;
+  validation_error_count?: number;
 }
 
 export interface PartySummary {

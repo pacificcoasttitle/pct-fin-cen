@@ -22,8 +22,16 @@ import {
   XCircle,
   Clock,
   FileCheck,
-  FileText
+  FileText,
+  Building2,
+  Landmark,
+  DollarSign,
 } from "lucide-react"
+import { 
+  PartyTypeBadge, 
+  PartyStatusBadge, 
+  PartyCompletionProgress 
+} from "@/components/party"
 import {
   getReport,
   saveWizard,
@@ -562,102 +570,152 @@ export default function WizardPage() {
                       link: l.url,
                       link_expires_at: l.expires_at,
                       created_at: new Date().toISOString(),
-                    }))).map((party) => (
-                      <div 
-                        key={party.id || party.token}
-                        className={`relative overflow-hidden rounded-xl border p-4 transition-all ${
-                          party.status === "submitted" 
-                            ? "bg-green-50 border-green-200" 
-                            : "bg-gradient-to-br from-background to-muted/30"
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex items-center gap-3">
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                              party.status === "submitted"
-                                ? "bg-green-500 text-white"
-                                : party.party_role === "transferee" || party.party_role === "buyer"
-                                  ? "bg-blue-100 text-blue-600" 
-                                  : party.party_role === "transferor" || party.party_role === "seller"
-                                    ? "bg-purple-100 text-purple-600"
-                                    : "bg-amber-100 text-amber-600"
-                            }`}>
-                              {party.status === "submitted" ? (
-                                <CheckCircle2 className="h-5 w-5" />
-                              ) : (
-                                <Users className="h-5 w-5" />
-                              )}
+                      completion_percentage: 0,
+                      beneficial_owners_count: null,
+                      trustees_count: null,
+                      payment_sources_count: null,
+                      payment_sources_total: null,
+                      documents_count: 0,
+                      has_validation_errors: false,
+                      validation_error_count: 0,
+                    }))).map((party) => {
+                      const isBuyer = party.party_role === "transferee" || party.party_role === "buyer"
+                      
+                      return (
+                        <div 
+                          key={party.id || party.token}
+                          className={`relative overflow-hidden rounded-xl border p-4 transition-all ${
+                            party.status === "submitted" 
+                              ? "bg-green-50 border-green-200" 
+                              : party.has_validation_errors
+                                ? "bg-amber-50 border-amber-200"
+                                : "bg-gradient-to-br from-background to-muted/30"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                                party.status === "submitted"
+                                  ? "bg-green-500 text-white"
+                                  : isBuyer
+                                    ? "bg-blue-100 text-blue-600" 
+                                    : "bg-purple-100 text-purple-600"
+                              }`}>
+                                {party.status === "submitted" ? (
+                                  <CheckCircle2 className="h-5 w-5" />
+                                ) : party.entity_type === "trust" ? (
+                                  <Landmark className="h-5 w-5" />
+                                ) : party.entity_type === "entity" || party.entity_type?.includes("llc") || party.entity_type?.includes("corp") ? (
+                                  <Building2 className="h-5 w-5" />
+                                ) : (
+                                  <Users className="h-5 w-5" />
+                                )}
+                              </div>
+                              <div>
+                                <p className="font-medium">
+                                  {party.display_name || party.party_role.replace("_", " ").replace(/\b\w/g, c => c.toUpperCase())}
+                                </p>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <PartyTypeBadge type={party.entity_type} className="text-xs h-5" />
+                                  {party.email && (
+                                    <span className="text-xs text-muted-foreground">{party.email}</span>
+                                  )}
+                                </div>
+                              </div>
                             </div>
-                            <div>
-                              <p className="font-medium">
-                                {party.display_name || party.party_role.replace("_", " ").replace(/\b\w/g, c => c.toUpperCase())}
-                              </p>
-                              <p className="text-xs text-muted-foreground capitalize">
-                                {party.party_role.replace("_", " ")}
-                                {party.email && ` • ${party.email}`}
-                              </p>
+                            
+                            <div className="flex flex-col items-end gap-2">
+                              <PartyStatusBadge status={party.status} />
+                              
+                              {/* Completion Progress - show when not yet submitted */}
+                              {party.status !== "submitted" && party.completion_percentage !== undefined && (
+                                <PartyCompletionProgress 
+                                  percentage={party.completion_percentage}
+                                  hasErrors={party.has_validation_errors}
+                                  errorCount={party.validation_error_count}
+                                  size="sm"
+                                />
+                              )}
                             </div>
                           </div>
                           
-                          <Badge 
-                            variant="outline" 
-                            className={party.status === "submitted" 
-                              ? "bg-green-100 text-green-700 border-green-300" 
-                              : "bg-amber-50 text-amber-700 border-amber-200"
-                            }
-                          >
-                            {party.status === "submitted" ? (
-                              <><CheckCircle2 className="h-3 w-3 mr-1" />Submitted</>
-                            ) : (
-                              <><Clock className="h-3 w-3 mr-1" />Pending</>
-                            )}
-                          </Badge>
-                        </div>
-                        
-                        {/* Submitted info */}
-                        {party.status === "submitted" && party.submitted_at && (
-                          <p className="mt-2 text-xs text-green-600">
-                            Submitted {new Date(party.submitted_at).toLocaleString()}
-                          </p>
-                        )}
-                        
-                        {/* Copy link section - only for pending */}
-                        {party.status !== "submitted" && party.link && (
-                          <div className="mt-4 flex items-center gap-2">
-                            <input 
-                              value={party.link}
-                              readOnly
-                              className="flex-1 px-3 py-2 text-xs font-mono bg-white/50 border rounded-lg truncate"
-                            />
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              onClick={() => copyToClipboard(party.link!, party.token || party.id)}
-                              className="shrink-0"
-                            >
-                              {copied === (party.token || party.id) ? (
-                                <Check className="h-4 w-4 text-green-600" />
-                              ) : (
-                                <Copy className="h-4 w-4" />
+                          {/* Type-specific counts - show when available */}
+                          {(party.beneficial_owners_count !== null || party.trustees_count !== null || party.payment_sources_count !== null) && (
+                            <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground border-t pt-3">
+                              {party.beneficial_owners_count !== null && (
+                                <span className="flex items-center gap-1">
+                                  <Users className="h-3 w-3" />
+                                  {party.beneficial_owners_count} beneficial owner{party.beneficial_owners_count !== 1 ? "s" : ""}
+                                </span>
                               )}
-                            </Button>
-                            <a href={party.link} target="_blank" rel="noopener noreferrer">
-                              <Button variant="outline" size="sm">
-                                <ExternalLink className="h-4 w-4" />
+                              {party.trustees_count !== null && (
+                                <span className="flex items-center gap-1">
+                                  <Landmark className="h-3 w-3" />
+                                  {party.trustees_count} trustee{party.trustees_count !== 1 ? "s" : ""}
+                                </span>
+                              )}
+                              {isBuyer && party.payment_sources_count !== null && party.payment_sources_count > 0 && (
+                                <span className="flex items-center gap-1">
+                                  <DollarSign className="h-3 w-3" />
+                                  ${((party.payment_sources_total || 0) / 100).toLocaleString()}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          
+                          {/* Submitted info */}
+                          {party.status === "submitted" && party.submitted_at && (
+                            <p className="mt-3 text-xs text-green-600 border-t pt-3">
+                              ✓ Submitted {new Date(party.submitted_at).toLocaleString()}
+                            </p>
+                          )}
+                          
+                          {/* Validation errors warning */}
+                          {party.status !== "submitted" && party.has_validation_errors && party.validation_error_count && party.validation_error_count > 0 && (
+                            <p className="mt-2 text-xs text-amber-600 flex items-center gap-1">
+                              <AlertTriangle className="h-3 w-3" />
+                              {party.validation_error_count} validation issue{party.validation_error_count !== 1 ? "s" : ""}
+                            </p>
+                          )}
+                          
+                          {/* Copy link section - only for pending */}
+                          {party.status !== "submitted" && party.link && (
+                            <div className="mt-4 flex items-center gap-2">
+                              <input 
+                                value={party.link}
+                                readOnly
+                                className="flex-1 px-3 py-2 text-xs font-mono bg-white/50 border rounded-lg truncate"
+                              />
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => copyToClipboard(party.link!, party.token || party.id)}
+                                className="shrink-0"
+                              >
+                                {copied === (party.token || party.id) ? (
+                                  <Check className="h-4 w-4 text-green-600" />
+                                ) : (
+                                  <Copy className="h-4 w-4" />
+                                )}
                               </Button>
-                            </a>
-                          </div>
-                        )}
-                        
-                        {/* Expiration warning */}
-                        {party.status !== "submitted" && party.link_expires_at && (
-                          <p className="mt-2 text-xs text-muted-foreground">
-                            <Clock className="h-3 w-3 inline mr-1" />
-                            Link expires: {new Date(party.link_expires_at).toLocaleDateString()}
-                          </p>
-                        )}
-                      </div>
-                    ))}
+                              <a href={party.link} target="_blank" rel="noopener noreferrer">
+                                <Button variant="outline" size="sm">
+                                  <ExternalLink className="h-4 w-4" />
+                                </Button>
+                              </a>
+                            </div>
+                          )}
+                          
+                          {/* Expiration warning */}
+                          {party.status !== "submitted" && party.link_expires_at && (
+                            <p className="mt-2 text-xs text-muted-foreground">
+                              <Clock className="h-3 w-3 inline mr-1" />
+                              Link expires: {new Date(party.link_expires_at).toLocaleDateString()}
+                            </p>
+                          )}
+                        </div>
+                      )
+                    })}
                     
                     {/* Refresh button */}
                     {partyStatus && (
