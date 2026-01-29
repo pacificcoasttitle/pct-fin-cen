@@ -1653,6 +1653,40 @@ Includes helper functions:
 
 ---
 
+## Investigation Completed (Fix Pending)
+
+### 28. Status Accuracy & Button Prominence (Investigation) 🔍
+
+**Issues Found:**
+
+| Issue | Priority | Impact |
+|-------|----------|--------|
+| SubmissionRequest not marked "completed" when filed | 🔴 P0 | Client dashboard shows wrong status |
+| My Queue only shows "collecting" reports | 🟠 P1 | Staff can't see reports needing party setup |
+| "Start Wizard" requires 2 clicks | 🟡 P2 | Workflow friction |
+| No urgency indicators for deadlines | 🟡 P3 | May miss filing deadlines |
+
+**Key Findings:**
+
+1. **Status Sync Bug:** When `POST /file` succeeds, the linked `SubmissionRequest.status` stays `in_progress` instead of becoming `completed`. Clients never see their request as "Completed"!
+
+2. **My Queue Filter Too Narrow:** Queue page only fetches `status=collecting`, so draft reports and reports awaiting party setup are invisible to staff.
+
+3. **Button Visibility:** "Start Wizard" is in a slide-out sheet (requires row click first), but "View/Review" buttons in My Queue are inline and visible.
+
+**Recommended Fixes:**
+1. **P0:** Update SubmissionRequest to "completed" in `file_report` endpoint
+2. **P1:** Expand My Queue to show draft/collecting/ready_to_file OR add tabs
+3. **P2:** Add inline "Start Wizard" button in All Requests table
+4. **P3:** Add urgency badges for approaching deadlines
+
+**Files Created:**
+- `docs/INVESTIGATION_STATUS_BUTTONS_FINDINGS.md` (comprehensive analysis)
+
+**Status:** 🔍 Investigation Complete (Fix pending)
+
+---
+
 ## Next Steps
 
 1. ~~**P1:** Expand party portal with required FinCEN fields~~ ✅ DONE
@@ -1665,10 +1699,13 @@ Includes helper functions:
 8. ~~**P0:** Fix SubmissionRequest → Wizard data flow~~ ✅ DONE
 9. ~~**P0:** Fix Party Links status check~~ ✅ DONE
 10. ~~**P1:** Fix session cookie parsing~~ ✅ DONE
-11. **P3:** Add more comprehensive form validation
-12. **P3:** Add `refreshCounts()` calls after key actions (start wizard, file report)
-13. **P3:** Add human-readable confirmation numbers (currently shows UUID slice)
+11. **P0:** Fix SubmissionRequest "completed" status on filing
+12. **P1:** Expand My Queue to show more report statuses
+13. **P2:** Add inline Start Wizard button to All Requests
+14. **P3:** Add more comprehensive form validation
+15. **P3:** Add `refreshCounts()` calls after key actions (start wizard, file report)
+16. **P3:** Add human-readable confirmation numbers (currently shows UUID slice)
 
 ---
 
-*Last updated: January 28, 2026 @ 2:00 PM*
+*Last updated: January 28, 2026 @ 2:30 PM*
