@@ -55,19 +55,32 @@ def get_party_by_token(
     party = link.party
     report = party.report
     
+    # Extract purchase price from wizard_data if available
+    purchase_price = None
+    if report.wizard_data and isinstance(report.wizard_data, dict):
+        collection = report.wizard_data.get("collection", {})
+        if collection:
+            purchase_price = collection.get("purchasePrice")
+    
     # Build report summary for context
     report_summary = ReportSummary(
         property_address=report.property_address_text,
         closing_date=report.closing_date.isoformat() if report.closing_date else None,
-        title_company="Pacific Coast Title Company",
+        purchase_price=purchase_price,
+        title_company="FinClear Solutions",
     )
+    
+    # Get email from party_data if stored there
+    party_data = party.party_data or {}
+    email = party_data.get("email")
     
     return PartyResponse(
         party_id=party.id,
         party_role=party.party_role,
         entity_type=party.entity_type,
         display_name=party.display_name,
-        party_data=party.party_data or {},
+        email=email,
+        party_data=party_data,
         status=party.status,
         report_summary=report_summary,
         link_expires_at=link.expires_at,

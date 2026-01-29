@@ -478,12 +478,31 @@ def create_party_links(
     property_address = report.property_address_text or "Property"
     
     for party_in in party_links_in.parties:
-        # Create party
+        # Build initial party_data from input - this gets hydrated to the form
+        initial_party_data = {}
+        if party_in.display_name:
+            initial_party_data["display_name"] = party_in.display_name
+            # Try to parse first/last name from display_name for individuals
+            if party_in.entity_type == "individual" and " " in party_in.display_name:
+                parts = party_in.display_name.split(" ", 1)
+                initial_party_data["first_name"] = parts[0]
+                initial_party_data["last_name"] = parts[1] if len(parts) > 1 else ""
+            elif party_in.entity_type in ["entity", "llc", "corporation", "partnership", "other"]:
+                initial_party_data["entity_name"] = party_in.display_name
+            elif party_in.entity_type == "trust":
+                initial_party_data["trust_name"] = party_in.display_name
+        if party_in.email:
+            initial_party_data["email"] = party_in.email
+        if party_in.phone:
+            initial_party_data["phone"] = party_in.phone
+        
+        # Create party with pre-populated data
         party = ReportParty(
             report_id=report.id,
             party_role=party_in.party_role,
             entity_type=party_in.entity_type,
             display_name=party_in.display_name,
+            party_data=initial_party_data,  # Pre-populate for form hydration
             status="pending",
         )
         db.add(party)

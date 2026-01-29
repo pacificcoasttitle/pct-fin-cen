@@ -59,16 +59,21 @@ export interface PartyLinkResponse {
 
 export interface PartyData {
   party_id: string;
-  report_id: string;
+  report_id?: string;
   party_role: string;
+  entity_type: string;
   display_name: string | null;
+  email: string | null;
   party_data: Record<string, unknown>;
   status: string;
   report_summary: {
     property_address: string | null;
     closing_date: string | null;
-    status: string;
+    purchase_price: number | null;
+    title_company?: string;
   };
+  link_expires_at: string;
+  is_submitted: boolean;
 }
 
 export interface MissingItem {

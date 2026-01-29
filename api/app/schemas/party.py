@@ -47,7 +47,8 @@ class ReportSummary(BaseModel):
     """Brief report info for party view."""
     property_address: Optional[str]
     closing_date: Optional[str]
-    title_company: str = "Pacific Coast Title Company"
+    purchase_price: Optional[float] = None  # For payment tracking in buyer forms
+    title_company: str = "FinClear Solutions"
 
 
 class PartyResponse(BaseModel):
@@ -56,6 +57,7 @@ class PartyResponse(BaseModel):
     party_role: str
     entity_type: str
     display_name: Optional[str]
+    email: Optional[str] = None  # For pre-filling form
     party_data: Dict[str, Any]
     status: str
     report_summary: ReportSummary
