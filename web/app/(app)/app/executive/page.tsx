@@ -255,11 +255,11 @@ export default function ExecutiveDashboardPage() {
             </CardContent>
           </Card>
 
-          <Card className="border-gray-200 bg-gray-50/50">
+          <Card className="border-green-200 bg-green-50/50">
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-gray-100 rounded-lg">
-                  <ShieldCheck className="h-6 w-6 text-gray-600" />
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <ShieldCheck className="h-6 w-6 text-green-600" />
                 </div>
                 <div>
                   <p className="text-2xl font-bold">{loading ? "-" : stats?.exempt_reports ?? 0}</p>
@@ -297,6 +297,107 @@ export default function ExecutiveDashboardPage() {
             </CardContent>
           </Card>
         </div>
+      </section>
+
+      {/* Early Determination Insights */}
+      <section>
+        <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+          <ShieldCheck className="h-5 w-5 text-green-600" />
+          Early Exemption Determination
+        </h2>
+        <div className="grid gap-4 md:grid-cols-4">
+          <Card className="border-green-200">
+            <CardHeader className="pb-2">
+              <CardDescription>Exemption Rate</CardDescription>
+              {loading ? (
+                <Skeleton className="h-9 w-20" />
+              ) : (
+                <CardTitle className="text-3xl text-green-600">
+                  {stats?.exemption_rate ?? 0}%
+                </CardTitle>
+              )}
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-slate-500">
+                of submissions auto-determined exempt
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>Total Submissions</CardDescription>
+              {loading ? (
+                <Skeleton className="h-9 w-16" />
+              ) : (
+                <CardTitle className="text-3xl">
+                  {stats?.total_submissions ?? 0}
+                </CardTitle>
+              )}
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-slate-500">All client submissions</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-green-200 bg-green-50/30">
+            <CardHeader className="pb-2">
+              <CardDescription>Exempt Submissions</CardDescription>
+              {loading ? (
+                <Skeleton className="h-9 w-16" />
+              ) : (
+                <CardTitle className="text-3xl text-green-600">
+                  {stats?.exempt_submissions ?? 0}
+                </CardTitle>
+              )}
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-green-700">
+                No staff time required
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-blue-200 bg-blue-50/30">
+            <CardHeader className="pb-2">
+              <CardDescription>Reportable Submissions</CardDescription>
+              {loading ? (
+                <Skeleton className="h-9 w-16" />
+              ) : (
+                <CardTitle className="text-3xl text-blue-600">
+                  {stats?.reportable_submissions ?? 0}
+                </CardTitle>
+              )}
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-blue-700">
+                Requires FinCEN filing
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+        
+        {/* Insight about early determination value */}
+        {stats && (stats.exemption_rate ?? 0) > 0 && (
+          <Card className="mt-4 border-green-200 bg-gradient-to-r from-green-50 to-emerald-50">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <TrendingUp className="h-5 w-5 text-green-600" />
+                </div>
+                <div>
+                  <p className="font-medium text-green-800">
+                    Early Determination Savings
+                  </p>
+                  <p className="text-sm text-green-700">
+                    {stats.exemption_rate}% of submissions resolved instantly with certificates. 
+                    Staff time saved: ~{Math.round((stats.exempt_submissions ?? 0) * 15)} minutes.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </section>
 
       {/* Alerts Section */}

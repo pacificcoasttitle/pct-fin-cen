@@ -3,7 +3,7 @@ SubmissionRequest model - represents a client's request for a new filing.
 """
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Text, Date, DateTime, BigInteger, ForeignKey, text
+from sqlalchemy import Column, String, Text, Date, DateTime, BigInteger, ForeignKey, text, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -18,7 +18,9 @@ class SubmissionRequest(Base):
     This is how clients initiate new FinCEN filings - they submit basic
     transaction info and PCT staff then creates the actual Report.
     
-    Status flow: pending -> assigned -> in_progress -> completed
+    Status flow: 
+    - pending -> exempt (if auto-determined exempt, ends here with certificate)
+    - pending -> reportable -> in_progress -> completed (normal workflow)
     """
     __tablename__ = "submission_requests"
 
@@ -45,6 +47,10 @@ class SubmissionRequest(Base):
     # Transaction details
     purchase_price_cents = Column(BigInteger, nullable=True)
     financing_type = Column(String(50), nullable=True)  # 'cash', 'financed', 'partial_cash'
+    
+    # Additional form fields for determination
+    property_type = Column(String(50), nullable=True)  # single_family, condo, commercial, land, etc.
+    entity_subtype = Column(String(50), nullable=True)  # llc, corporation, public_company, bank, nonprofit, etc.
 
     # Client notes
     notes = Column(Text, nullable=True)
@@ -52,9 +58,23 @@ class SubmissionRequest(Base):
     priority = Column(String(50), nullable=False, server_default="normal")  # 'urgent', 'normal', 'low'
 
     # Status tracking
-    status = Column(String(50), nullable=False, server_default="pending")  # pending, assigned, in_progress, completed, cancelled
+    # Statuses: pending, exempt, reportable, in_progress, completed, cancelled
+    status = Column(String(50), nullable=False, server_default="pending", index=True)
     assigned_to_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     report_id = Column(UUID(as_uuid=True), ForeignKey("reports.id", ondelete="SET NULL"), nullable=True)
+    
+    # =========================================================================
+    # EARLY DETERMINATION FIELDS
+    # =========================================================================
+    # Result of automatic or manual determination
+    determination_result = Column(String(50), nullable=True, index=True)  # "exempt", "reportable", "needs_review", None
+    exemption_reasons = Column(JSONBType, nullable=True)  # ["financing_involved", "buyer_is_individual", etc.]
+    determination_timestamp = Column(DateTime, nullable=True)
+    determination_method = Column(String(50), nullable=True)  # "auto_client_form", "staff_manual", "ai_assisted"
+    
+    # Exemption certificate (only if determination_result == "exempt")
+    exemption_certificate_id = Column(String(100), nullable=True, unique=True, index=True)
+    exemption_certificate_generated_at = Column(DateTime, nullable=True)
 
     # Timestamps
     submitted_at = Column(DateTime, nullable=False, default=datetime.utcnow, server_default=text("NOW()"))

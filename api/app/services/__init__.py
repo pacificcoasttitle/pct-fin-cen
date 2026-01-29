@@ -29,6 +29,16 @@ from app.services.storage import (
     get_allowed_document_types,
     DOCUMENT_TYPE_ALLOWED_CONTENT,
 )
+from app.services.early_determination import (
+    determine_reporting_requirement,
+    generate_exemption_certificate_id,
+    get_exemption_reason_display,
+    get_all_exemption_reasons_display,
+    create_determination_summary,
+    EXEMPT_ENTITY_TYPES,
+    EXEMPT_PROPERTY_TYPES,
+    EXEMPTION_REASON_DISPLAY,
+)
 
 __all__ = [
     "determine_reportability",
@@ -55,4 +65,13 @@ __all__ = [
     "validate_document_type",
     "get_allowed_document_types",
     "DOCUMENT_TYPE_ALLOWED_CONTENT",
+    # Early Determination
+    "determine_reporting_requirement",
+    "generate_exemption_certificate_id",
+    "get_exemption_reason_display",
+    "get_all_exemption_reasons_display",
+    "create_determination_summary",
+    "EXEMPT_ENTITY_TYPES",
+    "EXEMPT_PROPERTY_TYPES",
+    "EXEMPTION_REASON_DISPLAY",
 ]

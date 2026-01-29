@@ -595,6 +595,12 @@ export interface ExecutiveStats {
   mtd_revenue_cents: number;
   compliance_rate: number;
   avg_completion_days: number;
+  
+  // Early determination stats (from SubmissionRequests)
+  total_submissions?: number;
+  exempt_submissions?: number;
+  reportable_submissions?: number;
+  exemption_rate?: number;  // Percentage of submissions that were exempt
 }
 
 /**

@@ -241,6 +241,7 @@ def get_executive_stats(db: Session = Depends(get_db)):
     """
     Get executive-level statistics for the COO dashboard.
     Returns aggregated metrics across all companies.
+    Includes early determination exemption insights.
     """
     from sqlalchemy import func
     
@@ -250,7 +251,7 @@ def get_executive_stats(db: Session = Depends(get_db)):
     # Filed reports
     filed_reports = db.query(Report).filter(Report.status == "filed").count()
     
-    # Exempt reports
+    # Exempt reports (from report status - staff-determined)
     exempt_reports = db.query(Report).filter(Report.status == "exempt").count()
     
     # Pending reports (not yet filed)
@@ -275,6 +276,27 @@ def get_executive_stats(db: Session = Depends(get_db)):
     # Compliance rate (filed on time vs total filed)
     compliance_rate = 98.2  # Mock for now
     
+    # ==========================================================================
+    # NEW: Early Determination / Submission Stats
+    # ==========================================================================
+    # Total submissions
+    total_submissions = db.query(SubmissionRequest).count()
+    
+    # Exempt submissions (auto-determined at submission time)
+    exempt_submissions = db.query(SubmissionRequest).filter(
+        SubmissionRequest.determination_result == "exempt"
+    ).count()
+    
+    # Reportable submissions
+    reportable_submissions = db.query(SubmissionRequest).filter(
+        SubmissionRequest.determination_result == "reportable"
+    ).count()
+    
+    # Calculate exemption rate
+    exemption_rate = 0
+    if total_submissions > 0:
+        exemption_rate = round((exempt_submissions / total_submissions) * 100, 1)
+    
     return {
         "total_reports": total_reports,
         "filed_reports": filed_reports,
@@ -284,6 +306,11 @@ def get_executive_stats(db: Session = Depends(get_db)):
         "mtd_revenue_cents": mtd_revenue_cents,
         "compliance_rate": compliance_rate,
         "avg_completion_days": avg_completion_days,
+        # NEW: Early determination stats
+        "total_submissions": total_submissions,
+        "exempt_submissions": exempt_submissions,
+        "reportable_submissions": reportable_submissions,
+        "exemption_rate": exemption_rate,
     }
 
 

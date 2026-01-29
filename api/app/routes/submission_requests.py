@@ -2,6 +2,7 @@
 Submission Request API routes.
 
 Handles client submissions for new FinCEN filings.
+Includes early exemption determination at submission time.
 """
 from datetime import datetime, timedelta
 from typing import List, Optional
@@ -14,6 +15,11 @@ from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
 from app.models.submission_request import SubmissionRequest
 from app.models.report import Report
+from app.services.early_determination import (
+    determine_reporting_requirement,
+    generate_exemption_certificate_id,
+    get_all_exemption_reasons_display,
+)
 
 
 router = APIRouter(prefix="/submission-requests", tags=["submission-requests"])
@@ -32,23 +38,44 @@ class PropertyAddress(BaseModel):
 
 
 class SubmissionRequestCreate(BaseModel):
-    """Schema for creating a new submission request."""
+    """Schema for creating a new submission request with determination questions."""
     property_address: PropertyAddress
     purchase_price_cents: int  # Store in cents to avoid float issues
     expected_closing_date: str  # ISO date string
     escrow_number: Optional[str] = None
-    financing_type: str  # "cash", "financed", "unknown"
+    
+    # Financing - key determination question
+    financing_type: str  # "cash", "conventional", "fha_va", "seller_financing", "other_financing"
+    
+    # Buyer info
     buyer_name: str
     buyer_email: EmailStr
     buyer_type: str  # "individual", "entity", "trust"
+    
+    # Entity subtype - only if buyer_type is "entity" or "trust"
+    # Options: "llc", "corporation", "public_company", "bank", "nonprofit", etc.
+    entity_subtype: Optional[str] = None
+    
+    # Property type - key determination question
+    # Options: "single_family", "condo", "townhouse", "multi_family", "commercial", "land"
+    property_type: Optional[str] = None
+    
+    # Seller info
     seller_name: str
     seller_email: Optional[EmailStr] = None
     seller_type: Optional[str] = "individual"
+    
     notes: Optional[str] = None
 
 
+class ExemptionReasonDisplay(BaseModel):
+    """Display model for exemption reasons."""
+    code: str
+    display: str
+
+
 class SubmissionRequestResponse(BaseModel):
-    """Schema for submission request response."""
+    """Schema for submission request response with determination info."""
     id: str
     status: str
     property_address: Optional[dict]
@@ -56,9 +83,11 @@ class SubmissionRequestResponse(BaseModel):
     expected_closing_date: Optional[str]
     escrow_number: Optional[str]
     financing_type: Optional[str]
+    property_type: Optional[str]
     buyer_name: Optional[str]
     buyer_email: Optional[str]
     buyer_type: Optional[str]
+    entity_subtype: Optional[str]
     seller_name: Optional[str]
     seller_email: Optional[str]
     seller_type: Optional[str]
@@ -66,6 +95,18 @@ class SubmissionRequestResponse(BaseModel):
     report_id: Optional[str] = None
     created_at: str
     updated_at: str
+    
+    # Determination fields
+    determination_result: Optional[str] = None  # "exempt", "reportable", "needs_review"
+    exemption_reasons: Optional[List[str]] = None
+    exemption_reasons_display: Optional[List[ExemptionReasonDisplay]] = None
+    determination_timestamp: Optional[str] = None
+    determination_method: Optional[str] = None
+    exemption_certificate_id: Optional[str] = None
+    
+    # Report info (for richer status display)
+    report_status: Optional[str] = None
+    receipt_id: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -93,7 +134,14 @@ def submission_to_response(submission: SubmissionRequest, include_report_info: b
     
     If include_report_info is True and submission has a linked report,
     includes report_status and receipt_id for richer status display.
+    
+    Also includes determination fields and exemption certificate info.
     """
+    # Build exemption reasons display if available
+    exemption_reasons_display = None
+    if submission.exemption_reasons:
+        exemption_reasons_display = get_all_exemption_reasons_display(submission.exemption_reasons)
+    
     response = {
         "id": str(submission.id),
         "status": submission.status,
@@ -102,17 +150,28 @@ def submission_to_response(submission: SubmissionRequest, include_report_info: b
         "expected_closing_date": submission.expected_closing_date.isoformat() if submission.expected_closing_date else None,
         "escrow_number": submission.escrow_number,
         "financing_type": submission.financing_type,
+        "property_type": submission.property_type,
         "buyer_name": submission.buyer_name,
         "buyer_email": submission.buyer_email,
         "buyer_type": submission.buyer_type,
+        "entity_subtype": submission.entity_subtype,
         "seller_name": submission.seller_name,
         "seller_email": submission.seller_email,
-        "seller_type": None,  # Not in model yet
+        "seller_type": None,  # Could add to model later
         "notes": submission.notes,
         "report_id": str(submission.report_id) if submission.report_id else None,
         "created_at": submission.created_at.isoformat() if submission.created_at else None,
         "updated_at": submission.updated_at.isoformat() if submission.updated_at else None,
-        # NEW: Report info for richer status display
+        
+        # Determination fields
+        "determination_result": submission.determination_result,
+        "exemption_reasons": submission.exemption_reasons,
+        "exemption_reasons_display": exemption_reasons_display,
+        "determination_timestamp": submission.determination_timestamp.isoformat() if submission.determination_timestamp else None,
+        "determination_method": submission.determination_method,
+        "exemption_certificate_id": submission.exemption_certificate_id,
+        
+        # Report info for richer status display
         "report_status": None,
         "receipt_id": None,
     }
@@ -142,7 +201,12 @@ def create_submission_request(
 ):
     """
     Create a new submission request from a title company client.
-    This creates the initial request that PCT staff will process.
+    
+    This endpoint now runs EARLY EXEMPTION DETERMINATION:
+    - If transaction is EXEMPT: status becomes "exempt", certificate is generated
+    - If transaction is REPORTABLE: status becomes "reportable", goes to staff queue
+    
+    This saves staff time by immediately routing exempt transactions to completion.
     """
     from datetime import date as date_type
     
@@ -167,21 +231,52 @@ def create_submission_request(
         db.add(demo_company)
         db.flush()
     
+    # ==========================================================================
+    # RUN EARLY DETERMINATION
+    # ==========================================================================
+    result, reasons = determine_reporting_requirement(
+        financing_type=data.financing_type,
+        buyer_type=data.buyer_type,
+        entity_subtype=data.entity_subtype,
+        property_type=data.property_type,
+        purchase_price_cents=data.purchase_price_cents,
+    )
+    
+    # Set initial status based on determination
+    if result == "exempt":
+        initial_status = "exempt"
+        certificate_id = generate_exemption_certificate_id()
+        certificate_generated_at = datetime.utcnow()
+    else:
+        initial_status = "reportable"  # Goes to staff queue
+        certificate_id = None
+        certificate_generated_at = None
+    
     submission = SubmissionRequest(
         company_id=demo_company.id,
         requested_by_user_id=None,
-        status="pending",
+        status=initial_status,
         property_address=data.property_address.model_dump(),
         purchase_price_cents=data.purchase_price_cents,
         expected_closing_date=closing_date,
         escrow_number=data.escrow_number,
         financing_type=data.financing_type,
+        property_type=data.property_type,
         buyer_name=data.buyer_name,
         buyer_email=data.buyer_email,
         buyer_type=data.buyer_type,
+        entity_subtype=data.entity_subtype,
         seller_name=data.seller_name,
         seller_email=data.seller_email,
         notes=data.notes,
+        
+        # Determination fields
+        determination_result=result,
+        exemption_reasons=reasons if reasons else None,
+        determination_timestamp=datetime.utcnow(),
+        determination_method="auto_client_form",
+        exemption_certificate_id=certificate_id,
+        exemption_certificate_generated_at=certificate_generated_at,
     )
     
     db.add(submission)
@@ -254,9 +349,10 @@ def get_submission_stats(
 ):
     """
     Get submission statistics for client dashboard.
-    For demo, returns stats for the demo company.
+    Now includes exemption stats for comprehensive overview.
     """
     from app.models.company import Company
+    from sqlalchemy import func
     
     # For demo, get demo company
     demo_company = db.query(Company).filter(Company.code == "DEMO").first()
@@ -264,14 +360,17 @@ def get_submission_stats(
         return {
             "total": 0,
             "pending": 0,
+            "exempt": 0,
+            "reportable": 0,
             "in_progress": 0,
             "completed": 0,
             "this_month": 0,
+            "exemption_rate": 0,
         }
     
     company_id = demo_company.id
     
-    # Get counts
+    # Get counts by status
     total = db.query(SubmissionRequest).filter(
         SubmissionRequest.company_id == company_id
     ).count()
@@ -279,6 +378,16 @@ def get_submission_stats(
     pending = db.query(SubmissionRequest).filter(
         SubmissionRequest.company_id == company_id,
         SubmissionRequest.status == "pending"
+    ).count()
+    
+    exempt = db.query(SubmissionRequest).filter(
+        SubmissionRequest.company_id == company_id,
+        SubmissionRequest.status == "exempt"
+    ).count()
+    
+    reportable = db.query(SubmissionRequest).filter(
+        SubmissionRequest.company_id == company_id,
+        SubmissionRequest.status == "reportable"
     ).count()
     
     in_progress = db.query(SubmissionRequest).filter(
@@ -298,13 +407,39 @@ def get_submission_stats(
         SubmissionRequest.created_at >= start_of_month
     ).count()
     
+    # Calculate exemption rate
+    determined_count = exempt + reportable + in_progress + completed
+    exemption_rate = round((exempt / determined_count * 100) if determined_count > 0 else 0, 1)
+    
     return {
         "total": total,
         "pending": pending,
+        "exempt": exempt,
+        "reportable": reportable,
         "in_progress": in_progress,
         "completed": completed,
         "this_month": this_month,
+        "exemption_rate": exemption_rate,
     }
+
+
+@router.get("/certificate/{certificate_id}")
+def get_submission_by_certificate(
+    certificate_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Look up a submission by its exemption certificate ID.
+    Useful for verification and audit purposes.
+    """
+    submission = db.query(SubmissionRequest).filter(
+        SubmissionRequest.exemption_certificate_id == certificate_id
+    ).first()
+    
+    if not submission:
+        raise HTTPException(status_code=404, detail="Certificate not found")
+    
+    return submission_to_response(submission)
 
 
 @router.get("/{request_id}", response_model=SubmissionRequestResponse)
@@ -337,7 +472,8 @@ def update_submission_status(
     if not submission:
         raise HTTPException(status_code=404, detail="Submission request not found")
     
-    valid_statuses = ["pending", "assigned", "in_progress", "completed", "cancelled"]
+    # Updated to include new determination-related statuses
+    valid_statuses = ["pending", "exempt", "reportable", "in_progress", "completed", "cancelled"]
     if data.status not in valid_statuses:
         raise HTTPException(
             status_code=400, 
@@ -349,6 +485,85 @@ def update_submission_status(
     db.commit()
     
     return {"status": "updated", "new_status": data.status}
+
+
+@router.get("/admin/stats")
+def get_admin_submission_stats(
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get aggregate submission stats for admin/executive dashboard.
+    Includes exemption breakdown and trends.
+    """
+    from datetime import date as date_type
+    from sqlalchemy import func
+    
+    # Parse date filters
+    start = None
+    end = None
+    if start_date:
+        try:
+            start = datetime.combine(date_type.fromisoformat(start_date), datetime.min.time())
+        except ValueError:
+            pass
+    if end_date:
+        try:
+            end = datetime.combine(date_type.fromisoformat(end_date), datetime.max.time())
+        except ValueError:
+            pass
+    
+    # Base query
+    query = db.query(SubmissionRequest)
+    if start:
+        query = query.filter(SubmissionRequest.created_at >= start)
+    if end:
+        query = query.filter(SubmissionRequest.created_at <= end)
+    
+    # Get counts
+    total = query.count()
+    exempt = query.filter(SubmissionRequest.determination_result == "exempt").count()
+    reportable = query.filter(SubmissionRequest.determination_result == "reportable").count()
+    filed = query.filter(SubmissionRequest.status == "completed").count()
+    
+    # Calculate rates
+    exempt_rate = round((exempt / total * 100) if total > 0 else 0, 1)
+    reportable_rate = round((reportable / total * 100) if total > 0 else 0, 1)
+    filed_rate = round((filed / reportable * 100) if reportable > 0 else 0, 1)
+    
+    # Get exemption breakdown by reason
+    exempt_submissions = query.filter(
+        SubmissionRequest.exemption_reasons.isnot(None)
+    ).all()
+    
+    reason_counts: dict = {}
+    for sub in exempt_submissions:
+        if sub.exemption_reasons:
+            for reason in sub.exemption_reasons:
+                reason_counts[reason] = reason_counts.get(reason, 0) + 1
+    
+    # Convert to list with display names
+    exemption_breakdown = [
+        {
+            "reason": reason,
+            "display": get_all_exemption_reasons_display([reason])[0]["display"] if reason else reason,
+            "count": count,
+            "percentage": round((count / exempt * 100) if exempt > 0 else 0, 1)
+        }
+        for reason, count in sorted(reason_counts.items(), key=lambda x: x[1], reverse=True)
+    ]
+    
+    return {
+        "total": total,
+        "exempt": exempt,
+        "reportable": reportable,
+        "filed": filed,
+        "exempt_rate": exempt_rate,
+        "reportable_rate": reportable_rate,
+        "filed_rate": filed_rate,
+        "exemption_breakdown": exemption_breakdown,
+    }
 
 
 @router.post("/{request_id}/create-report", response_model=CreateReportResponse)

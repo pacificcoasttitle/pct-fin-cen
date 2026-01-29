@@ -19,6 +19,7 @@ import {
   FileText,
   RefreshCw,
   ArrowRight,
+  Shield,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -48,8 +49,15 @@ import { useToast } from "@/hooks/use-toast"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000"
 
+// Extended SubmissionRequest with determination fields
+interface ExtendedSubmissionRequest extends SubmissionRequest {
+  determinationResult?: string | null
+  exemptionReasons?: string[] | null
+  exemptionCertificateId?: string | null
+}
+
 // Transform API response to match our SubmissionRequest interface
-function transformApiResponse(apiData: ApiSubmissionRequest): SubmissionRequest {
+function transformApiResponse(apiData: ApiSubmissionRequest): ExtendedSubmissionRequest {
   return {
     id: apiData.id,
     companyId: "", // Not provided by API yet
@@ -71,17 +79,23 @@ function transformApiResponse(apiData: ApiSubmissionRequest): SubmissionRequest 
     assignedTo: null,
     submittedAt: apiData.created_at,
     reportId: apiData.report_id || null,
+    // Early determination fields
+    determinationResult: apiData.determination_result,
+    exemptionReasons: apiData.exemption_reasons,
+    exemptionCertificateId: apiData.exemption_certificate_id,
   }
 }
 
 // Map API status to our local status type
-function mapApiStatus(apiStatus: string): "pending" | "in_progress" | "completed" | "cancelled" {
-  const statusMap: Record<string, "pending" | "in_progress" | "completed" | "cancelled"> = {
+function mapApiStatus(apiStatus: string): "pending" | "in_progress" | "completed" | "cancelled" | "exempt" | "reportable" {
+  const statusMap: Record<string, "pending" | "in_progress" | "completed" | "cancelled" | "exempt" | "reportable"> = {
     pending: "pending",
     assigned: "in_progress",
     in_progress: "in_progress",
     completed: "completed",
     cancelled: "cancelled",
+    exempt: "exempt",
+    reportable: "reportable",
   }
   return statusMap[apiStatus] || "pending"
 }
@@ -104,6 +118,10 @@ interface ApiSubmissionRequest {
   report_id: string | null
   created_at: string
   updated_at: string
+  // Early determination fields
+  determination_result: string | null
+  exemption_reasons: string[] | null
+  exemption_certificate_id: string | null
 }
 
 function formatTimeAgo(dateStr: string): string {
@@ -132,13 +150,13 @@ export default function AdminRequestsPage() {
   const { toast } = useToast()
   
   // State
-  const [requests, setRequests] = useState<SubmissionRequest[]>([])
+  const [requests, setRequests] = useState<ExtendedSubmissionRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [priorityFilter, setPriorityFilter] = useState<string>("all")
-  const [selectedRequest, setSelectedRequest] = useState<SubmissionRequest | null>(null)
+  const [selectedRequest, setSelectedRequest] = useState<ExtendedSubmissionRequest | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [isCreatingReport, setIsCreatingReport] = useState<string | null>(null)
 
@@ -174,8 +192,9 @@ export default function AdminRequestsPage() {
 
   // Calculate stats
   const stats = useMemo(() => {
-    const pending = requests.filter(r => r.status === "pending").length
+    const pending = requests.filter(r => r.status === "pending" || r.status === "reportable").length
     const inProgress = requests.filter(r => r.status === "in_progress").length
+    const exempt = requests.filter(r => r.status === "exempt" || r.determinationResult === "exempt").length
     const today = new Date().toDateString()
     const completedToday = requests.filter(
       r => r.status === "completed" && r.completedAt && new Date(r.completedAt).toDateString() === today
@@ -184,6 +203,7 @@ export default function AdminRequestsPage() {
       pending,
       inProgress,
       completedToday,
+      exempt,
       avgProcessingHours: 4.2, // TODO: Calculate from actual data
     }
   }, [requests])
@@ -196,14 +216,28 @@ export default function AdminRequestsPage() {
         request.companyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         request.buyerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         request.escrowNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        request.propertyAddress.street.toLowerCase().includes(searchQuery.toLowerCase())
-      const matchesStatus = statusFilter === "all" || request.status === statusFilter
+        request.propertyAddress.street.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (request.exemptionCertificateId || "").toLowerCase().includes(searchQuery.toLowerCase())
+      
+      // Status filter logic - handle exempt specially
+      let matchesStatus = false
+      if (statusFilter === "all") {
+        matchesStatus = true
+      } else if (statusFilter === "exempt") {
+        matchesStatus = request.status === "exempt" || request.determinationResult === "exempt"
+      } else if (statusFilter === "pending") {
+        // Show both pending and reportable (needs staff action)
+        matchesStatus = request.status === "pending" || request.status === "reportable"
+      } else {
+        matchesStatus = request.status === statusFilter
+      }
+      
       const matchesPriority = priorityFilter === "all" || request.priority === priorityFilter
       return matchesSearch && matchesStatus && matchesPriority
     })
   }, [requests, searchQuery, statusFilter, priorityFilter])
 
-  const handleViewRequest = (request: SubmissionRequest) => {
+  const handleViewRequest = (request: ExtendedSubmissionRequest) => {
     setSelectedRequest(request)
     setSheetOpen(true)
   }
@@ -362,15 +396,15 @@ export default function AdminRequestsPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-green-200">
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-purple-100 rounded-xl">
-                <Timer className="h-5 w-5 text-purple-600" />
+              <div className="p-2.5 bg-green-100 rounded-xl">
+                <Shield className="h-5 w-5 text-green-600" />
               </div>
               <div>
-                <p className="text-xs text-slate-500 uppercase tracking-wide">Avg Processing</p>
-                <p className="text-2xl font-bold">{stats.avgProcessingHours} hrs</p>
+                <p className="text-xs text-slate-500 uppercase tracking-wide">Auto-Exempt</p>
+                <p className="text-2xl font-bold text-green-600">{stats.exempt}</p>
               </div>
             </div>
           </CardContent>
@@ -416,12 +450,18 @@ export default function AdminRequestsPage() {
               <TabsList>
                 <TabsTrigger value="all">All</TabsTrigger>
                 <TabsTrigger value="pending" className="gap-1.5">
-                  Pending
+                  Needs Action
                   <Badge variant="secondary" className="h-5 px-1.5 bg-amber-100 text-amber-700">
-                    {requests.filter(r => r.status === "pending").length}
+                    {requests.filter(r => r.status === "pending" || r.status === "reportable").length}
                   </Badge>
                 </TabsTrigger>
                 <TabsTrigger value="in_progress">In Progress</TabsTrigger>
+                <TabsTrigger value="exempt" className="gap-1.5">
+                  Exempt
+                  <Badge variant="secondary" className="h-5 px-1.5 bg-green-100 text-green-700">
+                    {requests.filter(r => r.status === "exempt" || r.determinationResult === "exempt").length}
+                  </Badge>
+                </TabsTrigger>
                 <TabsTrigger value="completed">Completed</TabsTrigger>
                 <TabsTrigger value="cancelled">Cancelled</TabsTrigger>
               </TabsList>
