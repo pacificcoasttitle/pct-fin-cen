@@ -8,14 +8,14 @@
 
 | Category | Count |
 |----------|-------|
-| 🔴 Critical Fixes | 9 |
+| 🔴 Critical Fixes | 10 |
 | 🟠 Major Features | 6 |
 | 🎨 UX/Design | 2 |
 | 🔧 Configuration | 1 |
 | 📄 Documentation | 4 |
 | 🎯 Demo Data & API | 1 |
 
-**Total Sharks Killed: 34 🦈**
+**Total Sharks Killed: 35 🦈**
 
 ---
 
@@ -95,6 +95,48 @@ Also added:
 
 **Files Changed:**
 - `api/app/schemas/party.py` (updated PartyInput validation)
+
+---
+
+### 10. 🚨 Party Portal Data Hydration - FIXED ✅
+
+**Problem:** Party portal forms were empty - no pre-filled data. Email field was broken (showing empty, couldn't type).
+
+**Root Causes:**
+1. `party_data` was NOT being populated when creating parties via `/party-links`
+2. `PartyResponse` schema missing `email` field
+3. Frontend `PartyData` type missing fields
+
+**Impact:** **DEMO BLOCKER** - Parties had to manually re-enter all information. Email validation failed.
+
+**Solution:**
+
+1. **Pre-populate `party_data` when creating parties:**
+```python
+initial_party_data = {
+    "display_name": party_in.display_name,
+    "email": party_in.email,
+    "phone": party_in.phone,
+    # Parse names based on entity_type
+    "first_name": ...,  # For individuals
+    "entity_name": ..., # For entities
+    "trust_name": ...,  # For trusts
+}
+party = ReportParty(..., party_data=initial_party_data)
+```
+
+2. **Added to schemas:**
+- `email` field to `PartyResponse`
+- `purchase_price` to `ReportSummary`
+
+3. **Updated frontend types:**
+- Added `email`, `entity_type`, `link_expires_at`, `is_submitted` to `PartyData`
+
+**Files Changed:**
+- `api/app/routes/reports.py` (populate party_data on creation)
+- `api/app/routes/parties.py` (return email and purchase_price)
+- `api/app/schemas/party.py` (added email, purchase_price fields)
+- `web/lib/api.ts` (updated PartyData interface)
 
 ---
 
