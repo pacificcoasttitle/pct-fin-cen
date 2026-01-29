@@ -9,7 +9,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, EmailStr
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
 from app.models.submission_request import SubmissionRequest
@@ -87,9 +87,14 @@ class CreateReportResponse(BaseModel):
 # Helper Functions
 # ============================================================================
 
-def submission_to_response(submission: SubmissionRequest) -> dict:
-    """Convert SubmissionRequest model to response dict."""
-    return {
+def submission_to_response(submission: SubmissionRequest, include_report_info: bool = True) -> dict:
+    """
+    Convert SubmissionRequest model to response dict.
+    
+    If include_report_info is True and submission has a linked report,
+    includes report_status and receipt_id for richer status display.
+    """
+    response = {
         "id": str(submission.id),
         "status": submission.status,
         "property_address": submission.property_address,
@@ -107,7 +112,23 @@ def submission_to_response(submission: SubmissionRequest) -> dict:
         "report_id": str(submission.report_id) if submission.report_id else None,
         "created_at": submission.created_at.isoformat() if submission.created_at else None,
         "updated_at": submission.updated_at.isoformat() if submission.updated_at else None,
+        # NEW: Report info for richer status display
+        "report_status": None,
+        "receipt_id": None,
     }
+    
+    # Include report info if available (requires relationship to be loaded)
+    if include_report_info and submission.report_id:
+        try:
+            report = submission.report
+            if report:
+                response["report_status"] = report.status
+                response["receipt_id"] = report.receipt_id
+        except Exception:
+            # Relationship not loaded, that's okay
+            pass
+    
+    return response
 
 
 # ============================================================================
@@ -180,8 +201,12 @@ def list_submission_requests(
     List submission requests.
     For admin/staff: returns all requests
     For client: returns only their company's requests (in production)
+    
+    Returns report_status and receipt_id for richer status display.
     """
-    query = db.query(SubmissionRequest)
+    query = db.query(SubmissionRequest).options(
+        joinedload(SubmissionRequest.report)  # Eagerly load report for status info
+    )
     
     if status:
         query = query.filter(SubmissionRequest.status == status)
@@ -191,7 +216,7 @@ def list_submission_requests(
     query = query.limit(limit)
     
     submissions = query.all()
-    return [submission_to_response(s) for s in submissions]
+    return [submission_to_response(s, include_report_info=True) for s in submissions]
 
 
 @router.get("/my-requests", response_model=List[SubmissionRequestResponse])
@@ -204,6 +229,7 @@ def get_my_requests(
     For demo purposes, returns all requests for the demo company.
     
     In production, this will filter by the authenticated user's company_id.
+    Returns report_status and receipt_id for richer status display.
     """
     from app.models.company import Company
     
@@ -212,11 +238,13 @@ def get_my_requests(
     if not demo_company:
         return []
     
-    requests = db.query(SubmissionRequest).filter(
+    requests = db.query(SubmissionRequest).options(
+        joinedload(SubmissionRequest.report)  # Eagerly load report for status info
+    ).filter(
         SubmissionRequest.company_id == demo_company.id
     ).order_by(SubmissionRequest.created_at.desc()).all()
     
-    return [submission_to_response(r) for r in requests]
+    return [submission_to_response(r, include_report_info=True) for r in requests]
 
 
 @router.get("/stats")

@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -15,7 +16,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { 
-  Inbox, 
   Clock, 
   FileText, 
   CheckCircle, 
@@ -25,10 +25,10 @@ import {
   RefreshCw,
   Users,
   Eye,
+  Send,
 } from "lucide-react";
 import Link from "next/link";
 import { useDemo } from "@/hooks/use-demo";
-import { createReport } from "@/lib/api";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
@@ -50,24 +50,74 @@ interface QueueReport {
   all_parties_complete: boolean;
 }
 
+interface QueueCounts {
+  needs_setup: number;
+  collecting: number;
+  ready: number;
+  total: number;
+}
+
+const statusConfig: Record<string, { label: string; color: string; description: string }> = {
+  draft: { 
+    label: "Needs Setup", 
+    color: "bg-slate-500",
+    description: "Wizard in progress, parties not yet invited"
+  },
+  determination_complete: { 
+    label: "Ready for Parties", 
+    color: "bg-blue-500",
+    description: "Determination complete, ready to send party links"
+  },
+  collecting: { 
+    label: "Collecting", 
+    color: "bg-amber-500",
+    description: "Waiting for parties to submit information"
+  },
+  ready_to_file: { 
+    label: "Ready to File", 
+    color: "bg-green-500",
+    description: "All information collected, ready for FinCEN submission"
+  },
+};
+
 export default function StaffQueuePage() {
   const { user } = useDemo();
   const router = useRouter();
+  const [activeTab, setActiveTab] = useState("all");
   const [reports, setReports] = useState<QueueReport[]>([]);
+  const [counts, setCounts] = useState<QueueCounts>({ 
+    needs_setup: 0, 
+    collecting: 0, 
+    ready: 0, 
+    total: 0 
+  });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [isCreatingReport, setIsCreatingReport] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
   const fetchQueue = useCallback(async (showRefreshing = false) => {
     if (showRefreshing) setRefreshing(true);
     
     try {
-      // Fetch reports in "collecting" status (waiting for parties)
-      const res = await fetch(`${API_BASE_URL}/reports/queue/with-parties?status=collecting&limit=50`);
+      // Fetch all active reports (API now defaults to active statuses if no filter)
+      const res = await fetch(
+        `${API_BASE_URL}/reports/queue/with-parties?limit=100`
+      );
+      
       if (res.ok) {
         const data = await res.json();
-        setReports(data.reports || []);
+        const items: QueueReport[] = data.reports || [];
+        setReports(items);
+        
+        // Calculate counts
+        setCounts({
+          needs_setup: items.filter((r) => 
+            r.status === "draft" || r.status === "determination_complete"
+          ).length,
+          collecting: items.filter((r) => r.status === "collecting").length,
+          ready: items.filter((r) => r.status === "ready_to_file").length,
+          total: items.length,
+        });
       }
     } catch (error) {
       console.error("Failed to fetch queue:", error);
@@ -89,48 +139,121 @@ export default function StaffQueuePage() {
     return () => clearInterval(interval);
   }, [fetchQueue]);
 
-  const handleStartWizard = async (report: QueueReport) => {
-    router.push(`/app/reports/${report.id}/wizard`);
-  };
-
   const handleRefresh = () => {
     fetchQueue(true);
   };
 
-  // Calculate stats
-  const stats = {
-    waitingOnParties: reports.filter(r => !r.all_parties_complete && r.parties_total > 0).length,
-    readyToReview: reports.filter(r => r.all_parties_complete && r.parties_total > 0).length,
-    noParties: reports.filter(r => r.parties_total === 0).length,
-    total: reports.length,
+  const handleAction = (report: QueueReport) => {
+    router.push(`/app/reports/${report.id}/wizard`);
   };
 
-  const getPartyBadge = (report: QueueReport) => {
+  const getFilteredReports = () => {
+    switch (activeTab) {
+      case "needs_setup":
+        return reports.filter(r => r.status === "draft" || r.status === "determination_complete");
+      case "collecting":
+        return reports.filter(r => r.status === "collecting");
+      case "ready":
+        return reports.filter(r => r.status === "ready_to_file");
+      default:
+        return reports;
+    }
+  };
+
+  const getActionButton = (report: QueueReport) => {
+    switch (report.status) {
+      case "draft":
+      case "determination_complete":
+        return (
+          <Button size="sm" onClick={() => handleAction(report)}>
+            <Play className="h-3 w-3 mr-1" />
+            Continue Setup
+          </Button>
+        );
+      case "collecting":
+        return (
+          <Button 
+            size="sm" 
+            variant={report.all_parties_complete ? "default" : "outline"}
+            onClick={() => handleAction(report)}
+          >
+            {report.all_parties_complete ? (
+              <>
+                <CheckCircle className="h-3 w-3 mr-1" />
+                Review
+              </>
+            ) : (
+              <>
+                <Eye className="h-3 w-3 mr-1" />
+                View Progress
+              </>
+            )}
+          </Button>
+        );
+      case "ready_to_file":
+        return (
+          <Button 
+            size="sm" 
+            className="bg-green-600 hover:bg-green-700" 
+            onClick={() => handleAction(report)}
+          >
+            <Send className="h-3 w-3 mr-1" />
+            Review & File
+          </Button>
+        );
+      default:
+        return (
+          <Button size="sm" variant="outline" onClick={() => handleAction(report)}>
+            <Eye className="h-3 w-3 mr-1" />
+            View
+          </Button>
+        );
+    }
+  };
+
+  const getDaysUntilDeadline = (deadline: string | null): number | null => {
+    if (!deadline) return null;
+    const deadlineDate = new Date(deadline);
+    const now = new Date();
+    const diffTime = deadlineDate.getTime() - now.getTime();
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  };
+
+  const formatDeadline = (deadline: string | null) => {
+    if (!deadline) return "—";
+    try {
+      return new Date(deadline).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      });
+    } catch {
+      return "—";
+    }
+  };
+
+  const getPartyProgress = (report: QueueReport) => {
     if (report.parties_total === 0) {
       return (
-        <Badge variant="outline" className="text-slate-500">
-          <Users className="h-3 w-3 mr-1" />
-          No parties
-        </Badge>
-      );
-    }
-    
-    if (report.all_parties_complete) {
-      return (
-        <Badge className="bg-green-100 text-green-700 border-green-200">
-          <CheckCircle className="h-3 w-3 mr-1" />
-          {report.parties_submitted}/{report.parties_total} Complete
-        </Badge>
+        <span className="text-xs text-muted-foreground">No parties yet</span>
       );
     }
     
     return (
-      <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
-        <Clock className="h-3 w-3 mr-1" />
-        {report.parties_submitted}/{report.parties_total} Waiting
-      </Badge>
+      <div className="flex items-center gap-2">
+        <div className="flex items-center">
+          <Users className="h-3 w-3 mr-1 text-muted-foreground" />
+          <span className="text-sm">
+            {report.parties_submitted}/{report.parties_total}
+          </span>
+        </div>
+        {report.all_parties_complete && (
+          <CheckCircle className="h-4 w-4 text-green-500" />
+        )}
+      </div>
     );
   };
+
+  const filteredReports = getFilteredReports();
 
   if (loading) {
     return (
@@ -145,9 +268,9 @@ export default function StaffQueuePage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Party Collection Queue</h1>
+          <h1 className="text-2xl font-bold text-slate-900">My Queue</h1>
           <p className="text-slate-500">
-            Reports waiting for party information submission
+            Track and manage your assigned reports
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -166,171 +289,215 @@ export default function StaffQueuePage() {
         </div>
       </div>
 
-      {/* Stats */}
+      {/* Stats Cards */}
       <div className="grid gap-4 sm:grid-cols-4">
-        <Card className={stats.waitingOnParties > 0 ? "border-amber-200 bg-amber-50" : ""}>
+        <Card 
+          className={`cursor-pointer transition-colors hover:bg-slate-50 ${activeTab === "all" ? "ring-2 ring-primary" : ""}`}
+          onClick={() => setActiveTab("all")}
+        >
           <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-amber-100 rounded-lg">
-                <Clock className="h-5 w-5 text-amber-600" />
-              </div>
+            <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-slate-500">Waiting on Parties</p>
-                <p className="text-xl font-bold text-amber-600">{stats.waitingOnParties}</p>
+                <p className="text-3xl font-bold">{counts.total}</p>
+                <p className="text-sm text-muted-foreground">Total Active</p>
               </div>
+              <FileText className="h-8 w-8 text-slate-400" />
             </div>
           </CardContent>
         </Card>
-        <Card className={stats.readyToReview > 0 ? "border-green-200 bg-green-50" : ""}>
+        
+        <Card 
+          className={`cursor-pointer transition-colors hover:bg-slate-50 ${counts.needs_setup > 0 ? 'border-amber-300 bg-amber-50' : ''} ${activeTab === "needs_setup" ? "ring-2 ring-primary" : ""}`}
+          onClick={() => setActiveTab("needs_setup")}
+        >
           <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <CheckCircle className="h-5 w-5 text-green-600" />
-              </div>
+            <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-slate-500">Ready to Review</p>
-                <p className="text-xl font-bold text-green-600">{stats.readyToReview}</p>
+                <p className="text-3xl font-bold">{counts.needs_setup}</p>
+                <p className="text-sm text-muted-foreground">Needs Setup</p>
               </div>
+              <Play className="h-8 w-8 text-amber-500" />
             </div>
           </CardContent>
         </Card>
-        <Card>
+        
+        <Card 
+          className={`cursor-pointer transition-colors hover:bg-slate-50 ${activeTab === "collecting" ? "ring-2 ring-primary" : ""}`}
+          onClick={() => setActiveTab("collecting")}
+        >
           <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-slate-100 rounded-lg">
-                <Users className="h-5 w-5 text-slate-600" />
-              </div>
+            <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-slate-500">Pending Setup</p>
-                <p className="text-xl font-bold">{stats.noParties}</p>
+                <p className="text-3xl font-bold">{counts.collecting}</p>
+                <p className="text-sm text-muted-foreground">Collecting</p>
               </div>
+              <Users className="h-8 w-8 text-blue-500" />
             </div>
           </CardContent>
         </Card>
-        <Card>
+        
+        <Card 
+          className={`cursor-pointer transition-colors hover:bg-slate-50 ${counts.ready > 0 ? 'border-green-300 bg-green-50' : ''} ${activeTab === "ready" ? "ring-2 ring-primary" : ""}`}
+          onClick={() => setActiveTab("ready")}
+        >
           <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <FileText className="h-5 w-5 text-blue-600" />
-              </div>
+            <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-slate-500">Total in Queue</p>
-                <p className="text-xl font-bold">{stats.total}</p>
+                <p className="text-3xl font-bold">{counts.ready}</p>
+                <p className="text-sm text-muted-foreground">Ready to File</p>
               </div>
+              <CheckCircle className="h-8 w-8 text-green-500" />
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Queue Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Reports Collecting Party Data</CardTitle>
-          <CardDescription>
-            {stats.readyToReview > 0 && (
-              <span className="text-green-600 font-medium">
-                🎉 {stats.readyToReview} report{stats.readyToReview > 1 ? 's' : ''} ready to review!
-              </span>
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="mb-4">
+          <TabsTrigger value="all">
+            All ({counts.total})
+          </TabsTrigger>
+          <TabsTrigger value="needs_setup" className="relative">
+            Needs Setup
+            {counts.needs_setup > 0 && (
+              <Badge className="ml-2 bg-amber-500 hover:bg-amber-500">{counts.needs_setup}</Badge>
             )}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {reports.length === 0 ? (
-            <div className="text-center py-12">
-              <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
-              <p className="text-lg font-medium text-slate-900">No reports in collection!</p>
-              <p className="text-slate-500">All parties have submitted or no reports are collecting.</p>
-              <Button asChild className="mt-4">
-                <Link href="/app/admin/reports">View All Reports</Link>
-              </Button>
-            </div>
-          ) : (
-            <div className="overflow-x-auto -mx-6">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Property</TableHead>
-                    <TableHead>Escrow #</TableHead>
-                    <TableHead>Parties</TableHead>
-                    <TableHead>Progress</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {reports.map((report) => (
-                    <TableRow
-                      key={report.id}
-                      className={report.all_parties_complete ? "bg-green-50/50" : ""}
-                    >
-                      <TableCell>
-                        <div className="font-medium max-w-xs truncate">
-                          {report.property_address_text || "No address"}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          ID: {report.id.slice(0, 8)}...
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-mono text-sm">
-                        {report.escrow_number || "—"}
-                      </TableCell>
-                      <TableCell>{getPartyBadge(report)}</TableCell>
-                      <TableCell className="w-32">
-                        {report.parties_total > 0 ? (
-                          <div className="space-y-1">
-                            <Progress 
-                              value={(report.parties_submitted / report.parties_total) * 100} 
-                              className={`h-2 ${report.all_parties_complete ? '[&>div]:bg-green-500' : '[&>div]:bg-amber-500'}`}
-                            />
-                            <span className="text-xs text-muted-foreground">
-                              {Math.round((report.parties_submitted / report.parties_total) * 100)}%
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {report.all_parties_complete ? (
-                          <Badge className="bg-green-100 text-green-700">Ready</Badge>
-                        ) : report.parties_total > 0 ? (
-                          <Badge variant="outline" className="bg-amber-50 text-amber-700">Collecting</Badge>
-                        ) : (
-                          <Badge variant="outline">Setup</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button 
-                          size="sm"
-                          onClick={() => handleStartWizard(report)}
-                          variant={report.all_parties_complete ? "default" : "outline"}
-                        >
-                          {report.all_parties_complete ? (
-                            <>
-                              <CheckCircle className="mr-1 h-3 w-3" />
-                              Review
-                            </>
-                          ) : (
-                            <>
-                              <Eye className="mr-1 h-3 w-3" />
-                              View
-                            </>
-                          )}
-                        </Button>
-                      </TableCell>
+          </TabsTrigger>
+          <TabsTrigger value="collecting">
+            Collecting ({counts.collecting})
+          </TabsTrigger>
+          <TabsTrigger value="ready" className="relative">
+            Ready to File
+            {counts.ready > 0 && (
+              <Badge className="ml-2 bg-green-500 hover:bg-green-500">{counts.ready}</Badge>
+            )}
+          </TabsTrigger>
+        </TabsList>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              {activeTab === "all" && "All Active Reports"}
+              {activeTab === "needs_setup" && "Reports Needing Setup"}
+              {activeTab === "collecting" && "Reports Collecting Party Data"}
+              {activeTab === "ready" && "Reports Ready to File"}
+            </CardTitle>
+            <CardDescription>
+              {counts.ready > 0 && activeTab !== "ready" && (
+                <span className="text-green-600 font-medium">
+                  🎉 {counts.ready} report{counts.ready > 1 ? 's' : ''} ready to file!
+                </span>
+              )}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {filteredReports.length === 0 ? (
+              <div className="text-center py-12">
+                <FileText className="h-12 w-12 text-slate-300 mx-auto mb-4" />
+                <p className="text-lg font-medium text-slate-900">No reports in this category</p>
+                <p className="text-slate-500">
+                  {activeTab === "ready" 
+                    ? "Reports will appear here when all parties have submitted."
+                    : "Great job keeping up with your queue!"}
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto -mx-6">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Property</TableHead>
+                      <TableHead>Escrow #</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Progress</TableHead>
+                      <TableHead>Deadline</TableHead>
+                      <TableHead className="text-right">Action</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredReports.map((report) => {
+                      const daysLeft = getDaysUntilDeadline(report.filing_deadline);
+                      const isUrgent = daysLeft !== null && daysLeft <= 5 && daysLeft >= 0;
+                      const isOverdue = daysLeft !== null && daysLeft < 0;
+                      const config = statusConfig[report.status];
+                      
+                      return (
+                        <TableRow 
+                          key={report.id}
+                          className={
+                            isOverdue ? "bg-red-50" : 
+                            isUrgent ? "bg-amber-50" : 
+                            report.status === "ready_to_file" ? "bg-green-50/50" : ""
+                          }
+                        >
+                          <TableCell>
+                            <div>
+                              <p className="font-medium max-w-xs truncate">
+                                {report.property_address_text || "No address"}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                ID: {report.id.slice(0, 8)}...
+                              </p>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <code className="text-sm bg-slate-100 px-2 py-0.5 rounded">
+                              {report.escrow_number || "—"}
+                            </code>
+                          </TableCell>
+                          <TableCell>
+                            <Badge className={config?.color || "bg-slate-500"}>
+                              {config?.label || report.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {report.status === "collecting" ? (
+                              getPartyProgress(report)
+                            ) : report.status === "draft" || report.status === "determination_complete" ? (
+                              <span className="text-sm text-muted-foreground">
+                                Step {report.wizard_step || 1}
+                              </span>
+                            ) : (
+                              <span className="text-sm text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {report.filing_deadline ? (
+                              <div className={`flex items-center gap-1 ${
+                                isOverdue ? 'text-red-600 font-semibold' : 
+                                isUrgent ? 'text-amber-600 font-medium' : ''
+                              }`}>
+                                {(isUrgent || isOverdue) && <AlertTriangle className="h-4 w-4" />}
+                                <span>{formatDeadline(report.filing_deadline)}</span>
+                                {daysLeft !== null && (
+                                  <span className="text-xs">
+                                    {isOverdue ? `(${Math.abs(daysLeft)}d overdue)` : `(${daysLeft}d)`}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {getActionButton(report)}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </Tabs>
 
       {/* Quick Links */}
       <div className="flex gap-4">
         <Button variant="outline" asChild>
-          <Link href="/app/admin/reports">View All Reports</Link>
+          <Link href="/app/reports">View All Reports</Link>
         </Button>
         <Button variant="outline" asChild>
           <Link href="/app/admin/requests">View Requests</Link>
@@ -339,7 +506,7 @@ export default function StaffQueuePage() {
 
       {/* Auto-refresh notice */}
       <p className="text-xs text-center text-muted-foreground">
-        🔄 This page auto-refreshes every 30 seconds to show the latest party submissions
+        🔄 This page auto-refreshes every 30 seconds
       </p>
     </div>
   );

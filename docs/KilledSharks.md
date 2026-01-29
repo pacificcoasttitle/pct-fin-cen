@@ -1653,37 +1653,98 @@ Includes helper functions:
 
 ---
 
-## Investigation Completed (Fix Pending)
+### 28. End-to-End Status Tracking & Action Prominence ✅
 
-### 28. Status Accuracy & Button Prominence (Investigation) 🔍
+**Problem:** Status visibility was incomplete and inconsistent:
+- SubmissionRequest never became "completed" when filed
+- My Queue only showed "collecting" reports (missed draft)
+- "Start Wizard" required 2 clicks (buried in sheet)
+- Clients couldn't see detailed progress
+- No urgency indicators for approaching deadlines
 
-**Issues Found:**
+**Solution:**
 
-| Issue | Priority | Impact |
-|-------|----------|--------|
-| SubmissionRequest not marked "completed" when filed | 🔴 P0 | Client dashboard shows wrong status |
-| My Queue only shows "collecting" reports | 🟠 P1 | Staff can't see reports needing party setup |
-| "Start Wizard" requires 2 clicks | 🟡 P2 | Workflow friction |
-| No urgency indicators for deadlines | 🟡 P3 | May miss filing deadlines |
+**1. Status Sync - SubmissionRequest ↔ Report** (`api/app/routes/reports.py`)
+```python
+# In file_report endpoint - after successful filing:
+if report.submission_request_id:
+    submission_request = db.query(SubmissionRequest).filter(
+        SubmissionRequest.id == report.submission_request_id
+    ).first()
+    if submission_request:
+        submission_request.status = "completed"
+        submission_request.updated_at = datetime.utcnow()
 
-**Key Findings:**
+# In determine endpoint - when report is exempt:
+if not is_reportable:
+    report.status = "exempt"
+    if report.submission_request_id:
+        submission_request.status = "completed"  # Also complete the request
+```
 
-1. **Status Sync Bug:** When `POST /file` succeeds, the linked `SubmissionRequest.status` stays `in_progress` instead of becoming `completed`. Clients never see their request as "Completed"!
+**2. Expanded My Queue** (`api/app/routes/reports.py`)
+- Added `statuses` parameter for comma-separated list filtering
+- Defaults to all active statuses: `draft,determination_complete,collecting,ready_to_file`
+- Orders by urgency: ready_to_file first, then by deadline
+```python
+@router.get("/queue/with-parties")
+def list_reports_with_parties(
+    status: Optional[str] = None,  # Single status
+    statuses: Optional[str] = None,  # Comma-separated: "draft,collecting"
+    ...
+```
 
-2. **My Queue Filter Too Narrow:** Queue page only fetches `status=collecting`, so draft reports and reports awaiting party setup are invisible to staff.
+**3. Rebuilt My Queue Frontend** (`web/app/(app)/app/staff/queue/page.tsx`)
+- Tabbed interface: All | Needs Setup | Collecting | Ready to File
+- Stats cards with counts (clickable to filter)
+- Urgency indicators (red for overdue, amber for ≤5 days)
+- Correct action buttons per status:
+  - Draft → "Continue Setup"
+  - Collecting → "View Progress" / "Review"
+  - Ready → "Review & File" (green)
 
-3. **Button Visibility:** "Start Wizard" is in a slide-out sheet (requires row click first), but "View/Review" buttons in My Queue are inline and visible.
+**4. Inline Action Buttons** (`web/app/(app)/app/admin/requests/page.tsx`)
+```tsx
+// Added inline buttons in Actions column:
+{request.status === "pending" && (
+  <Button onClick={() => handleStartWizard(request.id)}>
+    <Play className="h-3 w-3 mr-1" />
+    Start Wizard
+  </Button>
+)}
 
-**Recommended Fixes:**
-1. **P0:** Update SubmissionRequest to "completed" in `file_report` endpoint
-2. **P1:** Expand My Queue to show draft/collecting/ready_to_file OR add tabs
-3. **P2:** Add inline "Start Wizard" button in All Requests table
-4. **P3:** Add urgency badges for approaching deadlines
+{request.status === "in_progress" && request.reportId && (
+  <Button onClick={() => router.push(`/app/reports/${request.reportId}/wizard`)}>
+    <ArrowRight className="h-3 w-3 mr-1" />
+    Continue
+  </Button>
+)}
+```
 
-**Files Created:**
-- `docs/INVESTIGATION_STATUS_BUTTONS_FINDINGS.md` (comprehensive analysis)
+**5. Enhanced API Response** (`api/app/routes/submission_requests.py`)
+- Added `report_status` and `receipt_id` to SubmissionRequest API response
+- Clients can now see richer status details
+- Uses `joinedload` to eagerly load report data
 
-**Status:** 🔍 Investigation Complete (Fix pending)
+**Complete Status Lifecycle Now:**
+```
+SubmissionRequest: pending → in_progress → completed ✅
+Report: draft → collecting → ready_to_file → filed
+                    ↑
+            Parties: sent → submitted
+```
+
+**Files Changed:**
+- `api/app/routes/reports.py` (status sync on filing + exempt, queue API)
+- `api/app/routes/submission_requests.py` (report_status in response)
+- `web/app/(app)/app/staff/queue/page.tsx` (complete rebuild with tabs)
+- `web/app/(app)/app/admin/requests/page.tsx` (inline action buttons)
+
+**Status:** ✅ Killed
+
+---
+
+### Updated Shark Count: 33 🦈
 
 ---
 
@@ -1699,13 +1760,13 @@ Includes helper functions:
 8. ~~**P0:** Fix SubmissionRequest → Wizard data flow~~ ✅ DONE
 9. ~~**P0:** Fix Party Links status check~~ ✅ DONE
 10. ~~**P1:** Fix session cookie parsing~~ ✅ DONE
-11. **P0:** Fix SubmissionRequest "completed" status on filing
-12. **P1:** Expand My Queue to show more report statuses
-13. **P2:** Add inline Start Wizard button to All Requests
+11. ~~**P0:** Fix SubmissionRequest "completed" status on filing~~ ✅ DONE
+12. ~~**P1:** Expand My Queue to show more report statuses~~ ✅ DONE
+13. ~~**P2:** Add inline Start Wizard button to All Requests~~ ✅ DONE
 14. **P3:** Add more comprehensive form validation
 15. **P3:** Add `refreshCounts()` calls after key actions (start wizard, file report)
 16. **P3:** Add human-readable confirmation numbers (currently shows UUID slice)
 
 ---
 
-*Last updated: January 28, 2026 @ 2:30 PM*
+*Last updated: January 28, 2026 @ 3:00 PM*

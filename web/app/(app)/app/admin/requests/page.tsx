@@ -18,6 +18,7 @@ import {
   Loader2,
   FileText,
   RefreshCw,
+  ArrowRight,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -511,17 +512,56 @@ export default function AdminRequestsPage() {
                         )}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleViewRequest(request)
-                          }}
-                        >
-                          <Eye className="h-4 w-4 mr-1" />
-                          View
-                        </Button>
+                        <div className="flex items-center justify-end gap-2">
+                          {/* PRIMARY ACTION based on status */}
+                          {request.status === "pending" && (
+                            <Button 
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleStartWizard(request.id)
+                              }}
+                              disabled={isCreatingReport === request.id}
+                            >
+                              {isCreatingReport === request.id ? (
+                                <>
+                                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                  Starting...
+                                </>
+                              ) : (
+                                <>
+                                  <Play className="h-3 w-3 mr-1" />
+                                  Start Wizard
+                                </>
+                              )}
+                            </Button>
+                          )}
+                          
+                          {request.status === "in_progress" && request.reportId && (
+                            <Button 
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                router.push(`/app/reports/${request.reportId}/wizard`)
+                              }}
+                            >
+                              <ArrowRight className="h-3 w-3 mr-1" />
+                              Continue
+                            </Button>
+                          )}
+                          
+                          {/* SECONDARY: View details */}
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleViewRequest(request)
+                            }}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))

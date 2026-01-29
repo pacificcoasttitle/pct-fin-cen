@@ -7,11 +7,13 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
+from sqlalchemy import case
 
 from app.database import get_db
 from app.config import get_settings
 from app.models import Report, ReportParty, PartyLink, AuditLog
 from app.models.billing_event import BillingEvent
+from app.models.submission_request import SubmissionRequest
 from app.schemas.report import (
     ReportCreate,
     ReportResponse,
@@ -112,7 +114,8 @@ def list_reports(
 
 @router.get("/queue/with-parties", response_model=ReportListWithPartiesResponse)
 def list_reports_with_parties(
-    status: Optional[str] = Query(None, description="Filter by status (e.g., 'collecting')"),
+    status: Optional[str] = Query(None, description="Filter by single status (e.g., 'collecting')"),
+    statuses: Optional[str] = Query(None, description="Filter by multiple statuses (comma-separated: 'draft,collecting,ready_to_file')"),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
@@ -123,15 +126,42 @@ def list_reports_with_parties(
     This endpoint is optimized for queue/dashboard views where party
     completion status needs to be shown at a glance.
     
+    Can filter by single status or multiple statuses.
+    If no status filter provided, returns all active work (draft, determination_complete, collecting, ready_to_file).
+    
     Returns party counts: total, submitted, pending, all_complete flag.
     """
     query = db.query(Report)
     
-    if status:
+    # Filter by status(es)
+    if statuses:
+        # Support comma-separated: "draft,collecting,ready_to_file"
+        status_list = [s.strip() for s in statuses.split(",")]
+        query = query.filter(Report.status.in_(status_list))
+    elif status:
         query = query.filter(Report.status == status)
+    else:
+        # Default: Show all active work (not filed, not exempt)
+        query = query.filter(Report.status.in_([
+            "draft",
+            "determination_complete",
+            "collecting",
+            "ready_to_file"
+        ]))
     
     total = query.count()
-    reports = query.order_by(Report.created_at.desc()).offset(offset).limit(limit).all()
+    
+    # Order by urgency: ready_to_file first, then by deadline
+    reports = query.order_by(
+        case(
+            (Report.status == "ready_to_file", 1),
+            (Report.status == "collecting", 2),
+            (Report.status == "determination_complete", 3),
+            (Report.status == "draft", 4),
+            else_=5
+        ),
+        Report.filing_deadline.asc().nullslast()
+    ).offset(offset).limit(limit).all()
     
     result = []
     for report in reports:
@@ -385,6 +415,18 @@ def determine_report(
         report.status = "determination_complete"
     else:
         report.status = "exempt"
+        
+        # =================================================================
+        # UPDATE: Mark linked SubmissionRequest as "completed" when exempt
+        # =================================================================
+        if report.submission_request_id:
+            submission_request = db.query(SubmissionRequest).filter(
+                SubmissionRequest.id == report.submission_request_id
+            ).first()
+            if submission_request:
+                submission_request.status = "completed"
+                submission_request.updated_at = datetime.utcnow()
+    
     report.updated_at = datetime.utcnow()
     
     # Audit log
@@ -719,6 +761,18 @@ def file_report(
         )
         db.add(billing_event)
         db.commit()
+    
+    # =================================================================
+    # UPDATE: Mark linked SubmissionRequest as "completed"
+    # =================================================================
+    if outcome == "accepted" and report.submission_request_id:
+        submission_request = db.query(SubmissionRequest).filter(
+            SubmissionRequest.id == report.submission_request_id
+        ).first()
+        if submission_request:
+            submission_request.status = "completed"
+            submission_request.updated_at = datetime.utcnow()
+            db.commit()
     
     # Return appropriate response based on outcome
     if outcome == "accepted":
