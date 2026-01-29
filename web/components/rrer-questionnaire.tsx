@@ -733,14 +733,19 @@ export function RRERQuestionnaire({
   ]
 
   // Progress calculations
+  // Use maximum possible steps for consistent progress display
+  // This prevents showing 100% when only 1 step is known in dynamic array
+  const MAX_DETERMINATION_STEPS = 7 // property, intent-to-build, financing, lender-aml, buyer-type, exemptions, result
+  
   const determinationProgress = useMemo(() => {
     const currentIndex = relevantDeterminationSteps.indexOf(determinationStep)
-    return ((currentIndex + 1) / relevantDeterminationSteps.length) * 100
+    // Use max possible steps so step 1 shows ~14%, step 2 shows ~28%, etc.
+    return Math.round(((currentIndex + 1) / MAX_DETERMINATION_STEPS) * 100)
   }, [determinationStep, relevantDeterminationSteps])
 
   const collectionProgress = useMemo(() => {
     const currentIndex = collectionSteps.indexOf(collectionStep)
-    return ((currentIndex + 1) / collectionSteps.length) * 100
+    return Math.round(((currentIndex + 1) / collectionSteps.length) * 100)
   }, [collectionStep])
 
   // Navigation handlers
@@ -1030,13 +1035,13 @@ export function RRERQuestionnaire({
                         Step {relevantDeterminationSteps.indexOf(determinationStep) + 1}
                       </span>
                       <span className="text-sm text-muted-foreground">
-                        of {relevantDeterminationSteps.length}
+                        • Determination Phase
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
                       <span className="text-sm font-semibold text-primary">
-                        {Math.round(determinationProgress)}%
+                        {determinationProgress}%
                       </span>
                     </div>
                   </div>
@@ -1635,7 +1640,7 @@ export function RRERQuestionnaire({
                   
                   {/* Step indicator */}
                   <span className="text-sm text-muted-foreground hidden sm:block">
-                    Step {relevantDeterminationSteps.indexOf(determinationStep) + 1} of {relevantDeterminationSteps.length}
+                    Determination • {determinationProgress}% complete
                   </span>
                   
                   <Button
