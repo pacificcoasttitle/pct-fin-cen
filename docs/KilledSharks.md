@@ -2029,7 +2029,95 @@ Report: draft → collecting → ready_to_file → filed
 
 ---
 
-### Updated Shark Count: 40 🦈
+---
+
+### 41. Kill All Sharks - Traceability Audit & Gap Closure ✅ 🦈 GIANT SHARK
+
+**Date:** January 29, 2026
+
+**Problem:** Comprehensive traceability investigation revealed 10 critical gaps preventing full visibility across all user roles.
+
+**Solution:** Executed `CURSOR_PROMPT_KILL_ALL_SHARKS.md` in 3 phases:
+
+**Phase 1: Client Visibility (Quick Wins)**
+
+| Fix | Problem | Solution |
+|-----|---------|----------|
+| Party Status → Requests | Client couldn't see party submission progress | Added progress bar + "X/Y parties submitted" to `web/app/(app)/app/requests/page.tsx` |
+| Party Status → Dashboard | Client couldn't see party status in dashboard | Added party progress to recent requests in `web/app/(app)/app/dashboard/page.tsx` |
+| Certificate Search | Admin couldn't search by exemption certificate ID | Added search dialog in `web/app/(app)/app/admin/requests/page.tsx` |
+
+**Phase 2: Admin Pages (Medium Effort)**
+
+| Fix | Problem | Solution |
+|-----|---------|----------|
+| Admin Invoice Page | No UI to manage invoices despite API existing | Created `web/app/(app)/app/admin/invoices/page.tsx` with list/filter/detail |
+| Admin Document Page | No UI for staff to review uploaded documents | Created `web/app/(app)/app/admin/documents/page.tsx` with verify/reject |
+| Document List API | Admin page needed document listing | Added `GET /documents/admin/list` endpoint |
+| Document Verify API | Staff needed to verify/reject documents | Added `PATCH /documents/{id}/verify` endpoint |
+| Client Invoice Wiring | Client invoice page used mock data | Wired `web/app/(app)/app/invoices/page.tsx` to real `/invoices` API |
+| Navigation Links | Admin pages not in sidebar | Added "Invoices" and "Documents" to admin nav section |
+
+**Phase 3: Tracking & Analytics (Refinement)**
+
+| Fix | Problem | Solution |
+|-----|---------|----------|
+| Party Link Opens | No tracking when party first opens link | Added `opened_at` field + migration + `EVENT_PARTY_LINK_OPENED` audit |
+| Document Downloads | No audit of document downloads | Added `EVENT_DOCUMENT_DOWNLOADED` logging in download URL endpoint |
+| Exemption Breakdown | Executive dashboard missing exemption reasons chart | Added `exemption_reasons_breakdown` to `/executive-stats` + chart UI |
+| Demo Seed Exemptions | No exempt submissions for demo | Added 4 exempt scenarios with different reasons + 1 reportable |
+
+**Audit Logging Added:**
+
+All major state-changing operations now logged:
+- `submission.created`, `submission.determined`, `submission.status_changed`
+- `report.created`, `report.updated`
+- `party.created`, `party.updated`, `party.data_saved`, `party.submitted`
+- `party_link.created`, `party_link.opened`, `party_link.expired`
+- `document.upload_started`, `document.uploaded`, `document.verified`, `document.downloaded`, `document.deleted`
+- `company.created`, `company.updated`, `company.status_changed`
+- `user.created`, `user.updated`, `user.invited`, `user.deactivated`
+- `invoice.generated`, `invoice.status_changed`
+- `filing.submitted`, `filing.accepted`, `filing.rejected`
+
+**Files Created:**
+- `api/app/services/audit.py` (centralized audit service)
+- `api/app/routes/audit.py` (audit log API endpoints)
+- `api/alembic/versions/20260129_000003_add_party_link_opened_at.py`
+- `web/app/(app)/app/admin/invoices/page.tsx`
+- `web/app/(app)/app/admin/documents/page.tsx`
+- `docs/INVESTIGATION_TRACEABILITY_FINDINGS.md`
+- `docs/RIPPLE_EFFECT_ANALYSIS_2026_01_29.md`
+- `docs/TRACEABILITY_AUDIT_COMPLETE.md`
+
+**Files Modified:**
+- `api/app/routes/submission_requests.py` (audit logging)
+- `api/app/routes/documents.py` (download tracking, admin list, verify)
+- `api/app/routes/companies.py` (audit logging)
+- `api/app/routes/users.py` (audit logging)
+- `api/app/routes/invoices.py` (audit logging)
+- `api/app/routes/parties.py` (party link opened tracking)
+- `api/app/routes/reports.py` (exemption reasons breakdown)
+- `api/app/models/party_link.py` (opened_at field)
+- `api/app/services/demo_seed.py` (exempt scenarios)
+- `web/app/(app)/app/requests/page.tsx` (party status visibility)
+- `web/app/(app)/app/dashboard/page.tsx` (party status visibility)
+- `web/app/(app)/app/admin/requests/page.tsx` (certificate search)
+- `web/app/(app)/app/executive/page.tsx` (exemption reasons chart)
+- `web/app/(app)/app/invoices/page.tsx` (real data)
+- `web/lib/api.ts` (ExemptionReasonsBreakdown type)
+- `web/lib/navigation.ts` (admin page links)
+
+**Demo Data Now Includes:**
+- 4 auto-exempt submissions (financed_transaction, public_company, government_entity, individual_buyer)
+- 1 reportable submission
+- 11 total submission scenarios covering full lifecycle
+
+**Status:** ✅ KILLED (GIANT SHARK - 10 gaps closed)
+
+---
+
+### Updated Shark Count: 41 🦈
 
 ---
 
