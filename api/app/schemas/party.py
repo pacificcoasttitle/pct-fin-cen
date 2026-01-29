@@ -9,10 +9,13 @@ from pydantic import BaseModel, Field
 
 class PartyInput(BaseModel):
     """Input for creating a party."""
-    party_role: str = Field(..., pattern="^(transferee|transferor|beneficial_owner|reporting_person)$")
-    entity_type: str = Field(..., pattern="^(individual|llc|corporation|trust|partnership|other)$")
+    # Allow both FinCEN terms (transferee/transferor) and common terms (buyer/seller)
+    party_role: str = Field(..., pattern="^(transferee|transferor|buyer|seller|beneficial_owner|reporting_person)$")
+    # Allow both specific entity types and generic "entity"
+    entity_type: str = Field(..., pattern="^(individual|entity|llc|corporation|trust|partnership|other)$")
     display_name: Optional[str] = None
     email: Optional[str] = None  # Email to send invite to
+    phone: Optional[str] = None  # Optional phone number
 
 
 class PartyLinkCreate(BaseModel):
