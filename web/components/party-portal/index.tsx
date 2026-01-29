@@ -7,12 +7,18 @@ export { CertificationSection, CERTIFICATION_TEXTS } from "./CertificationSectio
 export { BeneficialOwnerCard, createEmptyBeneficialOwner } from "./BeneficialOwnerCard"
 export { PaymentSourceCard, createEmptyPaymentSource } from "./PaymentSourceCard"
 export { SellerIndividualForm } from "./SellerIndividualForm"
+export { SellerEntityForm } from "./SellerEntityForm"
+export { SellerTrustForm } from "./SellerTrustForm"
 export { BuyerEntityForm } from "./BuyerEntityForm"
 export { TrusteeCard, createEmptyTrustee } from "./TrusteeCard"
 export { BuyerTrustForm } from "./BuyerTrustForm"
+export { ValidationMessages, ValidationSuccess, FieldError } from "./ValidationMessages"
+export * from "./validation"
 
 // Form selector component
 import { SellerIndividualForm } from "./SellerIndividualForm"
+import { SellerEntityForm } from "./SellerEntityForm"
+import { SellerTrustForm } from "./SellerTrustForm"
 import { BuyerEntityForm } from "./BuyerEntityForm"
 import { BuyerTrustForm } from "./BuyerTrustForm"
 import { CertificationSection, CERTIFICATION_TEXTS } from "./CertificationSection"
@@ -67,49 +73,89 @@ export function DynamicPartyForm({
   const isSeller = partyRole === "transferor"
   const isBuyer = partyRole === "transferee"
 
-  // Route to the correct form based on role and type
-  if (isSeller && entityType === "individual") {
-    return (
-      <SellerIndividualForm
-        data={data}
-        onChange={onChange}
-        disabled={disabled}
-        email={email}
-      />
-    )
+  // ===========================================================================
+  // SELLER / TRANSFEROR FORMS
+  // ===========================================================================
+  
+  if (isSeller) {
+    // Seller Individual
+    if (entityType === "individual") {
+      return (
+        <SellerIndividualForm
+          data={data}
+          onChange={onChange}
+          disabled={disabled}
+          email={email}
+        />
+      )
+    }
+    
+    // Seller Entity (LLC, Corp, Partnership)
+    if (entityType === "entity") {
+      return (
+        <SellerEntityForm
+          data={data}
+          onChange={onChange}
+          disabled={disabled}
+          email={email}
+        />
+      )
+    }
+    
+    // Seller Trust
+    if (entityType === "trust") {
+      return (
+        <SellerTrustForm
+          data={data}
+          onChange={onChange}
+          disabled={disabled}
+          email={email}
+        />
+      )
+    }
+  }
+  
+  // ===========================================================================
+  // BUYER / TRANSFEREE FORMS
+  // ===========================================================================
+  
+  if (isBuyer) {
+    // Buyer Entity (LLC, Corp) - Full form with BOs and payment
+    if (entityType === "entity") {
+      return (
+        <BuyerEntityForm
+          data={data}
+          onChange={onChange}
+          disabled={disabled}
+          purchasePrice={purchasePrice}
+        />
+      )
+    }
+    
+    // Buyer Trust - Full form with trustees, settlors, beneficiaries, payment
+    if (entityType === "trust") {
+      return (
+        <BuyerTrustForm
+          data={data}
+          onChange={onChange}
+          disabled={disabled}
+          purchasePrice={purchasePrice}
+        />
+      )
+    }
+    
+    // Buyer Individual - Generic form (could be enhanced later)
+    return <GenericIndividualForm data={data} onChange={onChange} disabled={disabled} email={email} />
   }
 
-  if (isBuyer && entityType === "entity") {
-    return (
-      <BuyerEntityForm
-        data={data}
-        onChange={onChange}
-        disabled={disabled}
-        purchasePrice={purchasePrice}
-      />
-    )
-  }
-
-  // Buyer Trust - full form with trustees, settlors, beneficiaries, payment
-  if (isBuyer && entityType === "trust") {
-    return (
-      <BuyerTrustForm
-        data={data}
-        onChange={onChange}
-        disabled={disabled}
-        purchasePrice={purchasePrice}
-      />
-    )
-  }
-
-  // Fallback: Generic forms for other combinations
-  // These can be expanded into full components later
+  // ===========================================================================
+  // FALLBACK: Generic forms for unknown combinations
+  // ===========================================================================
   
   if (entityType === "entity") {
     return <GenericEntityForm data={data} onChange={onChange} disabled={disabled} />
   }
 
-  // Seller trust uses generic form (simpler requirements)
   if (entityType === "trust") {
     return <GenericTrustForm data={data} onChange={onChange} disabled={disabled} />
   }
