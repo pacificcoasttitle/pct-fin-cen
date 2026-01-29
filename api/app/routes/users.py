@@ -17,6 +17,7 @@ from app.models.user import User
 from app.models.company import Company
 from app.models.report import Report
 from app.models.submission_request import SubmissionRequest
+from app.services.audit import log_event, log_change, ENTITY_USER
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -340,6 +341,23 @@ async def create_user(
     )
     
     db.add(user)
+    db.flush()
+    
+    # Audit log
+    log_event(
+        db=db,
+        entity_type=ENTITY_USER,
+        entity_id=str(user.id),
+        event_type="user.created",
+        actor_type="admin",  # TODO: Get from auth context
+        details={
+            "email": user.email,
+            "name": user.name,
+            "role": user.role,
+            "company_id": user.company_id,
+        },
+    )
+    
     db.commit()
     db.refresh(user)
     
@@ -406,6 +424,24 @@ async def invite_user(
     )
     
     db.add(user)
+    db.flush()
+    
+    # Audit log
+    log_event(
+        db=db,
+        entity_type=ENTITY_USER,
+        entity_id=str(user.id),
+        event_type="user.invited",
+        actor_type="admin",  # TODO: Get from auth context
+        details={
+            "email": user.email,
+            "name": user.name,
+            "role": user.role,
+            "company_id": user.company_id,
+            "company_name": company.name,
+        },
+    )
+    
     db.commit()
     db.refresh(user)
     
@@ -476,6 +512,20 @@ async def update_user(
     
     user.updated_at = datetime.utcnow()
     
+    # Audit log
+    log_event(
+        db=db,
+        entity_type=ENTITY_USER,
+        entity_id=str(user.id),
+        event_type="user.updated",
+        actor_type="admin",  # TODO: Get from auth context
+        details={
+            "updated_fields": [
+                k for k, v in request.model_dump(exclude_unset=True).items() if v is not None
+            ],
+        },
+    )
+    
     db.commit()
     
     return {
@@ -506,8 +556,20 @@ async def deactivate_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
+    old_status = user.status
     user.status = "disabled"
     user.updated_at = datetime.utcnow()
+    
+    # Audit log
+    log_change(
+        db=db,
+        entity_type=ENTITY_USER,
+        entity_id=str(user.id),
+        event_type="user.deactivated",
+        old_values={"status": old_status},
+        new_values={"status": "disabled"},
+        actor_type="admin",  # TODO: Get from auth context
+    )
     
     db.commit()
     
@@ -550,6 +612,17 @@ async def reactivate_user(
     
     user.status = "active"
     user.updated_at = datetime.utcnow()
+    
+    # Audit log
+    log_change(
+        db=db,
+        entity_type=ENTITY_USER,
+        entity_id=str(user.id),
+        event_type="user.reactivated",
+        old_values={"status": "disabled"},
+        new_values={"status": "active"},
+        actor_type="admin",  # TODO: Get from auth context
+    )
     
     db.commit()
     

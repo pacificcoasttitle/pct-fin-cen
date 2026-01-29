@@ -18,6 +18,7 @@ from app.models.user import User
 from app.models.submission_request import SubmissionRequest
 from app.models.report import Report
 from app.models.invoice import Invoice
+from app.services.audit import log_event, log_change, ENTITY_COMPANY
 
 router = APIRouter(prefix="/companies", tags=["companies"])
 
@@ -285,6 +286,22 @@ async def create_company(
     )
     
     db.add(company)
+    db.flush()
+    
+    # Audit log
+    log_event(
+        db=db,
+        entity_type=ENTITY_COMPANY,
+        entity_id=str(company.id),
+        event_type="company.created",
+        actor_type="admin",  # TODO: Get from auth context
+        details={
+            "name": company.name,
+            "code": company.code,
+            "company_type": company.company_type,
+        },
+    )
+    
     db.commit()
     db.refresh(company)
     
@@ -328,6 +345,20 @@ async def update_company(
         company.settings = request.settings
     
     company.updated_at = datetime.utcnow()
+    
+    # Audit log
+    log_event(
+        db=db,
+        entity_type=ENTITY_COMPANY,
+        entity_id=str(company.id),
+        event_type="company.updated",
+        actor_type="admin",  # TODO: Get from auth context
+        details={
+            "updated_fields": [
+                k for k, v in request.model_dump(exclude_unset=True).items() if v is not None
+            ],
+        },
+    )
     
     db.commit()
     
@@ -381,6 +412,17 @@ async def update_company_status(
             User.company_id == company_id,
             User.status == "disabled"
         ).update({"status": "active"})
+    
+    # Audit log
+    log_change(
+        db=db,
+        entity_type=ENTITY_COMPANY,
+        entity_id=str(company.id),
+        event_type="company.status_changed",
+        old_values={"status": old_status},
+        new_values={"status": request.status},
+        actor_type="admin",  # TODO: Get from auth context
+    )
     
     db.commit()
     

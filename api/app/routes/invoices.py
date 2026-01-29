@@ -16,6 +16,7 @@ from app.models.invoice import Invoice
 from app.models.billing_event import BillingEvent
 from app.models.company import Company
 from app.models.report import Report
+from app.services.audit import log_event, log_change, ENTITY_INVOICE
 
 router = APIRouter(prefix="/invoices", tags=["invoices"])
 
@@ -235,6 +236,22 @@ async def generate_invoice(
         event.invoice_id = invoice.id
         event.invoiced_at = datetime.utcnow()
     
+    # Audit log
+    log_event(
+        db=db,
+        entity_type=ENTITY_INVOICE,
+        entity_id=str(invoice.id),
+        event_type="invoice.generated",
+        actor_type="system",  # Usually auto-generated
+        details={
+            "invoice_number": invoice.invoice_number,
+            "total_cents": invoice.total_cents,
+            "line_items_count": len(events),
+            "period_start": str(period_start),
+            "period_end": str(period_end),
+        },
+    )
+    
     db.commit()
     
     return {
@@ -268,6 +285,7 @@ async def update_invoice_status(
     if status not in valid_statuses:
         raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {valid_statuses}")
     
+    old_status = invoice.status
     invoice.status = status
     
     if status == "sent":
@@ -280,6 +298,18 @@ async def update_invoice_status(
             invoice.payment_reference = payment_reference
     elif status == "void":
         invoice.voided_at = datetime.utcnow()
+    
+    # Audit log
+    event_type = f"invoice.{status}"  # e.g., invoice.paid, invoice.sent
+    log_change(
+        db=db,
+        entity_type=ENTITY_INVOICE,
+        entity_id=str(invoice.id),
+        event_type=event_type,
+        old_values={"status": old_status},
+        new_values={"status": status},
+        actor_type="admin",  # TODO: Get from auth context
+    )
     
     db.commit()
     

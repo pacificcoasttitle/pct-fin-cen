@@ -20,6 +20,13 @@ from app.services.early_determination import (
     generate_exemption_certificate_id,
     get_all_exemption_reasons_display,
 )
+from app.services.audit import (
+    log_submission_created,
+    log_submission_determined,
+    log_change,
+    ENTITY_SUBMISSION_REQUEST,
+    EVENT_SUBMISSION_STATUS_CHANGED,
+)
 
 
 router = APIRouter(prefix="/submission-requests", tags=["submission-requests"])
@@ -280,6 +287,35 @@ def create_submission_request(
     )
     
     db.add(submission)
+    db.flush()  # Get the ID for audit logging
+    
+    # ==========================================================================
+    # AUDIT LOGGING
+    # ==========================================================================
+    # Log creation
+    log_submission_created(
+        db=db,
+        submission_id=str(submission.id),
+        details={
+            "property_address": data.property_address.model_dump(),
+            "buyer_name": data.buyer_name,
+            "buyer_type": data.buyer_type,
+            "financing_type": data.financing_type,
+            "property_type": data.property_type,
+        },
+        actor_type="client",  # TODO: Get from auth context
+    )
+    
+    # Log determination
+    log_submission_determined(
+        db=db,
+        submission_id=str(submission.id),
+        result=result,
+        reasons=reasons,
+        method="auto_client_form",
+        certificate_id=certificate_id,
+    )
+    
     db.commit()
     db.refresh(submission)
     
@@ -480,8 +516,21 @@ def update_submission_status(
             detail=f"Invalid status. Must be one of: {valid_statuses}"
         )
     
+    old_status = submission.status
     submission.status = data.status
     submission.updated_at = datetime.utcnow()
+    
+    # Audit log the status change
+    log_change(
+        db=db,
+        entity_type=ENTITY_SUBMISSION_REQUEST,
+        entity_id=str(submission.id),
+        event_type=EVENT_SUBMISSION_STATUS_CHANGED,
+        old_values={"status": old_status},
+        new_values={"status": data.status},
+        actor_type="staff",  # TODO: Get from auth context
+    )
+    
     db.commit()
     
     return {"status": "updated", "new_status": data.status}

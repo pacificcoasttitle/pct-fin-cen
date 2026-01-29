@@ -21,6 +21,14 @@ from app.services.storage import (
     get_allowed_document_types,
     DOCUMENT_TYPE_ALLOWED_CONTENT,
 )
+from app.services.audit import (
+    log_document_event,
+    EVENT_DOCUMENT_UPLOAD_STARTED,
+    EVENT_DOCUMENT_UPLOADED,
+    EVENT_DOCUMENT_DOWNLOADED,
+    EVENT_DOCUMENT_DELETED,
+    EVENT_DOCUMENT_VERIFIED,
+)
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -171,6 +179,23 @@ def generate_upload_url(
         upload_confirmed=False,
     )
     db.add(document)
+    db.flush()
+    
+    # Audit log
+    log_document_event(
+        db=db,
+        document_id=str(document.id),
+        event_type=EVENT_DOCUMENT_UPLOAD_STARTED,
+        party_id=party_id,
+        report_id=report_id,
+        details={
+            "document_type": request.document_type,
+            "filename": request.filename,
+            "mime_type": request.content_type,
+        },
+        actor_type="party",
+    )
+    
     db.commit()
     db.refresh(document)
     
@@ -223,6 +248,25 @@ def confirm_upload(
     
     document.upload_confirmed = True
     document.uploaded_at = datetime.utcnow()
+    
+    # Get party and report for audit
+    party = document.report_party
+    report_id = str(party.report_id) if party and party.report_id else None
+    
+    # Audit log
+    log_document_event(
+        db=db,
+        document_id=document_id,
+        event_type=EVENT_DOCUMENT_UPLOADED,
+        party_id=str(document.report_party_id) if document.report_party_id else None,
+        report_id=report_id,
+        details={
+            "size_bytes": document.size_bytes,
+            "document_type": document.document_type,
+        },
+        actor_type="party",
+    )
+    
     db.commit()
     
     logger.info(f"Confirmed upload for document {document_id}")
@@ -384,9 +428,30 @@ def delete_document(
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
     
+    # Capture info for audit before deletion
+    party_id = str(document.report_party_id) if document.report_party_id else None
+    party = document.report_party
+    report_id = str(party.report_id) if party and party.report_id else None
+    doc_type = document.document_type
+    filename = document.file_name
+    
     # Delete from R2 if exists
     if document.storage_key and storage_service.is_configured:
         storage_service.delete_file(document.storage_key)
+    
+    # Audit log (before delete so we have context)
+    log_document_event(
+        db=db,
+        document_id=document_id,
+        event_type=EVENT_DOCUMENT_DELETED,
+        party_id=party_id,
+        report_id=report_id,
+        details={
+            "document_type": doc_type,
+            "filename": filename,
+        },
+        actor_type="party",  # Could be staff/admin
+    )
     
     # Delete from database
     db.delete(document)
@@ -413,6 +478,24 @@ def verify_document(
         raise HTTPException(status_code=400, detail="Document upload not confirmed")
     
     document.verified_at = datetime.utcnow()
+    
+    # Get party and report for audit
+    party = document.report_party
+    report_id = str(party.report_id) if party and party.report_id else None
+    
+    # Audit log
+    log_document_event(
+        db=db,
+        document_id=document_id,
+        event_type=EVENT_DOCUMENT_VERIFIED,
+        party_id=str(document.report_party_id) if document.report_party_id else None,
+        report_id=report_id,
+        details={
+            "document_type": document.document_type,
+        },
+        actor_type="staff",  # Verification is done by staff
+    )
+    
     db.commit()
     
     logger.info(f"Verified document {document_id}")
