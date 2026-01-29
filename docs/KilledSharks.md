@@ -1952,7 +1952,84 @@ Report: draft → collecting → ready_to_file → filed
 
 ---
 
-### Updated Shark Count: 39 🦈
+### 40. Secure Document Upload with Cloudflare R2 ✅
+
+**Date:** January 29, 2026
+
+**Problem:** Party portal had no way to upload ID documents, trust agreements, or formation documents required for FinCEN compliance.
+
+**Solution:** Complete document upload system using Cloudflare R2 storage with pre-signed URLs (browser uploads directly to R2, bypassing server).
+
+**Backend Implementation:**
+
+| Component | Purpose |
+|-----------|---------|
+| `api/app/services/storage.py` | R2 storage service with pre-signed URL generation |
+| `api/app/routes/documents.py` | Document API endpoints |
+| `api/app/models/document.py` | Enhanced Document model with R2 fields |
+| Database migration | Add `storage_key`, `upload_confirmed`, `description` fields |
+
+**API Endpoints:**
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/documents/allowed-types` | GET | Get allowed document types and content types |
+| `/documents/upload-url` | POST | Generate pre-signed upload URL |
+| `/documents/confirm/{id}` | POST | Confirm successful upload |
+| `/documents/download/{id}` | GET | Generate pre-signed download URL |
+| `/documents/party/{id}` | GET | List documents for a party |
+| `/documents/report/{id}` | GET | List all documents for a report |
+| `/documents/{id}` | DELETE | Delete document from R2 and database |
+| `/documents/{id}/verify` | POST | Mark document as verified by staff |
+
+**Frontend Implementation:**
+
+| Component | Purpose |
+|-----------|---------|
+| `DocumentUpload.tsx` | Drag-and-drop upload component |
+| `DocumentsTable.tsx` | Table view for staff/admin |
+| Integration | Added to all party forms (buyer, seller, entity, trust, individual) |
+
+**Supported Document Types:**
+
+| Type | Allowed Content Types |
+|------|----------------------|
+| `government_id` | JPEG, PNG, PDF |
+| `government_id_back` | JPEG, PNG, PDF |
+| `trust_agreement` | PDF only |
+| `formation_docs` | PDF only |
+| `operating_agreement` | PDF only |
+| `articles_of_incorporation` | PDF only |
+| `beneficial_owner_id` | JPEG, PNG, PDF |
+| `other` | JPEG, PNG, PDF |
+
+**Security Features:**
+- Direct browser-to-R2 upload (server never handles files)
+- Pre-signed URLs expire in 1 hour
+- File type validation
+- Max size: 10MB (configurable)
+- CORS configured for production domain
+
+**Files Created:**
+- `api/app/services/storage.py` (NEW - 200+ lines)
+- `api/app/routes/documents.py` (NEW - 350+ lines)
+- `api/alembic/versions/20260129_000001_add_document_r2_storage.py` (NEW)
+- `web/components/party-portal/DocumentUpload.tsx` (NEW - 350+ lines)
+- `web/components/party/DocumentsTable.tsx` (NEW - 200+ lines)
+
+**Files Modified:**
+- `api/app/models/document.py` (enhanced for R2)
+- `api/app/config.py` (R2 environment variables)
+- `api/requirements.txt` (added boto3)
+- `web/components/party-portal/*.tsx` (all forms now include DocumentUpload)
+- `web/components/party/PartyDetailCard.tsx` (shows documents)
+- `web/components/party/PartySummaryCard.tsx` (shows document count)
+
+**Status:** ✅ Killed
+
+---
+
+### Updated Shark Count: 40 🦈
 
 ---
 
