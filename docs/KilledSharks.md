@@ -1,6 +1,6 @@
-# 🦈 Killed Sharks - January 27, 2026
+# 🦈 Killed Sharks - January 29, 2026
 
-> A running log of all bugs, gaps, and issues we've slayed today.
+> A running log of all bugs, gaps, and issues we've slayed.
 
 ---
 
@@ -8,12 +8,14 @@
 
 | Category | Count |
 |----------|-------|
-| 🔴 Critical Fixes | 8 |
+| 🔴 Critical Fixes | 9 |
 | 🟠 Major Features | 6 |
 | 🎨 UX/Design | 2 |
 | 🔧 Configuration | 1 |
-| 📄 Documentation | 3 |
+| 📄 Documentation | 4 |
 | 🎯 Demo Data & API | 1 |
+
+**Total Sharks Killed: 34 🦈**
 
 ---
 
@@ -65,6 +67,34 @@
 - `web/app/(app)/app/requests/new/page.tsx` (added API integration)
 - `web/app/(app)/app/admin/requests/page.tsx` (removed 600+ lines mock, added real fetch)
 - `web/components/admin/request-detail-sheet.tsx` (added loading state)
+
+---
+
+### 9. 🚨 Party Links 422 Error - FIXED ✅
+
+**Problem:** POST `/reports/{id}/party-links` returning 422 Unprocessable Entity. Staff could not send party links. Wizard got stuck on "Loading party status" forever.
+
+**Root Cause:** Schema mismatch between frontend and API:
+- API `entity_type` only accepted: `individual|llc|corporation|trust|partnership|other`
+- Frontend was sending: `"entity"` (generic)
+
+**Impact:** **DEMO BLOCKER** - Entire workflow stuck at party setup phase.
+
+**Solution:** Updated `api/app/schemas/party.py`:
+```python
+# Before (too strict):
+entity_type: str = Field(..., pattern="^(individual|llc|corporation|trust|partnership|other)$")
+
+# After (accepts generic 'entity'):
+entity_type: str = Field(..., pattern="^(individual|entity|llc|corporation|trust|partnership|other)$")
+```
+
+Also added:
+- `buyer` and `seller` as aliases for `party_role` (in addition to `transferee/transferor`)
+- Optional `phone` field to PartyInput
+
+**Files Changed:**
+- `api/app/schemas/party.py` (updated PartyInput validation)
 
 ---
 
