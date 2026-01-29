@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Shield, CheckCircle, Printer, Download, FileText, Building2 } from "lucide-react";
-import { BRAND_NAME, BRAND_DOMAIN } from "@/lib/brand";
+import { BRAND } from "@/lib/brand";
 
 export interface ExemptionCertificateData {
   certificateId: string;
@@ -195,7 +195,7 @@ export function ExemptionCertificate({
             </p>
             <p className="font-medium text-foreground pt-2 flex items-center justify-center gap-2">
               <Building2 className="h-4 w-4" />
-              {BRAND_NAME} • {BRAND_DOMAIN}
+              {BRAND.name} • {BRAND.domain}
             </p>
           </div>
         </CardContent>
