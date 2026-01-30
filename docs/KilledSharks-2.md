@@ -266,17 +266,46 @@ import { AddressAutocomplete } from "@/components/AddressAutocomplete";
 
 ---
 
+---
+
+### 47. Auto-Hydrate Seller Name from Property Owner ✅
+
+**Date:** January 30, 2026
+
+**Problem:** While property data (address, county, APN) auto-filled, the seller name still required manual entry even though SiteX returns the owner of record.
+
+**Solution:** Enhanced both forms to auto-populate seller name from SiteX property owner data:
+
+**Client Form:**
+- Seller name field auto-fills from `property.primary_owner.full_name`
+- Shows green confirmation badge when auto-filled
+- Only fills if seller name field is currently empty
+
+**Wizard:**
+- Parses owner's full name into firstName/lastName
+- Auto-populates first seller's individual info
+- Shows "Seller Auto-filled" badge next to owner display
+- Only fills if seller doesn't already have a name
+
+**Files Modified:**
+- `web/app/(app)/app/requests/new/page.tsx`
+- `web/components/rrer-questionnaire.tsx`
+
+**Status:** ✅ Killed
+
+---
+
 ## Summary Update
 
 | Category | Count |
 |----------|-------|
 | 🔴 Critical Features | 0 |
 | 🟠 Major Features | 1 |
-| 🎨 UX/Design | 0 |
+| 🎨 UX/Design | 1 |
 | 🔧 Configuration | 2 |
 | 📄 Documentation | 2 |
 
-**Total Sharks Killed (Vol 2): 5 🦈**
+**Total Sharks Killed (Vol 2): 6 🦈**
 
 ---
 
