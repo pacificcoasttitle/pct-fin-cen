@@ -44,6 +44,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { AddressAutocomplete } from "@/components/AddressAutocomplete";
+import type { ParsedAddress, PropertyData } from "@/lib/property-types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
@@ -60,6 +62,7 @@ interface FormData {
   city: string;
   state: string;
   zip: string;
+  county: string;  // Auto-filled from address lookup
   closingDate: string;
   purchasePrice: string;
   financingType: string;
@@ -180,6 +183,9 @@ export default function NewRequestPage() {
   const [determinationResult, setDeterminationResult] = useState<string | null>(null);
   const [exemptionReasons, setExemptionReasons] = useState<Array<{code: string; display: string}>>([]);
   const [certificateId, setCertificateId] = useState<string | null>(null);
+  
+  // SiteX property data from address lookup
+  const [propertyData, setPropertyData] = useState<PropertyData | null>(null);
 
   const [formData, setFormData] = useState<FormData>({
     escrowNumber: "",
@@ -187,6 +193,7 @@ export default function NewRequestPage() {
     city: "",
     state: "CA",
     zip: "",
+    county: "",
     closingDate: "",
     purchasePrice: "",
     financingType: "",
@@ -263,7 +270,7 @@ export default function NewRequestPage() {
         city: formData.city.trim(),
         state: formData.state,
         zip: formData.zip.replace(/-/g, "").slice(0, 5), // Remove dash, keep 5 digits
-        county: null,
+        county: formData.county.trim() || null, // Auto-filled from address lookup
       },
       purchase_price_cents: purchasePriceCents,
       expected_closing_date: formData.closingDate, // Already in YYYY-MM-DD from date input
@@ -478,6 +485,7 @@ export default function NewRequestPage() {
                 setDeterminationResult(null);
                 setExemptionReasons([]);
                 setCertificateId(null);
+                setPropertyData(null);
                 setCurrentStep(1);
                 setFormData({
                   escrowNumber: "",
@@ -485,6 +493,7 @@ export default function NewRequestPage() {
                   city: "",
                   state: "CA",
                   zip: "",
+                  county: "",
                   closingDate: "",
                   purchasePrice: "",
                   financingType: "",
@@ -550,59 +559,93 @@ export default function NewRequestPage() {
               </div>
               
               <div className="relative p-5 rounded-xl border border-muted-foreground/10 bg-muted/30 space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="propertyAddress" className="text-sm">Street Address *</Label>
-                  <Input 
-                    id="propertyAddress"
-                    placeholder="123 Main Street" 
-                    value={formData.propertyAddress}
-                    onChange={(e) => updateField("propertyAddress", e.target.value)}
-                    className="bg-background"
-                  />
-                </div>
+                <AddressAutocomplete
+                  onSelect={(address: ParsedAddress, property?: PropertyData) => {
+                    setFormData(prev => ({
+                      ...prev,
+                      propertyAddress: address.street,
+                      city: address.city,
+                      state: address.state || "CA",
+                      zip: address.zip,
+                      county: address.county || "",
+                    }));
+                    setPropertyData(property || null);
+                  }}
+                  fetchPropertyData={true}
+                  showPropertyCard={true}
+                  placeholder="Start typing the property address..."
+                  defaultValue={formData.propertyAddress ? `${formData.propertyAddress}, ${formData.city}, ${formData.state} ${formData.zip}` : ""}
+                  required
+                />
                 
-                <div className="grid gap-4 sm:grid-cols-6">
-                  <div className="sm:col-span-3 space-y-2">
-                    <Label htmlFor="city" className="text-sm">City *</Label>
-                    <Input 
-                      id="city" 
-                      placeholder="Los Angeles"
-                      value={formData.city}
-                      onChange={(e) => updateField("city", e.target.value)}
-                      className="bg-background" 
-                    />
+                {/* Show seller name suggestion from SiteX lookup */}
+                {propertyData?.primary_owner?.full_name && !formData.sellerName && (
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-sm text-blue-800">
+                      <strong>Tip:</strong> Current owner on record is &quot;{propertyData.primary_owner.full_name}&quot;.
+                      <button
+                        type="button"
+                        onClick={() => updateField("sellerName", propertyData.primary_owner.full_name)}
+                        className="ml-2 text-blue-600 underline hover:text-blue-800"
+                      >
+                        Use as seller name
+                      </button>
+                    </p>
                   </div>
-                  <div className="sm:col-span-1 space-y-2">
-                    <Label htmlFor="state" className="text-sm">State *</Label>
-                    <Select value={formData.state} onValueChange={(v) => updateField("state", v)}>
-                      <SelectTrigger className="bg-background">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="CA">CA</SelectItem>
-                        <SelectItem value="NV">NV</SelectItem>
-                        <SelectItem value="AZ">AZ</SelectItem>
-                        <SelectItem value="OR">OR</SelectItem>
-                        <SelectItem value="WA">WA</SelectItem>
-                        <SelectItem value="TX">TX</SelectItem>
-                        <SelectItem value="FL">FL</SelectItem>
-                        <SelectItem value="NY">NY</SelectItem>
-                        <SelectItem value="CO">CO</SelectItem>
-                      </SelectContent>
-                    </Select>
+                )}
+                
+                {/* Manual fallback if needed */}
+                {!formData.propertyAddress && (
+                  <p className="text-xs text-muted-foreground">
+                    Start typing to search for an address, or enter it manually below.
+                  </p>
+                )}
+                
+                {/* Show parsed address for confirmation */}
+                {formData.propertyAddress && (
+                  <div className="grid gap-4 sm:grid-cols-6 pt-2 border-t">
+                    <div className="sm:col-span-3 space-y-2">
+                      <Label htmlFor="city" className="text-sm">City</Label>
+                      <Input 
+                        id="city" 
+                        placeholder="Los Angeles"
+                        value={formData.city}
+                        onChange={(e) => updateField("city", e.target.value)}
+                        className="bg-background" 
+                      />
+                    </div>
+                    <div className="sm:col-span-1 space-y-2">
+                      <Label htmlFor="state" className="text-sm">State</Label>
+                      <Select value={formData.state} onValueChange={(v) => updateField("state", v)}>
+                        <SelectTrigger className="bg-background">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="CA">CA</SelectItem>
+                          <SelectItem value="NV">NV</SelectItem>
+                          <SelectItem value="AZ">AZ</SelectItem>
+                          <SelectItem value="OR">OR</SelectItem>
+                          <SelectItem value="WA">WA</SelectItem>
+                          <SelectItem value="TX">TX</SelectItem>
+                          <SelectItem value="FL">FL</SelectItem>
+                          <SelectItem value="NY">NY</SelectItem>
+                          <SelectItem value="CO">CO</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="sm:col-span-2 space-y-2">
+                      <Label htmlFor="zip" className="text-sm">ZIP Code</Label>
+                      <Input 
+                        id="zip" 
+                        placeholder="90001"
+                        value={formData.zip}
+                        onChange={(e) => handleZipChange(e.target.value)}
+                        maxLength={10}
+                        className="bg-background" 
+                      />
+                    </div>
                   </div>
-                  <div className="sm:col-span-2 space-y-2">
-                    <Label htmlFor="zip" className="text-sm">ZIP Code *</Label>
-                    <Input 
-                      id="zip" 
-                      placeholder="90001"
-                      value={formData.zip}
-                      onChange={(e) => handleZipChange(e.target.value)}
-                      maxLength={10}
-                      className="bg-background" 
-                    />
-                  </div>
-                </div>
+                )}
               </div>
             </div>
           </div>

@@ -57,6 +57,8 @@ import {
   Loader2
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { AddressAutocomplete } from "@/components/AddressAutocomplete"
+import type { ParsedAddress, PropertyData } from "@/lib/property-types"
 import {
   type DeterminationState,
   type DeterminationResult,
@@ -1736,22 +1738,74 @@ export function RRERQuestionnaire({
                       <Separator />
 
                       <div>
-                        <h4 className="font-medium mb-4">Property Address</h4>
-                        <AddressFields
-                          address={collection.propertyAddress || createEmptyAddress()}
-                          onChange={(address) => setCollection(prev => ({ ...prev, propertyAddress: address }))}
-                          prefix="property-"
+                        <h4 className="font-medium mb-4 flex items-center gap-2">
+                          <Home className="h-4 w-4" />
+                          Property Address
+                        </h4>
+                        <AddressAutocomplete
+                          onSelect={(address: ParsedAddress, property?: PropertyData) => {
+                            setCollection(prev => ({
+                              ...prev,
+                              propertyAddress: {
+                                street: address.street,
+                                city: address.city,
+                                state: address.state || "CA",
+                                zip: address.zip,
+                              },
+                              county: address.county || prev.county || "",
+                              apn: property?.apn || prev.apn || "",
+                              siteXData: property ? {
+                                apn: property.apn,
+                                ownerName: property.primary_owner?.full_name,
+                                ownerName2: property.secondary_owner?.full_name,
+                                propertyType: property.property_type,
+                                bedrooms: property.bedrooms,
+                                bathrooms: property.bathrooms,
+                                sqft: property.square_feet,
+                                yearBuilt: property.year_built,
+                                assessedValue: property.assessed_value,
+                                lookupTimestamp: new Date().toISOString(),
+                              } : undefined,
+                            }));
+                          }}
+                          fetchPropertyData={true}
+                          showPropertyCard={true}
+                          placeholder="Start typing the property address..."
+                          defaultValue={
+                            collection.propertyAddress?.street
+                              ? `${collection.propertyAddress.street}, ${collection.propertyAddress.city}, ${collection.propertyAddress.state} ${collection.propertyAddress.zip}`
+                              : ""
+                          }
                           required
                         />
+                        
+                        {/* Manual address fallback (always visible for editing) */}
+                        <div className="mt-4 p-4 bg-muted/50 rounded-lg border">
+                          <p className="text-xs text-muted-foreground mb-3">
+                            Address details (edit if needed):
+                          </p>
+                          <AddressFields
+                            address={collection.propertyAddress || createEmptyAddress()}
+                            onChange={(address) => setCollection(prev => ({ ...prev, propertyAddress: address }))}
+                            prefix="property-"
+                            required
+                          />
+                        </div>
                       </div>
 
                       <div className="grid gap-4 md:grid-cols-2">
                         <div className="grid gap-2">
-                          <Label htmlFor="county">County *</Label>
+                          <Label htmlFor="county">
+                            County *
+                            {collection.county && collection.siteXData?.apn && (
+                              <Badge variant="secondary" className="ml-2 text-xs">Auto-filled</Badge>
+                            )}
+                          </Label>
                           <Input
                             id="county"
                             value={collection.county || ""}
                             onChange={(e) => setCollection(prev => ({ ...prev, county: e.target.value }))}
+                            placeholder="Auto-filled from address lookup"
                             required
                           />
                         </div>
@@ -1777,13 +1831,30 @@ export function RRERQuestionnaire({
 
                       <div className="grid gap-4 md:grid-cols-2">
                         <div className="grid gap-2">
-                          <Label htmlFor="apn">APN (Assessor&apos;s Parcel Number)</Label>
+                          <Label htmlFor="apn">
+                            APN (Assessor&apos;s Parcel Number)
+                            {collection.apn && collection.siteXData?.apn && (
+                              <Badge variant="secondary" className="ml-2 text-xs">Auto-filled</Badge>
+                            )}
+                          </Label>
                           <Input
                             id="apn"
                             value={collection.apn || ""}
                             onChange={(e) => setCollection(prev => ({ ...prev, apn: e.target.value }))}
+                            placeholder="Auto-filled from address lookup"
                           />
                         </div>
+                        {collection.siteXData?.ownerName && (
+                          <div className="grid gap-2">
+                            <Label className="text-muted-foreground">Owner of Record (from Title Plant)</Label>
+                            <div className="p-2 bg-teal-50 border border-teal-200 rounded-md text-sm">
+                              {collection.siteXData.ownerName}
+                              {collection.siteXData.ownerName2 && (
+                                <span className="text-muted-foreground"> and {collection.siteXData.ownerName2}</span>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       <div className="grid gap-2">

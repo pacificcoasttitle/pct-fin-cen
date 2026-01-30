@@ -223,13 +223,68 @@ import { AddressAutocomplete } from "@/components/AddressAutocomplete";
 
 ---
 
+---
+
+### 45. Wire AddressAutocomplete into Client Submission Form ✅
+
+**Date:** January 30, 2026
+
+**Problem:** The client submission form still used manual address entry after the AddressAutocomplete component was created.
+
+**Solution:** Integrated AddressAutocomplete into `web/app/(app)/app/requests/new/page.tsx`:
+- Replaced manual street/city/state/zip inputs with AddressAutocomplete
+- Added SiteX property data enrichment
+- Auto-fills county from Google Places
+- Shows "Use as seller name" suggestion when SiteX returns owner info
+- Shows parsed address fields for manual editing if needed
+
+**Files Modified:**
+- `web/app/(app)/app/requests/new/page.tsx`
+
+**Status:** ✅ Killed
+
+---
+
+### 46. Wire AddressAutocomplete into Wizard Transaction-Property Step ✅
+
+**Date:** January 30, 2026
+
+**Problem:** The wizard still used the basic AddressFields component for property address entry.
+
+**Solution:** Integrated AddressAutocomplete into `web/components/rrer-questionnaire.tsx`:
+- Added AddressAutocomplete to transaction-property step
+- Auto-fills county and APN from SiteX lookup
+- Stores full SiteX data in `collection.siteXData`
+- Shows "Auto-filled" badge on county and APN fields
+- Displays owner of record from title plant
+- Keeps AddressFields visible for manual editing
+
+**Files Modified:**
+- `web/components/rrer-questionnaire.tsx`
+
+**Status:** ✅ Killed
+
+---
+
+## Summary Update
+
+| Category | Count |
+|----------|-------|
+| 🔴 Critical Features | 0 |
+| 🟠 Major Features | 1 |
+| 🎨 UX/Design | 0 |
+| 🔧 Configuration | 2 |
+| 📄 Documentation | 2 |
+
+**Total Sharks Killed (Vol 2): 5 🦈**
+
+---
+
 ## Next Steps
 
-1. **P1:** Wire AddressAutocomplete into client submission form
-2. **P1:** Wire AddressAutocomplete into wizard transaction-property step
-3. **P2:** Add property type validation against SiteX data
-4. **P3:** Surface lastSalePrice for pricing sanity check
-5. **P3:** Add APN-only lookup as alternative entry point
+1. **P2:** Add property type validation against SiteX data
+2. **P3:** Surface lastSalePrice for pricing sanity check
+3. **P3:** Add APN-only lookup as alternative entry point
 
 ---
 
