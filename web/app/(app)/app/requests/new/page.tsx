@@ -568,6 +568,8 @@ export default function NewRequestPage() {
                       state: address.state || "CA",
                       zip: address.zip,
                       county: address.county || "",
+                      // Auto-hydrate seller name from property owner (if not already filled)
+                      sellerName: prev.sellerName || property?.primary_owner?.full_name || "",
                     }));
                     setPropertyData(property || null);
                   }}
@@ -578,18 +580,12 @@ export default function NewRequestPage() {
                   required
                 />
                 
-                {/* Show seller name suggestion from SiteX lookup */}
-                {propertyData?.primary_owner?.full_name && !formData.sellerName && (
-                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                    <p className="text-sm text-blue-800">
-                      <strong>Tip:</strong> Current owner on record is &quot;{propertyData.primary_owner.full_name}&quot;.
-                      <button
-                        type="button"
-                        onClick={() => updateField("sellerName", propertyData.primary_owner.full_name)}
-                        className="ml-2 text-blue-600 underline hover:text-blue-800"
-                      >
-                        Use as seller name
-                      </button>
+                {/* Show confirmation that seller name was auto-filled from SiteX */}
+                {propertyData?.primary_owner?.full_name && formData.sellerName === propertyData.primary_owner.full_name && (
+                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
+                    <p className="text-sm text-green-800">
+                      <strong>Seller name auto-filled</strong> from property owner on record: &quot;{propertyData.primary_owner.full_name}&quot;
                     </p>
                   </div>
                 )}

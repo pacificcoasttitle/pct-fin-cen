@@ -1744,29 +1744,60 @@ export function RRERQuestionnaire({
                         </h4>
                         <AddressAutocomplete
                           onSelect={(address: ParsedAddress, property?: PropertyData) => {
-                            setCollection(prev => ({
-                              ...prev,
-                              propertyAddress: {
-                                street: address.street,
-                                city: address.city,
-                                state: address.state || "CA",
-                                zip: address.zip,
-                              },
-                              county: address.county || prev.county || "",
-                              apn: property?.apn || prev.apn || "",
-                              siteXData: property ? {
-                                apn: property.apn,
-                                ownerName: property.primary_owner?.full_name,
-                                ownerName2: property.secondary_owner?.full_name,
-                                propertyType: property.property_type,
-                                bedrooms: property.bedrooms,
-                                bathrooms: property.bathrooms,
-                                sqft: property.square_feet,
-                                yearBuilt: property.year_built,
-                                assessedValue: property.assessed_value,
-                                lookupTimestamp: new Date().toISOString(),
-                              } : undefined,
-                            }));
+                            setCollection(prev => {
+                              // Parse owner name into first/last for seller auto-fill
+                              let updatedSellers = prev.sellers || [createEmptySeller()];
+                              if (property?.primary_owner?.full_name && updatedSellers.length > 0) {
+                                const ownerName = property.primary_owner.full_name.trim();
+                                const nameParts = ownerName.split(/\s+/);
+                                const firstName = nameParts[0] || "";
+                                const lastName = nameParts.slice(1).join(" ") || "";
+                                
+                                // Only auto-fill if the first seller doesn't have a name yet
+                                const firstSeller = updatedSellers[0];
+                                if (firstSeller.type === "individual" && 
+                                    firstSeller.individual && 
+                                    !firstSeller.individual.firstName && 
+                                    !firstSeller.individual.lastName) {
+                                  updatedSellers = [
+                                    {
+                                      ...firstSeller,
+                                      individual: {
+                                        ...firstSeller.individual,
+                                        firstName,
+                                        lastName,
+                                      },
+                                    },
+                                    ...updatedSellers.slice(1),
+                                  ];
+                                }
+                              }
+                              
+                              return {
+                                ...prev,
+                                propertyAddress: {
+                                  street: address.street,
+                                  city: address.city,
+                                  state: address.state || "CA",
+                                  zip: address.zip,
+                                },
+                                county: address.county || prev.county || "",
+                                apn: property?.apn || prev.apn || "",
+                                sellers: updatedSellers,
+                                siteXData: property ? {
+                                  apn: property.apn,
+                                  ownerName: property.primary_owner?.full_name,
+                                  ownerName2: property.secondary_owner?.full_name,
+                                  propertyType: property.property_type,
+                                  bedrooms: property.bedrooms,
+                                  bathrooms: property.bathrooms,
+                                  sqft: property.square_feet,
+                                  yearBuilt: property.year_built,
+                                  assessedValue: property.assessed_value,
+                                  lookupTimestamp: new Date().toISOString(),
+                                } : undefined,
+                              };
+                            });
                           }}
                           fetchPropertyData={true}
                           showPropertyCard={true}
@@ -1846,7 +1877,13 @@ export function RRERQuestionnaire({
                         </div>
                         {collection.siteXData?.ownerName && (
                           <div className="grid gap-2">
-                            <Label className="text-muted-foreground">Owner of Record (from Title Plant)</Label>
+                            <Label className="text-muted-foreground flex items-center gap-2">
+                              Owner of Record (from Title Plant)
+                              <Badge variant="secondary" className="text-xs bg-green-100 text-green-700">
+                                <CheckCircle className="h-3 w-3 mr-1" />
+                                Seller Auto-filled
+                              </Badge>
+                            </Label>
                             <div className="p-2 bg-teal-50 border border-teal-200 rounded-md text-sm">
                               {collection.siteXData.ownerName}
                               {collection.siteXData.ownerName2 && (
