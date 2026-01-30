@@ -808,25 +808,146 @@ interface DeterminationResult {
 4. **No conflict resolution** - If two tabs open same wizard, last save wins
 5. **Determination step array recalculation** - Runs on every render via useMemo
 
-### 10.4 Integration Points for SiteX/Address Lookup
+### 10.4 SiteX/Address Lookup Integration (IMPLEMENTED)
 
-**Property address field location:**
-- File: `web/components/rrer-questionnaire.tsx`
-- Step: `transaction-property` (Collection Phase)
-- Component: `AddressFields` with props for `collection.propertyAddress`
+See **Section 11** for complete SiteX integration documentation.
 
-**Where to trigger lookup:**
-- On blur of street address field
-- Or via "Lookup" button next to address
+---
 
-**What SiteX could populate:**
-- County (currently manual)
-- APN (currently manual)
+## 11. SiteX Integration & Address Autocomplete
+
+### 11.1 Overview
+
+The wizard integrates with Google Places for address autocomplete and SiteX for property data enrichment. This provides:
+- Fast, accurate address entry via Google Places
+- Auto-fill of county, APN, and property details from SiteX
+- Current owner lookup (useful for seller verification)
 - Property type verification
-- Legal description
-- Ownership history
-- Previous sale price
-- Current assessed value
+
+### 11.2 Architecture
+
+```
+User types address
+    ↓
+Google Places suggests addresses
+    ↓
+User selects address
+    ↓ (ParsedAddress)
+Frontend calls POST /property/lookup
+    ↓
+SiteX returns property data
+    ↓ (PropertyData)
+Wizard state updated with:
+- propertyAddress (street, city, state, zip)
+- county (auto-filled)
+- apn (auto-filled)
+- siteXData (full property record)
+```
+
+### 11.3 Data Flow
+
+| Source | Field | Destination | Notes |
+|--------|-------|-------------|-------|
+| Google Places | street | collection.propertyAddress.street | Parsed from address_components |
+| Google Places | city | collection.propertyAddress.city | locality or sublocality |
+| Google Places | state | collection.propertyAddress.state | administrative_area_level_1 (short) |
+| Google Places | zip | collection.propertyAddress.zip | postal_code |
+| Google Places | county | collection.county | administrative_area_level_2 |
+| SiteX | apn | collection.apn | Assessor's Parcel Number |
+| SiteX | ownerName | (display only) | Current owner of record |
+| SiteX | propertyType | collection.siteXData.propertyType | Single Family, Condo, etc. |
+| SiteX | assessedValue | collection.siteXData.assessedValue | For reference |
+
+### 11.4 Integration Points
+
+| Location | Component | Purpose |
+|----------|-----------|---------|
+| Client form | `requests/new/page.tsx` | Initial address entry |
+| Wizard | `rrer-questionnaire.tsx` (transaction-property) | Staff verification |
+| Backend | `routes/property.py` | SiteX proxy endpoints |
+| Service | `services/sitex_client.py` | SiteX API client |
+
+### 11.5 API Endpoints
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/property/status` | GET | Check if services configured |
+| `/property/lookup` | POST | Lookup property by address |
+| `/property/lookup-by-apn` | POST | Lookup property by APN |
+| `/property/clear-cache` | POST | Clear lookup cache |
+
+### 11.6 Configuration
+
+**Frontend (.env.local or Vercel):**
+```
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your_google_key
+```
+
+**Backend (.env or Render):**
+```
+# SiteX / BKI Connect Property Data
+SITEX_BASE_URL=https://api.bkiconnect.com
+SITEX_CLIENT_ID=your_client_id
+SITEX_CLIENT_SECRET=your_client_secret
+SITEX_FEED_ID=your_feed_id
+SITEX_DEBUG=false
+SITEX_TIMEOUT=30
+```
+
+**IMPORTANT:** All four SiteX variables are required:
+- `SITEX_CLIENT_ID` - OAuth client ID
+- `SITEX_CLIENT_SECRET` - OAuth client secret  
+- `SITEX_FEED_ID` - Feed ID (included in API URL path)
+- `SITEX_BASE_URL` - API base URL (default: https://api.bkiconnect.com)
+
+### 11.7 Graceful Degradation
+
+- If Google Places unavailable: Manual address entry still works
+- If SiteX unavailable: Address autocomplete works, no property enrichment
+- No hard failures - all lookups are optional enhancements
+
+### 11.8 Files Added
+
+| File | Purpose |
+|------|---------|
+| `api/app/services/sitex_models.py` | Pydantic models for property data |
+| `api/app/services/sitex_client.py` | SiteX API client with OAuth |
+| `api/app/routes/property.py` | Property lookup endpoints |
+| `web/components/AddressAutocomplete.tsx` | Autocomplete component |
+| `web/lib/google-places.ts` | Google Places utilities |
+| `web/lib/property-types.ts` | TypeScript types |
+| `web/types/google-maps.d.ts` | Google Maps type declarations |
+
+### 11.9 Component Usage
+
+```tsx
+import { AddressAutocomplete } from "@/components/AddressAutocomplete";
+
+<AddressAutocomplete
+  onSelect={(address, property) => {
+    updateCollection({
+      propertyAddress: {
+        street: address.street,
+        city: address.city,
+        state: address.state,
+        zip: address.zip,
+      },
+      county: address.county || "",
+      apn: property?.apn || "",
+      siteXData: property ? {
+        apn: property.apn,
+        ownerName: property.primary_owner?.full_name,
+        propertyType: property.property_type,
+        assessedValue: property.assessed_value,
+        lookupTimestamp: new Date().toISOString(),
+      } : undefined,
+    });
+  }}
+  fetchPropertyData={true}
+  showPropertyCard={true}
+  placeholder="Start typing property address..."
+/>
+```
 
 ---
 

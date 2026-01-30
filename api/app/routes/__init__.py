@@ -12,6 +12,7 @@ from app.routes.users import router as users_router
 from app.routes.sidebar import router as sidebar_router
 from app.routes.documents import router as documents_router
 from app.routes.audit import router as audit_router
+from app.routes.property import router as property_router
 
 __all__ = [
     "reports_router",
@@ -25,4 +26,5 @@ __all__ = [
     "sidebar_router",
     "documents_router",
     "audit_router",
+    "property_router",
 ]

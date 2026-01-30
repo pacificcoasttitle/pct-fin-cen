@@ -272,6 +272,24 @@ export interface CollectionData {
   // Certifications
   buyerCertification: Certification
   sellerCertification: Certification
+  
+  // ==========================================================================
+  // SiteX Property Data (optional enrichment from title plant lookup)
+  // ==========================================================================
+  siteXData?: {
+    apn?: string
+    ownerName?: string
+    ownerName2?: string
+    propertyType?: string
+    bedrooms?: number
+    bathrooms?: number
+    sqft?: number
+    yearBuilt?: number
+    lastSaleDate?: string
+    lastSalePrice?: number
+    assessedValue?: number
+    lookupTimestamp?: string
+  }
 }
 
 // Determination State
