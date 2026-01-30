@@ -123,6 +123,11 @@ const statusConfig = {
   },
 };
 
+interface CompanyOption {
+  id: string;
+  name: string;
+}
+
 export default function AdminInvoicesPage() {
   const { toast } = useToast();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -133,6 +138,25 @@ export default function AdminInvoicesPage() {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  
+  // Generate Invoice Dialog State
+  const [showGenerateDialog, setShowGenerateDialog] = useState(false);
+  const [companies, setCompanies] = useState<CompanyOption[]>([]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>("");
+  const [periodStart, setPeriodStart] = useState<string>("");
+  const [periodEnd, setPeriodEnd] = useState<string>("");
+  const [unbilledCount, setUnbilledCount] = useState<number>(0);
+  const [unbilledTotal, setUnbilledTotal] = useState<number>(0);
+  const [generating, setGenerating] = useState(false);
+  
+  // Manual Billing Event Dialog State
+  const [showBillingEventDialog, setShowBillingEventDialog] = useState(false);
+  const [eventCompanyId, setEventCompanyId] = useState<string>("");
+  const [eventType, setEventType] = useState<string>("manual_adjustment");
+  const [eventDescription, setEventDescription] = useState<string>("");
+  const [eventAmount, setEventAmount] = useState<string>("");
+  const [isCredit, setIsCredit] = useState(false);
+  const [creatingEvent, setCreatingEvent] = useState(false);
 
   const fetchInvoices = useCallback(async () => {
     setLoading(true);
@@ -170,7 +194,146 @@ export default function AdminInvoicesPage() {
 
   useEffect(() => {
     fetchInvoices();
+    fetchCompanies();
   }, [fetchInvoices]);
+  
+  // Fetch companies for dropdown
+  const fetchCompanies = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/companies?company_type=client`);
+      if (response.ok) {
+        const data = await response.json();
+        setCompanies(data.companies || []);
+      }
+    } catch (error) {
+      console.error("Failed to fetch companies:", error);
+    }
+  };
+  
+  // Check unbilled events when company/dates selected
+  useEffect(() => {
+    if (selectedCompanyId && periodStart && periodEnd) {
+      checkUnbilledEvents();
+    }
+  }, [selectedCompanyId, periodStart, periodEnd]);
+  
+  const checkUnbilledEvents = async () => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/invoices/billing-events?company_id=${selectedCompanyId}&unbilled_only=true`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        // Filter by date range client-side for now
+        const events = data.billing_events || [];
+        const start = new Date(periodStart);
+        const end = new Date(periodEnd);
+        end.setHours(23, 59, 59, 999);
+        
+        const filtered = events.filter((e: any) => {
+          const eventDate = new Date(e.created_at);
+          return eventDate >= start && eventDate <= end;
+        });
+        
+        setUnbilledCount(filtered.length);
+        setUnbilledTotal(filtered.reduce((sum: number, e: any) => sum + (e.amount_cents * e.quantity), 0));
+      }
+    } catch (error) {
+      console.error("Failed to check unbilled events:", error);
+    }
+  };
+  
+  // Generate invoice
+  const generateInvoice = async () => {
+    if (!selectedCompanyId || !periodStart || !periodEnd) return;
+    
+    setGenerating(true);
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/invoices/generate?company_id=${selectedCompanyId}&period_start=${periodStart}&period_end=${periodEnd}`,
+        { method: "POST" }
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        toast({
+          title: "Invoice Generated",
+          description: `Invoice ${data.invoice_number} created for ${formatCurrency(data.total_cents)}`,
+        });
+        setShowGenerateDialog(false);
+        setSelectedCompanyId("");
+        setPeriodStart("");
+        setPeriodEnd("");
+        setUnbilledCount(0);
+        setUnbilledTotal(0);
+        fetchInvoices();
+      } else {
+        const data = await response.json();
+        toast({
+          title: "Error",
+          description: data.detail || "Failed to generate invoice",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to generate invoice",
+        variant: "destructive",
+      });
+    } finally {
+      setGenerating(false);
+    }
+  };
+  
+  // Create manual billing event
+  const createBillingEvent = async () => {
+    if (!eventCompanyId || !eventDescription || !eventAmount) return;
+    
+    setCreatingEvent(true);
+    try {
+      const amountCents = Math.round(parseFloat(eventAmount) * 100);
+      const finalAmount = isCredit ? -Math.abs(amountCents) : Math.abs(amountCents);
+      
+      const response = await fetch(`${API_BASE_URL}/invoices/billing-events`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          company_id: eventCompanyId,
+          event_type: eventType,
+          description: eventDescription,
+          amount_cents: finalAmount,
+        }),
+      });
+      
+      if (response.ok) {
+        toast({
+          title: isCredit ? "Credit Applied" : "Billing Event Created",
+          description: `${eventDescription} - ${formatCurrency(Math.abs(finalAmount))}`,
+        });
+        setShowBillingEventDialog(false);
+        setEventCompanyId("");
+        setEventDescription("");
+        setEventAmount("");
+        setIsCredit(false);
+      } else {
+        const data = await response.json();
+        toast({
+          title: "Error",
+          description: data.detail || "Failed to create billing event",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to create billing event",
+        variant: "destructive",
+      });
+    } finally {
+      setCreatingEvent(false);
+    }
+  };
 
   const formatCurrency = (cents: number) => {
     return new Intl.NumberFormat("en-US", {
@@ -251,10 +414,19 @@ export default function AdminInvoicesPage() {
           <h1 className="text-2xl font-bold text-slate-900">Invoice Management</h1>
           <p className="text-slate-500">Manage billing and invoices for client companies</p>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchInvoices}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setShowBillingEventDialog(true)}>
+            <DollarSign className="h-4 w-4 mr-2" />
+            Add Billing Event
+          </Button>
+          <Button size="sm" onClick={() => setShowGenerateDialog(true)}>
+            <Receipt className="h-4 w-4 mr-2" />
+            Generate Invoice
+          </Button>
+          <Button variant="ghost" size="icon" onClick={fetchInvoices}>
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -621,6 +793,174 @@ export default function AdminInvoicesPage() {
                 Mark as Paid
               </Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Generate Invoice Dialog */}
+      <Dialog open={showGenerateDialog} onOpenChange={setShowGenerateDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Generate Invoice</DialogTitle>
+            <DialogDescription>
+              Create an invoice from unbilled events for a billing period.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {/* Company Select */}
+            <div>
+              <label className="block text-sm font-medium mb-1">Company</label>
+              <Select value={selectedCompanyId} onValueChange={setSelectedCompanyId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select company..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {companies.map(c => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {/* Date Range */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Period Start</label>
+                <Input
+                  type="date"
+                  value={periodStart}
+                  onChange={(e) => setPeriodStart(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Period End</label>
+                <Input
+                  type="date"
+                  value={periodEnd}
+                  onChange={(e) => setPeriodEnd(e.target.value)}
+                />
+              </div>
+            </div>
+            
+            {/* Preview */}
+            {selectedCompanyId && periodStart && periodEnd && (
+              <div className="p-3 bg-slate-50 rounded-lg border">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="text-sm font-medium">{unbilledCount} unbilled events</p>
+                    <p className="text-xs text-muted-foreground">in selected period</p>
+                  </div>
+                  <p className="text-lg font-bold">{formatCurrency(unbilledTotal)}</p>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowGenerateDialog(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={generateInvoice}
+              disabled={!selectedCompanyId || !periodStart || !periodEnd || unbilledCount === 0 || generating}
+            >
+              {generating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Generate Invoice
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Manual Billing Event Dialog */}
+      <Dialog open={showBillingEventDialog} onOpenChange={setShowBillingEventDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create Billing Event</DialogTitle>
+            <DialogDescription>
+              Add a manual charge, credit, or adjustment.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {/* Company Select */}
+            <div>
+              <label className="block text-sm font-medium mb-1">Company</label>
+              <Select value={eventCompanyId} onValueChange={setEventCompanyId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select company..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {companies.map(c => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {/* Event Type */}
+            <div>
+              <label className="block text-sm font-medium mb-1">Type</label>
+              <Select value={eventType} onValueChange={setEventType}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="manual_adjustment">Manual Adjustment</SelectItem>
+                  <SelectItem value="credit">Credit</SelectItem>
+                  <SelectItem value="expedite_fee">Expedite Fee</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {/* Amount */}
+            <div>
+              <label className="block text-sm font-medium mb-1">Amount</label>
+              <div className="flex items-center gap-3">
+                <div className="relative flex-1">
+                  <span className="absolute left-3 top-2.5 text-muted-foreground">$</span>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={eventAmount}
+                    onChange={(e) => setEventAmount(e.target.value)}
+                    className="pl-7"
+                    placeholder="0.00"
+                  />
+                </div>
+                <label className="flex items-center gap-2 whitespace-nowrap">
+                  <input
+                    type="checkbox"
+                    checked={isCredit}
+                    onChange={(e) => setIsCredit(e.target.checked)}
+                    className="rounded border-gray-300"
+                  />
+                  <span className="text-sm">Credit (negative)</span>
+                </label>
+              </div>
+            </div>
+            
+            {/* Description */}
+            <div>
+              <label className="block text-sm font-medium mb-1">Description</label>
+              <textarea
+                value={eventDescription}
+                onChange={(e) => setEventDescription(e.target.value)}
+                rows={2}
+                className="w-full px-3 py-2 border rounded-md text-sm resize-none"
+                placeholder="Reason for this charge or credit..."
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowBillingEventDialog(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={createBillingEvent}
+              disabled={!eventCompanyId || !eventDescription || !eventAmount || creatingEvent}
+            >
+              {creatingEvent && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {isCredit ? "Apply Credit" : "Create Event"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -314,3 +314,149 @@ async def update_invoice_status(
     db.commit()
     
     return {"success": True, "status": invoice.status}
+
+
+# ============================================================================
+# MANUAL BILLING EVENT (Credits, Adjustments, etc.)
+# ============================================================================
+
+from pydantic import BaseModel
+
+class ManualBillingEventCreate(BaseModel):
+    """Request to create a manual billing event."""
+    company_id: str
+    event_type: str  # manual_adjustment, expedite_fee, credit, etc.
+    description: str
+    amount_cents: int  # Can be negative for credits
+    quantity: int = 1
+
+
+@router.post("/billing-events")
+async def create_manual_billing_event(
+    event: ManualBillingEventCreate,
+    db: Session = Depends(get_db),
+):
+    """
+    Create a manual billing event (credit, adjustment, expedite fee).
+    
+    POST /invoices/billing-events
+    {
+        "company_id": "uuid",
+        "event_type": "manual_adjustment",
+        "description": "Credit for service issue",
+        "amount_cents": -5000  // Negative for credit
+    }
+    """
+    # Validate company exists
+    company = db.query(Company).filter(Company.id == event.company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    # Validate event type
+    valid_types = ["manual_adjustment", "credit", "expedite_fee", "monthly_minimum", "other"]
+    if event.event_type not in valid_types:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Invalid event type. Must be one of: {valid_types}"
+        )
+    
+    billing_event = BillingEvent(
+        id=str(uuid4()),
+        company_id=event.company_id,
+        event_type=event.event_type,
+        description=event.description,
+        amount_cents=event.amount_cents,
+        quantity=event.quantity,
+        created_at=datetime.utcnow(),
+        # created_by_user_id will be set when auth is implemented
+    )
+    db.add(billing_event)
+    db.flush()
+    
+    # Audit log
+    log_event(
+        db=db,
+        entity_type="billing_event",
+        entity_id=str(billing_event.id),
+        event_type="billing_event.manual_created",
+        actor_type="admin",
+        details={
+            "event_type": event.event_type,
+            "amount_cents": event.amount_cents,
+            "description": event.description,
+            "company_id": event.company_id,
+        },
+        company_id=event.company_id,
+    )
+    
+    db.commit()
+    db.refresh(billing_event)
+    
+    return {
+        "id": str(billing_event.id),
+        "company_id": str(billing_event.company_id),
+        "event_type": billing_event.event_type,
+        "description": billing_event.description,
+        "amount_cents": billing_event.amount_cents,
+        "quantity": billing_event.quantity,
+        "invoice_id": str(billing_event.invoice_id) if billing_event.invoice_id else None,
+        "created_at": billing_event.created_at.isoformat() if billing_event.created_at else None,
+    }
+
+
+# ============================================================================
+# LIST ALL BILLING EVENTS (Admin view)
+# ============================================================================
+
+@router.get("/billing-events")
+async def list_billing_events(
+    company_id: Optional[str] = None,
+    event_type: Optional[str] = None,
+    unbilled_only: bool = False,
+    limit: int = Query(50, le=100),
+    offset: int = 0,
+    db: Session = Depends(get_db),
+):
+    """
+    List billing events with filters.
+    
+    GET /invoices/billing-events?company_id=...&unbilled_only=true
+    """
+    query = db.query(BillingEvent)
+    
+    if company_id:
+        query = query.filter(BillingEvent.company_id == company_id)
+    
+    if event_type:
+        query = query.filter(BillingEvent.event_type == event_type)
+    
+    if unbilled_only:
+        query = query.filter(BillingEvent.invoice_id.is_(None))
+    
+    total = query.count()
+    total_cents = db.query(func.sum(BillingEvent.amount_cents * BillingEvent.quantity)).filter(
+        BillingEvent.id.in_([e.id for e in query.all()])
+    ).scalar() or 0
+    
+    events = query.order_by(BillingEvent.created_at.desc()).offset(offset).limit(limit).all()
+    
+    return {
+        "billing_events": [
+            {
+                "id": str(be.id),
+                "company_id": str(be.company_id) if be.company_id else None,
+                "report_id": str(be.report_id) if be.report_id else None,
+                "event_type": be.event_type,
+                "description": be.description,
+                "amount_cents": be.amount_cents,
+                "quantity": be.quantity,
+                "bsa_id": be.bsa_id,
+                "invoice_id": str(be.invoice_id) if be.invoice_id else None,
+                "invoiced_at": be.invoiced_at.isoformat() if be.invoiced_at else None,
+                "created_at": be.created_at.isoformat() if be.created_at else None,
+            }
+            for be in events
+        ],
+        "total": total,
+        "total_cents": total_cents,
+    }

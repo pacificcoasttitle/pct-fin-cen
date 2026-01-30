@@ -105,6 +105,17 @@ interface CompanyDetail extends Company {
   recent_reports: any[]
 }
 
+interface BillingSettings {
+  company_id: string
+  company_name: string
+  filing_fee_cents: number
+  filing_fee_dollars: number
+  payment_terms_days: number
+  billing_notes: string | null
+  billing_email: string | null
+  billing_contact_name: string | null
+}
+
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   active: { label: "Active", variant: "default" },
   suspended: { label: "Suspended", variant: "destructive" },
@@ -135,6 +146,14 @@ export default function AdminCompaniesPage() {
     billing_contact_name: "",
     phone: "",
   })
+  
+  // Billing settings
+  const [billingSettings, setBillingSettings] = useState<BillingSettings | null>(null)
+  const [editingBilling, setEditingBilling] = useState(false)
+  const [savingBilling, setSavingBilling] = useState(false)
+  const [filingFee, setFilingFee] = useState("")
+  const [paymentTerms, setPaymentTerms] = useState("")
+  const [billingNotes, setBillingNotes] = useState("")
 
   // Fetch companies
   const fetchCompanies = async (showRefresh = false) => {
@@ -179,17 +198,81 @@ export default function AdminCompaniesPage() {
   // Fetch company detail
   const fetchCompanyDetail = async (companyId: string) => {
     setLoadingDetail(true)
+    setEditingBilling(false)
     try {
       const response = await fetch(`${API_BASE_URL}/companies/${companyId}`)
       if (response.ok) {
         const data = await response.json()
         setSelectedCompany(data)
         setSheetOpen(true)
+        // Fetch billing settings
+        fetchBillingSettings(companyId)
       }
     } catch (error) {
       console.error("Failed to fetch company detail:", error)
     } finally {
       setLoadingDetail(false)
+    }
+  }
+  
+  // Fetch billing settings
+  const fetchBillingSettings = async (companyId: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/companies/${companyId}/billing-settings`)
+      if (response.ok) {
+        const data = await response.json()
+        setBillingSettings(data)
+        setFilingFee(String(data.filing_fee_dollars))
+        setPaymentTerms(String(data.payment_terms_days))
+        setBillingNotes(data.billing_notes || "")
+      }
+    } catch (error) {
+      console.error("Failed to fetch billing settings:", error)
+    }
+  }
+  
+  // Save billing settings
+  const saveBillingSettings = async () => {
+    if (!selectedCompany) return
+    
+    setSavingBilling(true)
+    try {
+      const feeCents = Math.round(parseFloat(filingFee) * 100)
+      
+      const response = await fetch(`${API_BASE_URL}/companies/${selectedCompany.id}/billing-settings`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          filing_fee_cents: feeCents,
+          payment_terms_days: parseInt(paymentTerms),
+          billing_notes: billingNotes || null,
+        }),
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setBillingSettings(data)
+        setEditingBilling(false)
+        toast({
+          title: "Success",
+          description: "Billing settings updated",
+        })
+      } else {
+        const error = await response.json()
+        toast({
+          title: "Error",
+          description: error.detail || "Failed to update billing settings",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update billing settings",
+        variant: "destructive",
+      })
+    } finally {
+      setSavingBilling(false)
     }
   }
 
@@ -685,6 +768,99 @@ export default function AdminCompaniesPage() {
                     <p><span className="text-muted-foreground">Email:</span> {selectedCompany.billing_email || "—"}</p>
                     <p><span className="text-muted-foreground">Phone:</span> {selectedCompany.phone || "—"}</p>
                   </div>
+                </div>
+
+                {/* Billing Settings */}
+                <div className="border rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="font-semibold flex items-center gap-2">
+                      <DollarSign className="h-4 w-4" />
+                      Billing Settings
+                    </h4>
+                    {!editingBilling ? (
+                      <Button variant="outline" size="sm" onClick={() => setEditingBilling(true)}>
+                        Edit
+                      </Button>
+                    ) : (
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => {
+                          setEditingBilling(false)
+                          if (billingSettings) {
+                            setFilingFee(String(billingSettings.filing_fee_dollars))
+                            setPaymentTerms(String(billingSettings.payment_terms_days))
+                            setBillingNotes(billingSettings.billing_notes || "")
+                          }
+                        }}>
+                          Cancel
+                        </Button>
+                        <Button size="sm" onClick={saveBillingSettings} disabled={savingBilling}>
+                          {savingBilling ? "Saving..." : "Save"}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {billingSettings && (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label className="text-muted-foreground text-xs">Filing Fee</Label>
+                          {editingBilling ? (
+                            <div className="relative mt-1">
+                              <span className="absolute left-3 top-2 text-muted-foreground">$</span>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                value={filingFee}
+                                onChange={(e) => setFilingFee(e.target.value)}
+                                className="pl-7"
+                              />
+                            </div>
+                          ) : (
+                            <p className="text-lg font-semibold">
+                              ${billingSettings.filing_fee_dollars.toFixed(2)}
+                            </p>
+                          )}
+                        </div>
+                        
+                        <div>
+                          <Label className="text-muted-foreground text-xs">Payment Terms</Label>
+                          {editingBilling ? (
+                            <div className="flex items-center gap-2 mt-1">
+                              <Input
+                                type="number"
+                                value={paymentTerms}
+                                onChange={(e) => setPaymentTerms(e.target.value)}
+                                className="w-20"
+                              />
+                              <span className="text-muted-foreground">days</span>
+                            </div>
+                          ) : (
+                            <p className="text-lg font-semibold">
+                              Net {billingSettings.payment_terms_days}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <Label className="text-muted-foreground text-xs">Internal Billing Notes</Label>
+                        {editingBilling ? (
+                          <textarea
+                            value={billingNotes}
+                            onChange={(e) => setBillingNotes(e.target.value)}
+                            rows={2}
+                            className="w-full mt-1 px-3 py-2 border rounded-md text-sm resize-none"
+                            placeholder="e.g., Volume discount agreement, special terms..."
+                          />
+                        ) : (
+                          <p className="text-sm mt-1">
+                            {billingSettings.billing_notes || <span className="text-muted-foreground italic">No notes</span>}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Recent Activity */}

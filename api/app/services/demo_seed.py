@@ -594,13 +594,16 @@ def seed_demo_data(db: Session) -> Dict[str, Any]:
     print(f"   ✅ Scenario 5: FILED - 8842 Sunset Boulevard (Receipt: BSA-20260118-A1B2C3D4)")
     
     # Create billing event and invoice for the filed report
+    # Use company's configured filing fee (default: $75.00 / 7500 cents)
+    filing_fee = demo_company.filing_fee_cents if hasattr(demo_company, 'filing_fee_cents') and demo_company.filing_fee_cents else 7500
+    
     billing_event_1 = BillingEvent(
         company_id=demo_company.id,
         report_id=report_5.id,
         submission_request_id=request_5.id,
         event_type="filing_accepted",
         description=f"FinCEN filing for 8842 Sunset Boulevard, West Hollywood, CA 90069",
-        amount_cents=7500,  # $75
+        amount_cents=filing_fee,  # Use company's configured rate
         quantity=1,
         bsa_id="BSA-20260118-A1B2C3D4",
         created_at=datetime.utcnow() - timedelta(days=8),
@@ -614,10 +617,10 @@ def seed_demo_data(db: Session) -> Dict[str, Any]:
         invoice_number="INV-2026-01-0001",
         period_start=date.today().replace(day=1),
         period_end=date.today(),
-        subtotal_cents=7500,
+        subtotal_cents=filing_fee,
         tax_cents=0,
         discount_cents=0,
-        total_cents=7500,
+        total_cents=filing_fee,
         status="paid",
         due_date=date.today() + timedelta(days=30),
         sent_at=datetime.utcnow() - timedelta(days=7),
@@ -633,7 +636,7 @@ def seed_demo_data(db: Session) -> Dict[str, Any]:
     billing_event_1.invoice_id = invoice_1.id
     billing_event_1.invoiced_at = datetime.utcnow() - timedelta(days=7)
     
-    print(f"   💰 Invoice created: {invoice_1.invoice_number} ($75.00, Paid)")
+    print(f"   💰 Invoice created: {invoice_1.invoice_number} (${filing_fee/100:.2f}, Paid)")
     
     # =========================================================================
     # SCENARIO 6: Exempt - No Filing Required

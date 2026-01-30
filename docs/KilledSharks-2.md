@@ -295,25 +295,121 @@ import { AddressAutocomplete } from "@/components/AddressAutocomplete";
 
 ---
 
+### 48. Per-Company Billing Configuration (Phase 1) ✅
+
+**Date:** January 30, 2026
+
+**Problem:** All companies were charged a hardcoded $75/filing with no flexibility for:
+- Enterprise pricing
+- Volume discounts
+- Special arrangements
+- Manual credits/adjustments
+
+The hardcoded line was:
+```python
+amount_cents=7500  # $75.00 per filing - HARDCODED!
+```
+
+**Solution:** Implemented Phase 1 of the Billing System Enhancement.
+
+### Database Changes
+
+| Column | Type | Default | Purpose |
+|--------|------|---------|---------|
+| `filing_fee_cents` | Integer | 7500 | Per-filing charge |
+| `payment_terms_days` | Integer | 30 | Days until due |
+| `billing_notes` | Text | null | Internal notes |
+
+**Migration:** `api/alembic/versions/20260130_000001_add_company_billing_settings.py`
+
+### API Endpoints Added
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/companies/{id}/billing-settings` | Get billing config |
+| PATCH | `/companies/{id}/billing-settings` | Update billing settings |
+| POST | `/invoices/billing-events` | Create manual charge/credit |
+| GET | `/invoices/billing-events` | List billing events |
+
+### Admin UI Enhancements
+
+**Company Detail Sheet:**
+- New "Billing Settings" section
+- Editable filing fee ($0.00 - $999.99)
+- Editable payment terms (Net X days)
+- Internal billing notes field
+
+**Invoice Management Page:**
+- "Generate Invoice" button + dialog
+  - Select company
+  - Set billing period dates
+  - Preview unbilled events count/total
+- "Add Billing Event" button + dialog
+  - Select company
+  - Choose type (adjustment, credit, expedite fee, other)
+  - Enter amount with credit checkbox
+  - Add description
+
+### Dynamic Billing
+
+BillingEvent creation now uses company's configured rate:
+```python
+# Get company's filing fee (fallback to $75 default)
+company = db.query(Company).filter(Company.id == report.company_id).first()
+filing_fee = company.filing_fee_cents if company else 7500
+```
+
+### Audit Trail
+
+New events logged:
+- `billing_event.created` - Auto-created on filing
+- `billing_event.manual_created` - Manual charge/credit
+- `company.billing_settings_updated` - Rate changes
+
+### Files Created
+
+| File | Purpose |
+|------|---------|
+| `api/alembic/versions/20260130_000001_add_company_billing_settings.py` | Migration |
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `api/app/models/company.py` | Added billing fields + property |
+| `api/app/routes/companies.py` | Added billing settings endpoints |
+| `api/app/routes/invoices.py` | Added manual billing event endpoint |
+| `api/app/routes/reports.py` | Use company rate for billing events |
+| `api/app/services/demo_seed.py` | Use company rate |
+| `web/app/(app)/app/admin/companies/page.tsx` | Billing settings UI |
+| `web/app/(app)/app/admin/invoices/page.tsx` | Generate invoice + billing event dialogs |
+| `docs/INVOICING_MASTER_TECH_SPEC.md` | Phase 1 documentation |
+
+**Status:** ✅ Killed (BIG FUCKING SHARK)
+
+---
+
 ## Summary Update
 
 | Category | Count |
 |----------|-------|
-| 🔴 Critical Features | 0 |
+| 🔴 Critical Features | 1 |
 | 🟠 Major Features | 1 |
 | 🎨 UX/Design | 1 |
 | 🔧 Configuration | 2 |
 | 📄 Documentation | 2 |
 
-**Total Sharks Killed (Vol 2): 6 🦈**
+**Total Sharks Killed (Vol 2): 7 🦈**
 
 ---
 
 ## Next Steps
 
-1. **P2:** Add property type validation against SiteX data
-2. **P3:** Surface lastSalePrice for pricing sanity check
-3. **P3:** Add APN-only lookup as alternative entry point
+1. **P1:** Billing Phase 2 - Subscription billing model
+2. **P2:** Add property type validation against SiteX data
+3. **P2:** Stripe integration for payments
+4. **P3:** Surface lastSalePrice for pricing sanity check
+5. **P3:** Add APN-only lookup as alternative entry point
 
 ---
 

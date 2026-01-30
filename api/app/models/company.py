@@ -3,7 +3,7 @@ Company model - represents clients who use PCT FinCEN Solutions.
 """
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, text
+from sqlalchemy import Column, String, Integer, Text, DateTime, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -32,6 +32,11 @@ class Company(Base):
     address = Column(JSONBType, nullable=True)  # {street, city, state, zip}
     phone = Column(String(50), nullable=True)
     
+    # Billing configuration
+    filing_fee_cents = Column(Integer, nullable=False, server_default="7500")  # $75.00 default
+    payment_terms_days = Column(Integer, nullable=False, server_default="30")  # Net 30 default
+    billing_notes = Column(Text, nullable=True)  # Internal notes about billing arrangements
+    
     # Status
     status = Column(String(50), nullable=False, server_default="active")  # active, suspended, inactive
     settings = Column(JSONBType, nullable=True, server_default="{}")  # Future config
@@ -49,3 +54,8 @@ class Company(Base):
 
     def __repr__(self):
         return f"<Company {self.code} name={self.name}>"
+    
+    @property
+    def filing_fee_dollars(self) -> float:
+        """Return filing fee in dollars for display."""
+        return (self.filing_fee_cents or 7500) / 100.0

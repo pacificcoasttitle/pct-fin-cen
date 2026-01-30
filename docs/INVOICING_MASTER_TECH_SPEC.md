@@ -1004,27 +1004,95 @@ class Subscription(Base):
 
 ---
 
+---
+
+## 13. Phase 1 Enhancements (January 30, 2026)
+
+### 13.1 Per-Company Pricing
+
+Companies now have configurable billing rates:
+
+| Field | Type | Default | Purpose |
+|-------|------|---------|---------|
+| `filing_fee_cents` | Integer | 7500 | Per-filing charge ($75.00) |
+| `payment_terms_days` | Integer | 30 | Days until invoice is due |
+| `billing_notes` | Text | null | Internal notes about billing |
+
+### 13.2 New API Endpoints
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/companies/{id}/billing-settings` | Get company billing config |
+| PATCH | `/companies/{id}/billing-settings` | Update billing settings |
+| POST | `/invoices/billing-events` | Create manual billing event |
+| GET | `/invoices/billing-events` | List all billing events |
+
+### 13.3 Admin UI Enhancements
+
+**Company Detail Sheet:**
+- New "Billing Settings" section
+- Edit filing fee per company
+- Edit payment terms
+- Add internal billing notes
+
+**Invoice Management Page:**
+- "Generate Invoice" button with dialog
+- Select company and date range
+- Preview unbilled events count/total
+- "Add Billing Event" button for manual charges/credits
+
+### 13.4 Dynamic Billing Event Creation
+
+BillingEvent creation now uses company's configured rate:
+
+```python
+# Before (hardcoded):
+amount_cents=7500
+
+# After (dynamic):
+company = db.query(Company).filter(Company.id == report.company_id).first()
+filing_fee = company.filing_fee_cents if company else 7500
+amount_cents=filing_fee
+```
+
+### 13.5 Manual Billing Events
+
+Admins can now create manual billing events:
+- **Credits** (negative amounts)
+- **Manual Adjustments**
+- **Expedite Fees**
+- **Other charges**
+
+### 13.6 Audit Trail Additions
+
+New audit events:
+- `billing_event.created` - Auto-created on filing
+- `billing_event.manual_created` - Manual creation by admin
+- `company.billing_settings_updated` - Rate/terms changes
+
+---
+
 ## Summary
 
 **Current State:**
-- Basic invoicing system is functional
-- Billing events auto-created on filing acceptance
-- Manual invoice generation via API
-- Status management (draft → sent → paid)
-- Role-based access implemented
+- ✅ Basic invoicing system is functional
+- ✅ Billing events auto-created on filing acceptance
+- ✅ Manual invoice generation via API **and UI**
+- ✅ Status management (draft → sent → paid)
+- ✅ Role-based access implemented
+- ✅ **Per-company pricing configurable**
+- ✅ **Manual billing events (credits/adjustments)**
+- ✅ **Admin UI for billing settings**
 
-**Key Limitations:**
-- All pricing is hardcoded ($75)
-- No per-company pricing
+**Remaining Limitations:**
 - No subscription support
-- No payment processing
-- No auto-invoice generation
+- No payment processing (Stripe)
+- No auto-invoice generation (cron)
 - No PDF generation
 
-**Recommended Next Steps:**
-1. Add `filing_fee_cents` to Company model
-2. Update BillingEvent creation to use company rate
-3. Add admin UI for setting company rates
-4. Add admin UI for invoice generation
-5. Implement PDF generation
-6. Consider Stripe integration for automated payments
+**Recommended Next Steps (Phase 2+):**
+1. Implement subscription billing model
+2. Add Stripe integration for payments
+3. Auto-invoice generation cron job
+4. PDF invoice generation
+5. Email invoice delivery for automated payments

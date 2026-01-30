@@ -14,6 +14,7 @@ from app.config import get_settings
 from app.models import Report, ReportParty, PartyLink, AuditLog
 from app.models.billing_event import BillingEvent
 from app.models.submission_request import SubmissionRequest
+from app.models.company import Company
 from app.schemas.report import (
     ReportCreate,
     ReportResponse,
@@ -33,6 +34,7 @@ from app.schemas.common import ReadyCheckResponse, FileResponse, MissingItem
 from app.services.determination import determine_reportability
 from app.services.filing import MockFilingProvider
 from app.services.notifications import log_notification, send_party_invite_notification
+from app.services.audit import log_event
 from app.services.email_service import FRONTEND_URL
 from app.services.filing_lifecycle import (
     enqueue_submission,
@@ -851,18 +853,41 @@ def file_report(
     
     # Create billing event for accepted filings
     if outcome == "accepted" and report.company_id:
+        # Get company's configured filing fee (default: $75.00)
+        company = db.query(Company).filter(Company.id == report.company_id).first()
+        filing_fee = company.filing_fee_cents if company else 7500  # Fallback to default
+        
         billing_event = BillingEvent(
             company_id=report.company_id,
             report_id=report.id,
             submission_request_id=report.submission_request_id,
             event_type="filing_accepted",
             description=f"FinCEN filing for {report.property_address_text}",
-            amount_cents=7500,  # $75.00 per filing
+            amount_cents=filing_fee,  # Use company's configured rate
             quantity=1,
             bsa_id=submission.receipt_id,
             created_at=datetime.utcnow(),
         )
         db.add(billing_event)
+        db.flush()
+        
+        # Audit log for billing event creation
+        log_event(
+            db=db,
+            entity_type="billing_event",
+            entity_id=str(billing_event.id),
+            event_type="billing_event.created",
+            actor_type="system",
+            details={
+                "event_type": "filing_accepted",
+                "amount_cents": filing_fee,
+                "company_id": str(report.company_id),
+                "report_id": str(report.id),
+                "bsa_id": submission.receipt_id,
+            },
+            company_id=str(report.company_id),
+            report_id=str(report.id),
+        )
         db.commit()
     
     # =================================================================

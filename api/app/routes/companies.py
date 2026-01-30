@@ -473,3 +473,120 @@ async def get_company_users(
         ],
         "total": len(users),
     }
+
+
+# ============================================================================
+# BILLING SETTINGS
+# ============================================================================
+
+class CompanyBillingSettingsUpdate(BaseModel):
+    """Request to update company billing settings."""
+    filing_fee_cents: Optional[int] = None
+    payment_terms_days: Optional[int] = None
+    billing_notes: Optional[str] = None
+    billing_email: Optional[str] = None
+    billing_contact_name: Optional[str] = None
+
+
+@router.get("/{company_id}/billing-settings")
+async def get_company_billing_settings(
+    company_id: str,
+    db: Session = Depends(get_db),
+):
+    """
+    Get billing settings for a company.
+    
+    GET /companies/{company_id}/billing-settings
+    """
+    company = db.query(Company).filter(Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    return {
+        "company_id": str(company.id),
+        "company_name": company.name,
+        "filing_fee_cents": company.filing_fee_cents or 7500,
+        "filing_fee_dollars": (company.filing_fee_cents or 7500) / 100.0,
+        "payment_terms_days": company.payment_terms_days or 30,
+        "billing_notes": company.billing_notes,
+        "billing_email": company.billing_email,
+        "billing_contact_name": company.billing_contact_name,
+    }
+
+
+@router.patch("/{company_id}/billing-settings")
+async def update_company_billing_settings(
+    company_id: str,
+    settings: CompanyBillingSettingsUpdate,
+    db: Session = Depends(get_db),
+):
+    """
+    Update billing settings for a company.
+    
+    PATCH /companies/{company_id}/billing-settings
+    {
+        "filing_fee_cents": 6000,  // $60.00
+        "payment_terms_days": 45,
+        "billing_notes": "Enterprise client - volume discount"
+    }
+    """
+    company = db.query(Company).filter(Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    # Track old values for audit
+    old_values = {
+        "filing_fee_cents": company.filing_fee_cents,
+        "payment_terms_days": company.payment_terms_days,
+    }
+    
+    # Update fields if provided
+    if settings.filing_fee_cents is not None:
+        if settings.filing_fee_cents < 0:
+            raise HTTPException(status_code=400, detail="Filing fee cannot be negative")
+        company.filing_fee_cents = settings.filing_fee_cents
+    
+    if settings.payment_terms_days is not None:
+        if settings.payment_terms_days < 0:
+            raise HTTPException(status_code=400, detail="Payment terms cannot be negative")
+        company.payment_terms_days = settings.payment_terms_days
+    
+    if settings.billing_notes is not None:
+        company.billing_notes = settings.billing_notes
+    
+    if settings.billing_email is not None:
+        company.billing_email = settings.billing_email
+    
+    if settings.billing_contact_name is not None:
+        company.billing_contact_name = settings.billing_contact_name
+    
+    company.updated_at = datetime.utcnow()
+    
+    # Audit log
+    log_change(
+        db=db,
+        entity_type=ENTITY_COMPANY,
+        entity_id=str(company.id),
+        event_type="company.billing_settings_updated",
+        old_values=old_values,
+        new_values={
+            "filing_fee_cents": company.filing_fee_cents,
+            "payment_terms_days": company.payment_terms_days,
+        },
+        actor_type="admin",
+    )
+    
+    db.commit()
+    db.refresh(company)
+    
+    return {
+        "company_id": str(company.id),
+        "company_name": company.name,
+        "filing_fee_cents": company.filing_fee_cents or 7500,
+        "filing_fee_dollars": (company.filing_fee_cents or 7500) / 100.0,
+        "payment_terms_days": company.payment_terms_days or 30,
+        "billing_notes": company.billing_notes,
+        "billing_email": company.billing_email,
+        "billing_contact_name": company.billing_contact_name,
+        "message": "Billing settings updated successfully",
+    }
