@@ -295,22 +295,22 @@ import { AddressAutocomplete } from "@/components/AddressAutocomplete";
 
 ---
 
-### 48. Per-Company Billing Configuration (Phase 1) ✅
+### 48. Per-Company Billing + Unified Billing UI (Phase 1 Complete) ✅
 
 **Date:** January 30, 2026
 
-**Problem:** All companies were charged a hardcoded $75/filing with no flexibility for:
-- Enterprise pricing
-- Volume discounts
-- Special arrangements
-- Manual credits/adjustments
+**Problem:** 
+- All companies charged hardcoded $75/filing with no flexibility
+- Billing UI scattered across multiple pages
+- Client Admin couldn't see billing activity
+- Admin couldn't easily manage rates
 
 The hardcoded line was:
 ```python
 amount_cents=7500  # $75.00 per filing - HARDCODED!
 ```
 
-**Solution:** Implemented Phase 1 of the Billing System Enhancement.
+**Solution:** Implemented complete Billing System Phase 1 with unified UI per role.
 
 ### Database Changes
 
@@ -322,70 +322,86 @@ amount_cents=7500  # $75.00 per filing - HARDCODED!
 
 **Migration:** `api/alembic/versions/20260130_000001_add_company_billing_settings.py`
 
-### API Endpoints Added
+### NEW: Consolidated Billing API
+
+All billing endpoints now in ONE file: `api/app/routes/billing.py`
+
+**Client Admin Endpoints (`/billing/my/*`):**
 
 | Method | Endpoint | Purpose |
 |--------|----------|---------|
-| GET | `/companies/{id}/billing-settings` | Get billing config |
-| PATCH | `/companies/{id}/billing-settings` | Update billing settings |
-| POST | `/invoices/billing-events` | Create manual charge/credit |
-| GET | `/invoices/billing-events` | List billing events |
+| GET | `/billing/my/stats` | Company's billing stats |
+| GET | `/billing/my/invoices` | Company's invoices |
+| GET | `/billing/my/invoices/{id}` | Invoice detail |
+| GET | `/billing/my/activity` | Company's billing events |
 
-### Admin UI Enhancements
+**Admin Endpoints (`/billing/admin/*`):**
 
-**Company Detail Sheet:**
-- New "Billing Settings" section
-- Editable filing fee ($0.00 - $999.99)
-- Editable payment terms (Net X days)
-- Internal billing notes field
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/billing/admin/stats` | All-company stats |
+| GET | `/billing/admin/invoices` | All invoices |
+| GET | `/billing/admin/invoices/{id}` | Invoice detail |
+| POST | `/billing/admin/invoices/generate` | Generate invoice |
+| PATCH | `/billing/admin/invoices/{id}/status` | Update status |
+| GET | `/billing/admin/events` | All billing events |
+| POST | `/billing/admin/events` | Create manual event |
+| GET | `/billing/admin/rates` | All company rates |
+| PATCH | `/billing/admin/rates/{id}` | Update rate |
 
-**Invoice Management Page:**
-- "Generate Invoice" button + dialog
-  - Select company
-  - Set billing period dates
-  - Preview unbilled events count/total
-- "Add Billing Event" button + dialog
-  - Select company
-  - Choose type (adjustment, credit, expedite fee, other)
-  - Enter amount with credit checkbox
-  - Add description
+### NEW: Unified Billing Pages
 
-### Dynamic Billing
+**Client Admin:** `/app/billing`
+- Stats: Outstanding, Paid YTD, Pending Charges, Your Rate
+- Tabs: Invoices, Activity
+- Invoice detail dialog
 
-BillingEvent creation now uses company's configured rate:
-```python
-# Get company's filing fee (fallback to $75 default)
-company = db.query(Company).filter(Company.id == report.company_id).first()
-filing_fee = company.filing_fee_cents if company else 7500
-```
+**Admin/COO:** `/app/admin/billing`
+- Stats: Outstanding, Collected (Month), Pending Events, Companies
+- Tabs: Invoices, Billing Events, Company Rates
+- Actions: Generate Invoice, Add Event
+- Dialogs: Generate Invoice, Add Billing Event, Edit Rate
+
+### Navigation Updates
+
+| Role | Sees "Billing"? | Route |
+|------|-----------------|-------|
+| `client_user` | ❌ No | - |
+| `client_admin` | ✅ Yes | `/app/billing` |
+| `pct_staff` | ❌ No | - |
+| `pct_admin` | ✅ Yes | `/app/admin/billing` |
+| `coo` | ✅ Yes | `/app/admin/billing` |
 
 ### Audit Trail
 
 New events logged:
 - `billing_event.created` - Auto-created on filing
 - `billing_event.manual_created` - Manual charge/credit
-- `company.billing_settings_updated` - Rate changes
+- `company.billing_rate_updated` - Rate changes
+- `invoice.generated` - Invoice generation
 
 ### Files Created
 
-| File | Purpose |
-|------|---------|
-| `api/alembic/versions/20260130_000001_add_company_billing_settings.py` | Migration |
+| File | Lines | Purpose |
+|------|-------|---------|
+| `api/app/routes/billing.py` | ~700 | Consolidated billing API |
+| `web/app/(app)/app/billing/page.tsx` | ~350 | Client billing page |
+| `web/app/(app)/app/admin/billing/page.tsx` | ~650 | Admin billing page |
+| `api/alembic/versions/20260130_000001_...` | 45 | Migration |
 
 ### Files Modified
 
 | File | Changes |
 |------|---------|
 | `api/app/models/company.py` | Added billing fields + property |
-| `api/app/routes/companies.py` | Added billing settings endpoints |
-| `api/app/routes/invoices.py` | Added manual billing event endpoint |
 | `api/app/routes/reports.py` | Use company rate for billing events |
+| `api/app/routes/__init__.py` | Export billing_router |
+| `api/app/main.py` | Register billing router |
 | `api/app/services/demo_seed.py` | Use company rate |
-| `web/app/(app)/app/admin/companies/page.tsx` | Billing settings UI |
-| `web/app/(app)/app/admin/invoices/page.tsx` | Generate invoice + billing event dialogs |
+| `web/lib/navigation.ts` | Add Billing links per role |
 | `docs/INVOICING_MASTER_TECH_SPEC.md` | Phase 1 documentation |
 
-**Status:** ✅ Killed (BIG FUCKING SHARK)
+**Status:** ✅ Killed (BIG FUCKING SHARK 🦈)
 
 ---
 

@@ -160,7 +160,7 @@ function getCOONavigation(counts: BadgeCounts): NavSection[] {
 }
 
 // ============================================
-// FinClear Admin - Full Admin (NO Executive Dashboard, NO Billing)
+// FinClear Admin - Full Admin (NO Executive Dashboard)
 // ============================================
 function getPCTAdminNavigation(counts: BadgeCounts): NavSection[] {
   return [
@@ -200,9 +200,9 @@ function getPCTAdminNavigation(counts: BadgeCounts): NavSection[] {
           icon: Send,
         },
         {
-          label: "Invoices",
-          href: "/app/admin/invoices",
-          icon: Receipt,
+          label: "Billing",
+          href: "/app/admin/billing",
+          icon: DollarSign,
         },
       ],
     },
@@ -308,9 +308,9 @@ function getClientAdminNavigation(counts: BadgeCounts): NavSection[] {
           icon: FileText,
         },
         {
-          label: "Invoices",
-          href: "/app/invoices",
-          icon: Receipt,
+          label: "Billing",
+          href: "/app/billing",
+          icon: DollarSign,
         },
       ],
     },
@@ -425,8 +425,9 @@ export function isClient(role: UserRole): boolean {
 }
 
 export function canViewBilling(role: UserRole): boolean {
-  // COO sees billing (business overview) + Company Admin sees their invoices
-  return role === "coo" || role === "client_admin";
+  // COO and PCT Admin see full billing management
+  // Client Admin sees their company's billing
+  return role === "coo" || role === "pct_admin" || role === "client_admin";
 }
 
 export function canManageTeam(role: UserRole): boolean {
