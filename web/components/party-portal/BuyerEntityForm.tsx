@@ -270,6 +270,20 @@ export function BuyerEntityForm({
             </AlertDescription>
           </Alert>
 
+          {/* Indirect Ownership Guidance */}
+          <Alert className="bg-amber-50 border-amber-200">
+            <AlertTriangle className="h-4 w-4 text-amber-600" />
+            <AlertDescription className="text-amber-800">
+              <strong>Indirect Ownership:</strong> If any owner holds their interest through another 
+              entity (e.g., a member is itself a corporation), identify the <strong>individuals</strong> who 
+              ultimately own or control through those entities.
+              <p className="text-sm mt-2 text-amber-700">
+                <em>Example: If ABC Corp owns 40% of the buyer, and John Smith owns 100% of 
+                ABC Corp, then John Smith is a beneficial owner with 40% indirect interest.</em>
+              </p>
+            </AlertDescription>
+          </Alert>
+
           <div className="space-y-4">
             {beneficialOwners.map((bo, index) => (
               <BeneficialOwnerCard
@@ -280,6 +294,7 @@ export function BuyerEntityForm({
                 onRemove={() => removeBeneficialOwner(index)}
                 disabled={disabled}
                 canRemove={beneficialOwners.length > 1}
+                parentEntityType="entity"
               />
             ))}
           </div>

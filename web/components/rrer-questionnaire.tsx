@@ -74,6 +74,8 @@ import {
   type DeterminationStepId,
   type CollectionStepId,
   type Address,
+  type EntitySubtype,
+  type BoiStatus,
   INDIVIDUAL_EXEMPTIONS,
   ENTITY_EXEMPTIONS,
   TRUST_EXEMPTIONS,
@@ -85,6 +87,9 @@ import {
   ACCOUNT_TYPES,
   SIGNING_CAPACITIES,
   TOOLTIPS,
+  ENTITY_SUBTYPE_OPTIONS,
+  BOI_STATUS_OPTIONS,
+  ENTITY_DOCUMENT_CHECKLIST,
   generateDeterminationId,
   generateId,
   createEmptyAddress,
@@ -113,6 +118,10 @@ const initialDetermination: DeterminationState = {
   individualExemptions: [],
   entityExemptions: [],
   trustExemptions: [],
+  // Entity enhancement fields
+  entitySubtype: undefined,
+  buyerBoiStatus: undefined,
+  buyerFincenId: undefined,
 }
 
 const initialCollection: Partial<CollectionData> = {
@@ -1295,13 +1304,13 @@ export function RRERQuestionnaire({
                     step="Step 3: Buyer Type"
                     title="Is the Buyer (Transferee) an Individual, Entity, or Trust?"
                   />
-                  <CardContent className="pt-6">
+                  <CardContent className="pt-6 space-y-6">
                     <div className="flex flex-col sm:flex-row gap-4">
                       <Button
                         variant={determination.buyerType === "individual" ? "default" : "outline"}
                         size="lg"
                         className="flex-1 h-16"
-                        onClick={() => setDetermination(prev => ({ ...prev, buyerType: "individual" }))}
+                        onClick={() => setDetermination(prev => ({ ...prev, buyerType: "individual", entitySubtype: undefined, buyerBoiStatus: undefined, buyerFincenId: undefined }))}
                       >
                         <div className="text-center">
                           <div className="text-lg">Individual</div>
@@ -1323,7 +1332,7 @@ export function RRERQuestionnaire({
                         variant={determination.buyerType === "trust" ? "default" : "outline"}
                         size="lg"
                         className="flex-1 h-16"
-                        onClick={() => setDetermination(prev => ({ ...prev, buyerType: "trust" }))}
+                        onClick={() => setDetermination(prev => ({ ...prev, buyerType: "trust", entitySubtype: undefined, buyerBoiStatus: undefined, buyerFincenId: undefined }))}
                       >
                         <div className="text-center">
                           <div className="text-lg">Trust</div>
@@ -1331,6 +1340,136 @@ export function RRERQuestionnaire({
                         </div>
                       </Button>
                     </div>
+
+                    {/* Entity Subtype Selection */}
+                    {determination.buyerType === "entity" && (
+                      <div className="space-y-4 pt-4 border-t">
+                        <div>
+                          <Label className="text-base font-medium">What type of entity is the buyer?</Label>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Select the specific entity type for accurate document requirements
+                          </p>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {ENTITY_SUBTYPE_OPTIONS.map((option) => (
+                            <div 
+                              key={option.value} 
+                              className={cn(
+                                "flex items-center space-x-3 p-3 rounded-lg border cursor-pointer transition-colors",
+                                determination.entitySubtype === option.value 
+                                  ? "border-primary bg-primary/5" 
+                                  : "hover:bg-muted/50"
+                              )}
+                              onClick={() => setDetermination(prev => ({ ...prev, entitySubtype: option.value }))}
+                            >
+                              <div className={cn(
+                                "w-4 h-4 rounded-full border-2 flex items-center justify-center",
+                                determination.entitySubtype === option.value ? "border-primary" : "border-muted-foreground"
+                              )}>
+                                {determination.entitySubtype === option.value && (
+                                  <div className="w-2 h-2 rounded-full bg-primary" />
+                                )}
+                              </div>
+                              <div className="flex-1">
+                                <span className="font-medium">{option.label}</span>
+                                <p className="text-xs text-muted-foreground">{option.description}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        
+                        {/* Document Checklist - shows after subtype selected */}
+                        {determination.entitySubtype && (
+                          <Card className="bg-blue-50 border-blue-200">
+                            <CardHeader className="pb-2">
+                              <CardTitle className="text-sm font-medium text-blue-800 flex items-center gap-2">
+                                <FileText className="h-4 w-4" />
+                                Documents to Have on File
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent className="pt-0">
+                              <ul className="text-sm text-blue-700 space-y-1">
+                                {ENTITY_DOCUMENT_CHECKLIST[determination.entitySubtype].map((doc, i) => (
+                                  <li key={i} className="flex items-center gap-2">
+                                    <CheckCircle className="h-4 w-4 flex-shrink-0" />
+                                    <span>{doc}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </CardContent>
+                          </Card>
+                        )}
+                      </div>
+                    )}
+
+                    {/* BOI Status - only for entities that need BOI reporting */}
+                    {determination.buyerType === "entity" && 
+                     determination.entitySubtype && 
+                     determination.entitySubtype !== "pension_plan" && (
+                      <div className="space-y-4 pt-4 border-t">
+                        <div>
+                          <Label className="text-base font-medium">
+                            Has this entity filed its Beneficial Ownership Information (BOI) report with FinCEN?
+                          </Label>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          {BOI_STATUS_OPTIONS.map((option) => (
+                            <div 
+                              key={option.value} 
+                              className={cn(
+                                "flex items-center space-x-3 p-3 rounded-lg border cursor-pointer transition-colors",
+                                determination.buyerBoiStatus === option.value 
+                                  ? "border-primary bg-primary/5" 
+                                  : "hover:bg-muted/50"
+                              )}
+                              onClick={() => setDetermination(prev => ({ ...prev, buyerBoiStatus: option.value }))}
+                            >
+                              <div className={cn(
+                                "w-4 h-4 rounded-full border-2 flex items-center justify-center",
+                                determination.buyerBoiStatus === option.value ? "border-primary" : "border-muted-foreground"
+                              )}>
+                                {determination.buyerBoiStatus === option.value && (
+                                  <div className="w-2 h-2 rounded-full bg-primary" />
+                                )}
+                              </div>
+                              <span>{option.label}</span>
+                            </div>
+                          ))}
+                        </div>
+                        
+                        {/* FinCEN ID input if BOI filed */}
+                        {determination.buyerBoiStatus === "filed" && (
+                          <div className="ml-6">
+                            <Label htmlFor="fincen-id">FinCEN ID (optional)</Label>
+                            <Input
+                              id="fincen-id"
+                              placeholder="Enter FinCEN ID if available"
+                              value={determination.buyerFincenId || ""}
+                              onChange={(e) => 
+                                setDetermination(prev => ({ ...prev, buyerFincenId: e.target.value }))
+                              }
+                              className="mt-1"
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">
+                              If available, this can help verify beneficial owner information
+                            </p>
+                          </div>
+                        )}
+                        
+                        {/* Warning if BOI not filed */}
+                        {determination.buyerBoiStatus === "not_filed" && (
+                          <Alert className="bg-amber-50 border-amber-200">
+                            <AlertTriangle className="h-4 w-4 text-amber-600" />
+                            <AlertDescription className="text-amber-700 text-sm">
+                              Note: Most entities are required to file BOI reports with FinCEN. 
+                              This may be a compliance concern for the buyer.
+                            </AlertDescription>
+                          </Alert>
+                        )}
+                      </div>
+                    )}
                   </CardContent>
                 </>
               )}
@@ -1777,9 +1916,11 @@ export function RRERQuestionnaire({
                                 ...prev,
                                 propertyAddress: {
                                   street: address.street,
+                                  unit: "",
                                   city: address.city,
                                   state: address.state || "CA",
                                   zip: address.zip,
+                                  country: "United States",
                                 },
                                 county: address.county || prev.county || "",
                                 apn: property?.apn || prev.apn || "",

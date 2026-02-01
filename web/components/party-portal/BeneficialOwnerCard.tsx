@@ -35,6 +35,7 @@ interface BeneficialOwnerCardProps {
   onRemove: () => void
   disabled?: boolean
   canRemove?: boolean
+  parentEntityType?: "entity" | "trust"
 }
 
 const emptyAddress: AddressData = {
@@ -52,6 +53,7 @@ export function BeneficialOwnerCard({
   onRemove,
   disabled = false,
   canRemove = true,
+  parentEntityType = "entity",
 }: BeneficialOwnerCardProps) {
   const [isOpen, setIsOpen] = useState(true)
 
@@ -343,6 +345,79 @@ export function BeneficialOwnerCard({
                 </div>
               </div>
             </div>
+
+            {/* Trust Role - only for trust buyers */}
+            {parentEntityType === "trust" && (
+              <div>
+                <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide mb-3">
+                  Role in Trust *
+                </h4>
+                <Select
+                  value={data.trust_role || ""}
+                  onValueChange={(val) => update("trust_role", val as any)}
+                  disabled={disabled}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select role in trust..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="trustee">Trustee</SelectItem>
+                    <SelectItem value="settlor">Settlor/Grantor</SelectItem>
+                    <SelectItem value="beneficiary">Beneficiary</SelectItem>
+                    <SelectItem value="power_holder">Power of Appointment Holder</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Indirect Ownership Section */}
+            <div className="pt-4 border-t">
+              <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide mb-3">
+                Ownership Structure
+              </h4>
+              <div className="space-y-3">
+                <div className="flex items-start space-x-2">
+                  <Checkbox
+                    id={`indirect-${data.id}`}
+                    checked={data.is_indirect_owner || false}
+                    onCheckedChange={(checked) => 
+                      update("is_indirect_owner", checked as boolean)
+                    }
+                    disabled={disabled}
+                  />
+                  <div className="grid gap-1.5 leading-none">
+                    <label
+                      htmlFor={`indirect-${data.id}`}
+                      className="text-sm font-medium cursor-pointer"
+                    >
+                      This person owns through another entity (indirect ownership)
+                    </label>
+                    <p className="text-xs text-muted-foreground">
+                      Check if ownership is held through an LLC, corporation, or other entity
+                    </p>
+                  </div>
+                </div>
+                
+                {data.is_indirect_owner && (
+                  <div className="ml-6 space-y-2">
+                    <Label htmlFor={`indirect-entity-${data.id}`}>
+                      Through which entity?
+                    </Label>
+                    <Input
+                      id={`indirect-entity-${data.id}`}
+                      placeholder="e.g., ABC Holdings LLC"
+                      value={data.indirect_entity_name || ""}
+                      onChange={(e) => update("indirect_entity_name", e.target.value)}
+                      disabled={disabled}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      The entity through which this person holds their ownership interest
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
           </CardContent>
         </CollapsibleContent>
       </Card>
@@ -367,5 +442,8 @@ export function createEmptyBeneficialOwner(): BeneficialOwnerData {
     citizenship: "us_citizen",
     id_type: "ssn",
     id_number: "",
+    is_indirect_owner: false,
+    indirect_entity_name: "",
+    trust_role: undefined,
   }
 }

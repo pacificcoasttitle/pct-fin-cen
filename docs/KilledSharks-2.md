@@ -405,28 +405,138 @@ New events logged:
 
 ---
 
+---
+
+### 49. Entity Enhancements - Subtype, BOI Status, Indirect Ownership, Trust Roles ✅
+
+**Date:** February 1, 2026
+
+**Problem:** The wizard and party portal lacked critical FinCEN compliance features:
+- No entity subtype differentiation (LLC vs Corporation vs Partnership etc.)
+- No BOI (Beneficial Ownership Information) status tracking
+- No indirect ownership documentation
+- No trust role specification for trust beneficial owners
+- No entity-specific document checklists
+
+**Solution:** Implemented comprehensive entity enhancements across wizard and party portal.
+
+### Phase 1: TypeScript Interface Updates
+
+| File | Changes |
+|------|---------|
+| `web/lib/rrer-types.ts` | Added `EntitySubtype`, `BoiStatus`, `TrustRole` types |
+| `web/lib/rrer-types.ts` | Added entity subtype/BOI/trust role options constants |
+| `web/lib/rrer-types.ts` | Added `ENTITY_DOCUMENT_CHECKLIST` per subtype |
+| `web/lib/rrer-types.ts` | Updated `DeterminationState` with new fields |
+| `web/lib/rrer-types.ts` | Updated `BeneficialOwner` with indirect/trust fields |
+| `web/components/party-portal/types.ts` | Updated `BeneficialOwnerData` |
+
+### Phase 2: Wizard Entity Subtype
+
+**Added to buyer-type step:**
+- Entity subtype selector (LLC, Corp, Partnership, Pension, Foreign, Other)
+- Dynamic document checklist based on selected subtype
+- BOI status question for non-pension entities
+- FinCEN ID input when BOI is filed
+- Warning alert when BOI not filed
+
+**Entity Subtypes & Document Checklists:**
+
+| Subtype | Documents Required |
+|---------|-------------------|
+| LLC | Articles of Org, Operating Agreement, Member List, EIN |
+| Domestic Corp | Articles of Inc, Bylaws, Statement of Info, Shareholder Roster, Officers |
+| Foreign Entity | Formation Docs (certified), Translation, US Registration, Tax ID |
+| Partnership | Partnership Agreement, Partner List, EIN |
+| Pension Plan | Trust Agreement, Adoption Agreement, Plan Sponsor, IRS Qualification |
+
+### Phase 3: Indirect Ownership (BeneficialOwnerCard)
+
+Added to every beneficial owner card:
+- "Indirect owner" checkbox for ownership through another entity
+- Entity name input when indirect ownership is marked
+- Clear explanatory text about indirect ownership requirements
+
+Added guidance alert to BuyerEntityForm:
+- Amber alert explaining indirect ownership concept
+- Example: "If ABC Corp owns 40% of the buyer, and John Smith owns 100% of ABC Corp..."
+
+### Phase 4: Trust Roles (BeneficialOwnerCard)
+
+When `parentEntityType="trust"`:
+- Trust role dropdown appears: Trustee, Settlor/Grantor, Beneficiary, Power Holder, Other
+- Role is required for trust beneficial owners
+
+Updated parent components:
+- `BuyerEntityForm` passes `parentEntityType="entity"`
+- `BuyerTrustForm` uses TrusteeCard (different pattern)
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `web/lib/rrer-types.ts` | Added types, constants, updated interfaces |
+| `web/components/rrer-questionnaire.tsx` | Entity subtype UI, BOI status, imports |
+| `web/components/party-portal/types.ts` | Added BO enhancement fields |
+| `web/components/party-portal/BeneficialOwnerCard.tsx` | Indirect ownership, trust roles |
+| `web/components/party-portal/BuyerEntityForm.tsx` | Guidance alert, parentEntityType prop |
+
+### New TypeScript Types
+
+```typescript
+type EntitySubtype = "llc" | "corporation_domestic" | "corporation_foreign" 
+                   | "partnership" | "pension_plan" | "other"
+
+type BoiStatus = "filed" | "not_filed" | "exempt" | "unknown"
+
+type TrustRole = "trustee" | "settlor" | "beneficiary" | "power_holder" | "other"
+```
+
+### Verification Checklist
+
+- ✅ EntitySubtype type exists
+- ✅ BoiStatus type exists
+- ✅ TrustRole type exists
+- ✅ ENTITY_SUBTYPE_OPTIONS constant exists
+- ✅ BOI_STATUS_OPTIONS constant exists
+- ✅ ENTITY_DOCUMENT_CHECKLIST constant exists
+- ✅ DeterminationState has new fields
+- ✅ BeneficialOwnerData has new fields
+- ✅ Entity subtype selector appears for entity buyers
+- ✅ Document checklist shows based on subtype
+- ✅ BOI status question appears for non-pension entities
+- ✅ Indirect ownership checkbox in BO card
+- ✅ Trust role dropdown for trust buyers
+- ✅ TypeScript compiles without new errors
+- ✅ No linter errors in modified files
+
+**Status:** ✅ Killed (COMPLIANCE SHARK 🦈)
+
+---
+
 ## Summary Update
 
 | Category | Count |
 |----------|-------|
-| 🔴 Critical Features | 1 |
+| 🔴 Critical Features | 2 |
 | 🟠 Major Features | 1 |
 | 🎨 UX/Design | 1 |
 | 🔧 Configuration | 2 |
 | 📄 Documentation | 2 |
 
-**Total Sharks Killed (Vol 2): 7 🦈**
+**Total Sharks Killed (Vol 2): 8 🦈**
 
 ---
 
 ## Next Steps
 
 1. **P1:** Billing Phase 2 - Subscription billing model
-2. **P2:** Add property type validation against SiteX data
-3. **P2:** Stripe integration for payments
-4. **P3:** Surface lastSalePrice for pricing sanity check
-5. **P3:** Add APN-only lookup as alternative entry point
+2. **P1:** Entity Enhancements Phase 2 - Backend storage of new fields
+3. **P2:** Add property type validation against SiteX data
+4. **P2:** Stripe integration for payments
+5. **P3:** Surface lastSalePrice for pricing sanity check
+6. **P3:** Add APN-only lookup as alternative entry point
 
 ---
 
-*Last updated: January 30, 2026*
+*Last updated: February 1, 2026*

@@ -24,6 +24,10 @@ export interface BeneficialOwnerData {
   ownership_percentage?: number
   control_type?: ("senior_officer" | "authority_decisions" | "other")[]
   control_other?: string
+  // Entity Enhancement Fields
+  is_indirect_owner?: boolean
+  indirect_entity_name?: string
+  trust_role?: "trustee" | "settlor" | "beneficiary" | "power_holder" | "other"
 }
 
 export interface PaymentSourceData {

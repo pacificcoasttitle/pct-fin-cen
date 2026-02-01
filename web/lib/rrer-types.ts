@@ -24,6 +24,19 @@ export type YesNoUnknown = "yes" | "no" | "unknown" | null
 export type BuyerType = "individual" | "entity" | "trust" | null
 export type SellerType = "individual" | "entity" | "trust"
 
+// Entity Enhancement Types
+export type EntitySubtype = 
+  | "llc" 
+  | "corporation_domestic" 
+  | "corporation_foreign" 
+  | "partnership" 
+  | "pension_plan" 
+  | "other"
+
+export type BoiStatus = "filed" | "not_filed" | "exempt" | "unknown"
+
+export type TrustRole = "trustee" | "settlor" | "beneficiary" | "power_holder" | "other"
+
 // Address Types
 export interface Address {
   street: string
@@ -90,6 +103,10 @@ export interface BeneficialOwner {
   issuingJurisdiction?: string
   ownershipPercentage?: number
   controlTypes: string[]
+  // Entity Enhancement Fields
+  isIndirectOwner?: boolean
+  indirectEntityName?: string
+  trustRole?: TrustRole
 }
 
 // Trustee
@@ -302,6 +319,10 @@ export interface DeterminationState {
   individualExemptions: string[]
   entityExemptions: string[]
   trustExemptions: string[]
+  // Entity Enhancement Fields
+  entitySubtype?: EntitySubtype
+  buyerBoiStatus?: BoiStatus
+  buyerFincenId?: string
 }
 
 // Result
@@ -421,6 +442,69 @@ export const TRUST_TYPES = [
   { value: "charitable", label: "Charitable Trust" },
   { value: "other", label: "Other" },
 ]
+
+// Entity Enhancement Constants
+export const ENTITY_SUBTYPE_OPTIONS: { value: EntitySubtype; label: string; description: string }[] = [
+  { value: "llc", label: "LLC", description: "Limited Liability Company" },
+  { value: "corporation_domestic", label: "Domestic Corporation", description: "U.S. incorporated company" },
+  { value: "corporation_foreign", label: "Foreign Entity", description: "Incorporated outside the U.S." },
+  { value: "partnership", label: "Partnership", description: "General or Limited Partnership" },
+  { value: "pension_plan", label: "Pension/Retirement Plan", description: "ERISA, government, or church plan" },
+  { value: "other", label: "Other", description: "Other entity type" },
+]
+
+export const BOI_STATUS_OPTIONS: { value: BoiStatus; label: string }[] = [
+  { value: "filed", label: "Yes, BOI report filed with FinCEN" },
+  { value: "not_filed", label: "No, not yet filed" },
+  { value: "exempt", label: "Exempt from BOI reporting" },
+  { value: "unknown", label: "Unknown" },
+]
+
+export const TRUST_ROLE_OPTIONS: { value: TrustRole; label: string }[] = [
+  { value: "trustee", label: "Trustee" },
+  { value: "settlor", label: "Settlor/Grantor" },
+  { value: "beneficiary", label: "Beneficiary" },
+  { value: "power_holder", label: "Power of Appointment Holder" },
+  { value: "other", label: "Other" },
+]
+
+export const ENTITY_DOCUMENT_CHECKLIST: Record<EntitySubtype, string[]> = {
+  llc: [
+    "Articles of Organization",
+    "Operating Agreement",
+    "Member List with Ownership Percentages",
+    "EIN Documentation",
+  ],
+  corporation_domestic: [
+    "Articles of Incorporation",
+    "Bylaws",
+    "Statement of Information",
+    "Shareholder Roster",
+    "Officer/Director List",
+  ],
+  corporation_foreign: [
+    "Foreign Formation Documents (certified)",
+    "English translation (if applicable)",
+    "U.S. Registration (if applicable)",
+    "Foreign Tax ID or EIN",
+  ],
+  partnership: [
+    "Partnership Agreement",
+    "Partner List with Ownership Percentages",
+    "EIN Documentation",
+  ],
+  pension_plan: [
+    "Plan Trust Agreement",
+    "Adoption Agreement",
+    "Plan Sponsor Information",
+    "IRS Qualification Documentation",
+  ],
+  other: [
+    "Formation/Organization Documents",
+    "Ownership Documentation",
+    "Tax ID Documentation",
+  ],
+}
 
 export const PAYMENT_SOURCE_TYPES = [
   { value: "wire", label: "Wire Transfer" },
