@@ -3,6 +3,16 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Smooth scrolling for anchor navigation */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Offset for fixed header when scrolling to anchors */
+:target {
+  scroll-margin-top: 80px;
+}
+
 :root {
   --background: oklch(0.98 0.002 250);
   --foreground: oklch(0.25 0.04 250);

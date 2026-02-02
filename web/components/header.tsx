@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTrigger, SheetClose } from "@/components/ui/sheet";
 import { Menu } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -10,6 +10,7 @@ import { BRAND } from "@/lib/brand";
 
 export function Header() {
   const [isScrolled, setIsScrolled] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -25,6 +26,22 @@ export function Header() {
     { href: "#security", label: "Security" },
     { href: "#about", label: "About" },
   ];
+
+  // Handle smooth scroll for anchor links
+  const handleAnchorClick = useCallback((e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    if (href.startsWith("#")) {
+      e.preventDefault();
+      const targetId = href.slice(1);
+      const targetElement = document.getElementById(targetId);
+      if (targetElement) {
+        targetElement.scrollIntoView({ behavior: "smooth" });
+        // Update URL without triggering navigation
+        window.history.pushState(null, "", href);
+      }
+      // Close mobile menu if open
+      setMobileMenuOpen(false);
+    }
+  }, []);
 
   return (
     <header
@@ -59,13 +76,14 @@ export function Header() {
           {/* Desktop Navigation */}
           <nav className="hidden lg:flex items-center gap-8">
             {navLinks.map((link) => (
-              <Link
+              <a
                 key={link.href}
                 href={link.href}
-                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                onClick={(e) => handleAnchorClick(e, link.href)}
+                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
               >
                 {link.label}
-              </Link>
+              </a>
             ))}
           </nav>
 
@@ -80,7 +98,7 @@ export function Header() {
           </div>
 
           {/* Mobile Menu */}
-          <Sheet>
+          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetTrigger asChild className="lg:hidden">
               <Button variant="ghost" size="icon">
                 <Menu className="h-6 w-6" />
@@ -90,13 +108,14 @@ export function Header() {
             <SheetContent side="right" className="w-[300px] bg-card">
               <nav className="flex flex-col gap-4 mt-8">
                 {navLinks.map((link) => (
-                  <Link
+                  <a
                     key={link.href}
                     href={link.href}
-                    className="text-lg font-medium text-foreground hover:text-primary transition-colors py-2"
+                    onClick={(e) => handleAnchorClick(e, link.href)}
+                    className="text-lg font-medium text-foreground hover:text-primary transition-colors py-2 cursor-pointer"
                   >
                     {link.label}
-                  </Link>
+                  </a>
                 ))}
                 <hr className="my-4 border-border" />
                 <Button variant="outline" className="w-full bg-transparent" asChild>
