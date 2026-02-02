@@ -40,6 +40,8 @@ from app.services.filing_lifecycle import (
     enqueue_submission,
     perform_mock_submit,
     get_or_create_submission,
+    perform_sdtm_submit,
+    poll_sdtm_responses,
 )
 from app.services.party_validation import (
     calculate_party_summary,
@@ -793,21 +795,17 @@ def file_report(
     """
     File report to FinCEN.
     
-    In staging environment: Performs mock filing with submission lifecycle.
-    Outcome is determined by demo_outcome setting (default: accept).
+    Transport modes:
+    - staging/test: Mock filing with demo outcome control
+    - production + FINCEN_TRANSPORT=sdtm: Live SDTM submission to FinCEN
+    - production + FINCEN_TRANSPORT=mock: Mock filing (for testing)
     
     Returns:
-    - 200 for accepted filings
+    - 200 for accepted filings (immediate or via ACKED)
+    - 202 for submitted/needs_review (SDTM submissions pending response)
     - 400 for rejected filings
-    - 202 for needs_review filings
-    - 501 in non-staging environments
     """
-    # Check environment - only allow mock filing in staging/test
-    if settings.ENVIRONMENT not in ("staging", "test"):
-        raise HTTPException(
-            status_code=501,
-            detail="Live FinCEN filing not enabled. This feature is only available in staging environment."
-        )
+    from fastapi.responses import JSONResponse
     
     # Get report
     report = db.query(Report).filter(Report.id == report_id).first()
@@ -833,110 +831,232 @@ def file_report(
             }
         )
     
-    # Create payload snapshot (safe summary)
-    payload_snapshot = {
-        "property_address": report.property_address_text,
-        "closing_date": report.closing_date.isoformat() if report.closing_date else None,
-        "parties_count": len(report.parties),
-        "party_roles": [p.party_role for p in report.parties],
-    }
-    
     client_ip = get_client_ip(request)
     
-    # Enqueue the submission
-    enqueue_submission(db, report_id, payload_snapshot, client_ip)
+    # ═══════════════════════════════════════════════════════════════════════════
+    # TRANSPORT SWITCH: SDTM vs Mock
+    # ═══════════════════════════════════════════════════════════════════════════
     
-    # Perform mock submission (transitions to final state)
-    outcome, submission = perform_mock_submit(db, report_id, client_ip)
+    use_sdtm = (
+        settings.ENVIRONMENT == "production"
+        and settings.FINCEN_TRANSPORT == "sdtm"
+        and settings.sdtm_configured
+    )
     
-    db.commit()
-    
-    # Create billing event for accepted filings
-    if outcome == "accepted" and report.company_id:
-        # Get company's configured filing fee (default: $75.00)
-        company = db.query(Company).filter(Company.id == report.company_id).first()
-        filing_fee = company.filing_fee_cents if company else 7500  # Fallback to default
+    if use_sdtm:
+        # ═══════════════════════════════════════════════════════════════════════
+        # LIVE SDTM FILING
+        # ═══════════════════════════════════════════════════════════════════════
         
-        billing_event = BillingEvent(
-            company_id=report.company_id,
-            report_id=report.id,
-            submission_request_id=report.submission_request_id,
-            event_type="filing_accepted",
-            description=f"FinCEN filing for {report.property_address_text}",
-            amount_cents=filing_fee,  # Use company's configured rate
-            quantity=1,
-            bsa_id=submission.receipt_id,
-            created_at=datetime.utcnow(),
-        )
-        db.add(billing_event)
-        db.flush()
+        # Create initial payload snapshot
+        payload_snapshot = {
+            "property_address": report.property_address_text,
+            "closing_date": report.closing_date.isoformat() if report.closing_date else None,
+            "parties_count": len(report.parties),
+            "party_roles": [p.party_role for p in report.parties],
+            "transport": "sdtm",
+            "fincen_env": settings.FINCEN_ENV,
+        }
         
-        # Audit log for billing event creation
-        log_event(
-            db=db,
-            entity_type="billing_event",
-            entity_id=str(billing_event.id),
-            event_type="billing_event.created",
-            actor_type="system",
-            details={
-                "event_type": "filing_accepted",
-                "amount_cents": filing_fee,
-                "company_id": str(report.company_id),
-                "report_id": str(report.id),
-                "bsa_id": submission.receipt_id,
-            },
-            company_id=str(report.company_id),
-            report_id=str(report.id),
-        )
+        # Enqueue first (sets status to queued)
+        enqueue_submission(db, report_id, payload_snapshot, client_ip)
         db.commit()
+        
+        # Perform SDTM submission
+        outcome, submission = perform_sdtm_submit(db, report_id, client_ip)
+        db.commit()
+        
+        # Try an immediate poll (best-effort, no waiting)
+        if outcome == "submitted":
+            try:
+                poll_status, poll_result = poll_sdtm_responses(db, report_id)
+                if poll_status == "accepted":
+                    outcome = "accepted"
+                    submission = db.query(Report).filter(Report.id == report_id).first()
+                    submission = get_or_create_submission(db, report_id)
+                db.commit()
+            except Exception:
+                pass  # Ignore poll errors on immediate attempt
+        
+        # Return appropriate response
+        if outcome == "accepted":
+            # Create billing event for accepted filings
+            _create_billing_event_for_acceptance(db, report, submission)
+            _mark_submission_request_completed(db, report)
+            
+            return FileResponse(
+                ok=True,
+                report_id=report.id,
+                status="accepted",
+                receipt_id=submission.receipt_id,
+                filed_at=submission.updated_at,
+                message="Filed successfully via SDTM",
+                is_demo=False,
+            )
+        elif outcome == "rejected":
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "ok": False,
+                    "status": "rejected",
+                    "report_id": str(report.id),
+                    "rejection_code": submission.rejection_code,
+                    "rejection_message": submission.rejection_message,
+                    "message": f"Filing rejected: {submission.rejection_code}",
+                    "is_demo": False,
+                }
+            )
+        elif outcome == "needs_review":
+            snapshot = submission.payload_snapshot or {}
+            reason = snapshot.get("needs_review_reason", "Requires internal review")
+            return JSONResponse(
+                status_code=202,
+                content={
+                    "ok": True,
+                    "status": "needs_review",
+                    "report_id": str(report.id),
+                    "message": reason,
+                    "is_demo": False,
+                }
+            )
+        else:
+            # submitted - awaiting FinCEN response
+            return JSONResponse(
+                status_code=202,
+                content={
+                    "ok": True,
+                    "status": "submitted",
+                    "report_id": str(report.id),
+                    "message": "Submitted for processing via SDTM. Receipt will be available once FinCEN confirms.",
+                    "is_demo": False,
+                }
+            )
     
-    # =================================================================
-    # UPDATE: Mark linked SubmissionRequest as "completed"
-    # =================================================================
-    if outcome == "accepted" and report.submission_request_id:
-        submission_request = db.query(SubmissionRequest).filter(
-            SubmissionRequest.id == report.submission_request_id
-        ).first()
-        if submission_request:
-            submission_request.status = "completed"
-            submission_request.updated_at = datetime.utcnow()
-            db.commit()
+    else:
+        # ═══════════════════════════════════════════════════════════════════════
+        # MOCK FILING (staging/test or mock transport)
+        # ═══════════════════════════════════════════════════════════════════════
+        
+        # Check environment - only allow mock filing in staging/test or when FINCEN_TRANSPORT=mock
+        if settings.ENVIRONMENT not in ("staging", "test", "development") and settings.FINCEN_TRANSPORT != "mock":
+            raise HTTPException(
+                status_code=501,
+                detail="Live FinCEN filing not enabled. Configure FINCEN_TRANSPORT=sdtm with credentials."
+            )
+        
+        # Create payload snapshot (safe summary)
+        payload_snapshot = {
+            "property_address": report.property_address_text,
+            "closing_date": report.closing_date.isoformat() if report.closing_date else None,
+            "parties_count": len(report.parties),
+            "party_roles": [p.party_role for p in report.parties],
+            "transport": "mock",
+        }
+        
+        # Enqueue the submission
+        enqueue_submission(db, report_id, payload_snapshot, client_ip)
+        
+        # Perform mock submission (transitions to final state)
+        outcome, submission = perform_mock_submit(db, report_id, client_ip)
+        db.commit()
+        
+        # Create billing event for accepted filings
+        if outcome == "accepted" and report.company_id:
+            _create_billing_event_for_acceptance(db, report, submission)
+        
+        # Mark linked SubmissionRequest as "completed"
+        if outcome == "accepted":
+            _mark_submission_request_completed(db, report)
+        
+        # Return appropriate response based on outcome
+        if outcome == "accepted":
+            return FileResponse(
+                ok=True,
+                report_id=report.id,
+                status="accepted",
+                receipt_id=submission.receipt_id,
+                filed_at=submission.updated_at,
+                message="Filed successfully (demo)",
+                is_demo=True,
+            )
+        elif outcome == "rejected":
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "ok": False,
+                    "status": "rejected",
+                    "report_id": str(report.id),
+                    "rejection_code": submission.rejection_code,
+                    "rejection_message": submission.rejection_message,
+                    "message": f"Filing rejected: {submission.rejection_code}",
+                    "is_demo": True,
+                }
+            )
+        else:  # needs_review
+            return JSONResponse(
+                status_code=202,
+                content={
+                    "ok": True,
+                    "status": "needs_review",
+                    "report_id": str(report.id),
+                    "message": "Requires internal review (demo)",
+                    "is_demo": True,
+                }
+            )
+
+
+def _create_billing_event_for_acceptance(db: Session, report: Report, submission) -> None:
+    """Create billing event for accepted filing."""
+    if not report.company_id:
+        return
     
-    # Return appropriate response based on outcome
-    if outcome == "accepted":
-        return FileResponse(
-            ok=True,
-            report_id=report.id,
-            status="accepted",
-            receipt_id=submission.receipt_id,
-            filed_at=submission.updated_at,
-            message="Filed successfully (demo)",
-            is_demo=True,
-        )
-    elif outcome == "rejected":
-        # Return 400 for rejected
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "ok": False,
-                "status": "rejected",
-                "report_id": str(report.id),
-                "rejection_code": submission.rejection_code,
-                "rejection_message": submission.rejection_message,
-                "message": f"Filing rejected: {submission.rejection_code}",
-                "is_demo": True,
-            }
-        )
-    else:  # needs_review
-        # Return 202 for needs_review
-        from fastapi.responses import JSONResponse
-        return JSONResponse(
-            status_code=202,
-            content={
-                "ok": True,
-                "status": "needs_review",
-                "report_id": str(report.id),
-                "message": "Requires internal review (demo)",
-                "is_demo": True,
-            }
-        )
+    # Get company's configured filing fee (default: $75.00)
+    company = db.query(Company).filter(Company.id == report.company_id).first()
+    filing_fee = company.filing_fee_cents if company else 7500  # Fallback to default
+    
+    billing_event = BillingEvent(
+        company_id=report.company_id,
+        report_id=report.id,
+        submission_request_id=report.submission_request_id,
+        event_type="filing_accepted",
+        description=f"FinCEN filing for {report.property_address_text}",
+        amount_cents=filing_fee,
+        quantity=1,
+        bsa_id=submission.receipt_id,
+        created_at=datetime.utcnow(),
+    )
+    db.add(billing_event)
+    db.flush()
+    
+    # Audit log for billing event creation
+    log_event(
+        db=db,
+        entity_type="billing_event",
+        entity_id=str(billing_event.id),
+        event_type="billing_event.created",
+        actor_type="system",
+        details={
+            "event_type": "filing_accepted",
+            "amount_cents": filing_fee,
+            "company_id": str(report.company_id),
+            "report_id": str(report.id),
+            "bsa_id": submission.receipt_id,
+        },
+        company_id=str(report.company_id),
+        report_id=str(report.id),
+    )
+    db.commit()
+
+
+def _mark_submission_request_completed(db: Session, report: Report) -> None:
+    """Mark linked SubmissionRequest as completed."""
+    if not report.submission_request_id:
+        return
+    
+    submission_request = db.query(SubmissionRequest).filter(
+        SubmissionRequest.id == report.submission_request_id
+    ).first()
+    if submission_request:
+        submission_request.status = "completed"
+        submission_request.updated_at = datetime.utcnow()
+        db.commit()

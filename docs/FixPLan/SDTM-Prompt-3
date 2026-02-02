@@ -1,0 +1,114 @@
+Goal: Add an internal admin/debug UI and API endpoints to inspect and troubleshoot FinCEN SDTM + FBARX filings.
+
+Constraints:
+- This is INTERNAL ONLY (admin/staff role)
+- Do not expose to clients or public users
+- Reuse existing auth/role system
+- Do not break existing UI flows
+
+Scope:
+
+A) Backend API endpoints (read-only + safe actions)
+
+Add endpoints under an admin namespace (or existing admin router):
+
+1) GET /admin/fincen/filings
+   - Returns paginated list of FilingSubmission records
+   - Include:
+     - filing_submission_id
+     - report_id
+     - submission_request_id
+     - status
+     - environment (sandbox/prod)
+     - filename
+     - receipt_id (BSAID if present)
+     - attempt_count
+     - created_at / updated_at
+
+2) GET /admin/fincen/filings/{id}
+   - Full detail view:
+     - FilingSubmission core fields
+     - payload_snapshot (outbound XML or reference)
+     - messages_snapshot (raw .MESSAGES.XML)
+     - acked_snapshot (raw .ACKED)
+     - rejection_code / rejection_message
+     - parsed warnings/errors (normalized JSON)
+     - timestamps (uploaded_at, messages_received_at, acked_received_at)
+
+3) POST /admin/fincen/filings/{id}/repoll
+   - Triggers SDTM polling logic again (safe re-check)
+   - Does NOT re-upload XML
+   - Used when ACKED arrives late or polling missed it
+   - Log action with admin user id
+
+4) GET /admin/fincen/filings/{id}/download/{type}
+   - type = payload | messages | acked
+   - Returns raw file contents as downloadable attachment
+   - Enforce role check
+
+B) Backend implementation notes
+
+- Reuse:
+  - SdtmClient.list_acks()
+  - SdtmClient.download()
+  - ResponseProcessor.parse_messages()
+  - ResponseProcessor.parse_acked()
+- Normalize parsed errors into a JSON structure:
+  {
+    activity_seq: 1,
+    error_level: "WARN" | "FATAL",
+    error_code: "E33",
+    error_text: "...",
+    error_context: "EFilingBatchXML/Activity[1]/..."
+  }
+
+C) Frontend Admin UI
+
+Add a simple admin screen:
+Route example:
+- /admin/fincen/filings
+
+UI layout:
+- Table view:
+  - Filing ID
+  - Report ID
+  - Status (colored badge)
+  - Environment
+  - Receipt ID
+  - Created date
+  - Actions: View
+
+Detail screen (/admin/fincen/filings/{id}):
+- Summary panel:
+  - Status
+  - Environment
+  - Filename
+  - Receipt ID
+  - Attempts
+- Tabs or sections:
+  1) Outbound XML (readonly code block, copy button)
+  2) MESSAGES.XML (readonly, highlight WARN/FATAL)
+  3) ACKED (readonly, show BSAID mapping)
+  4) Parsed Errors (human-readable list)
+- Actions:
+  - “Re-poll SDTM”
+  - “Download XML”
+  - “Download ACKED”
+
+D) Guardrails
+- Never allow editing of XML or responses via UI
+- Never expose SDTM credentials
+- Log all admin actions (view, repoll, download)
+
+E) Documentation
+- Update KilledSharks-2.md with:
+  - Admin debug UI overview
+  - When to use repoll vs refile
+  - Where to find receipt IDs and error context
+  - Common debugging scenarios and resolutions
+
+Deliverables:
+- New admin routes + controllers
+- Frontend admin screens
+- Wiring to existing FilingSubmission model
+- Minimal styling; focus on clarity and debuggability

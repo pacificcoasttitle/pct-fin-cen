@@ -514,29 +514,277 @@ type TrustRole = "trustee" | "settlor" | "beneficiary" | "power_holder" | "other
 
 ---
 
+### 50. SDTM + FBARX Integration (Hardened v2.1) ✅
+
+**Date:** February 2, 2026
+
+**Problem:** The system only supported mock filing in staging/test environments. Production FinCEN filing via SDTM (Secure Direct Transfer Mode) was not implemented. No:
+- XML generation for FBARX schema
+- SFTP connectivity to FinCEN servers
+- Response file parsing (MESSAGES.XML, ACKED)
+- Real BSA ID receipt processing
+- Background polling for async responses
+
+**Solution:** Implemented complete SDTM + FBARX integration with hardened, production-ready code.
+
+### Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    POST /reports/{id}/file                  │
+├─────────────────────────────────────────────────────────────┤
+│  ENVIRONMENT=production + FINCEN_TRANSPORT=sdtm?            │
+│    YES → perform_sdtm_submit()                              │
+│    NO  → perform_mock_submit() (existing demo behavior)     │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    perform_sdtm_submit()                    │
+├─────────────────────────────────────────────────────────────┤
+│  1. Idempotency check (skip if already submitted/accepted)  │
+│  2. build_fbarx_xml() → XML + debug_summary                 │
+│  3. PreflightError? → mark_needs_review                     │
+│  4. Store gz+b64 XML artifact in payload_snapshot           │
+│  5. SdtmClient.upload() → SFTP to FinCEN                    │
+│  6. Set status="submitted", schedule poll                   │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│                 poll_sdtm_responses() [cron]                │
+├─────────────────────────────────────────────────────────────┤
+│  1. Look for filename.MESSAGES.XML                          │
+│     - Parse → rejected? → mark_rejected                     │
+│     - Parse → accepted_with_warnings? → mark_needs_review   │
+│     - Parse → accepted? → wait for ACKED                    │
+│  2. Look for filename.ACKED                                 │
+│     - Parse → extract BSA ID                                │
+│     - mark_accepted(bsa_id)                                 │
+│     - Update report.receipt_id, filed_at, filing_status     │
+│  3. Backoff schedule: 15m, 1h, 3h, 6h, 12h...               │
+│  4. Timeout: 24h no MESSAGES → needs_review                 │
+│              5d no ACKED after accept → needs_review        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Phase 1: Configuration
+
+**New Environment Variables:**
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `FINCEN_TRANSPORT` | `mock` or `sdtm` | `mock` |
+| `FINCEN_ENV` | `sandbox` or `production` | `sandbox` |
+| `SDTM_HOST` | SFTP hostname | (auto from FINCEN_ENV) |
+| `SDTM_PORT` | SFTP port | `2222` |
+| `SDTM_USERNAME` | SFTP username | (required for sdtm) |
+| `SDTM_PASSWORD` | SFTP password | (required for sdtm) |
+| `SDTM_SUBMISSIONS_DIR` | Upload directory | `submissions` |
+| `SDTM_ACKS_DIR` | Response directory | `acks` |
+| `SDTM_ORGNAME` | Org name for filename | `PCTITLE` |
+| `TRANSMITTER_TIN` | 9-digit TIN | (required for sdtm) |
+| `TRANSMITTER_TCC` | 8-char TCC (starts with P) | (required for sdtm) |
+
+**Helper Properties:**
+
+```python
+settings.sdtm_configured  # True if all SDTM creds + transmitter IDs set
+settings.transmitter_configured  # True if TIN + TCC set
+```
+
+### Phase 2: FBARX XML Builder
+
+**Data Mapping (wizard_data → FBARX):**
+
+| FBARX Party | Source | Mapped To |
+|-------------|--------|-----------|
+| 35 (Transmitter) | `reportingPerson.companyName` | `RawPartyFullName` |
+| 35 | `TRANSMITTER_TIN` env var | PartyIdentification type 4 |
+| 35 | `TRANSMITTER_TCC` env var | PartyIdentification type 28 |
+| 37 (Transmitter Contact) | `reportingPerson.contactName` | `RawPartyFullName` |
+| 15 (Filer - Individual) | `transferee.individual.*` | Name, DOB, Address, SSN/Passport |
+| 15 (Filer - Entity) | `transferee.entity.*` or `buyerEntity.entity.*` | Name, Address, EIN |
+| 15 (Filer - Trust) | `buyerTrust.trust.*` | Name, Address, EIN |
+| 41 (Financial Institution) | `paymentSources[0].institutionName` | `RawPartyFullName` |
+
+**Preflight Validation:**
+
+Builder raises `PreflightError` if:
+- TRANSMITTER_TIN missing or invalid (must be 9 digits)
+- TRANSMITTER_TCC missing or invalid (must start with P, length 8)
+- reportingPerson.companyName missing
+- Buyer missing identification (no SSN/EIN/Passport)
+- Buyer missing required address fields
+- Forbidden placeholders detected (UNKNOWN, N/A, etc.)
+
+### Phase 3: SDTM Client
+
+**Features:**
+
+| Feature | Implementation |
+|---------|----------------|
+| Connection retries | 3 attempts with exponential backoff |
+| Timeout | 30 seconds default |
+| Upload | `/submissions/{filename}` |
+| Download | `/acks/{filename}` |
+| List directories | Returns file metadata |
+| Ping test | `python -m app.scripts.fincen_sdtm_ping` |
+
+### Phase 4: Response Processor
+
+**MESSAGES.XML Parsing:**
+
+```python
+result = parse_messages_xml(xml_content)
+# result.status: "accepted", "rejected", "accepted_with_warnings"
+# result.errors: List[MessageError]
+# result.warnings: List[MessageError]
+# result.primary_rejection_code: str
+```
+
+**ACKED Parsing:**
+
+```python
+result = parse_acked_xml(xml_content)
+# result.bsa_id: str (e.g., "31000123456789")
+# result.activity_seq_to_bsa_id: Dict[str, str]
+# result.receipt_date: str
+```
+
+### Phase 5: Filing Lifecycle Updates
+
+**New Functions:**
+
+| Function | Purpose |
+|----------|---------|
+| `perform_sdtm_submit()` | Build XML, upload, update status |
+| `poll_sdtm_responses()` | Check for MESSAGES/ACKED, update status |
+| `list_pending_polls()` | Get submissions ready for polling |
+
+**Artifact Storage:**
+
+All artifacts stored in `payload_snapshot.artifacts`:
+
+```json
+{
+  "artifacts": {
+    "xml": {
+      "data": "H4sIAAAA...",  // gzip + base64 encoded
+      "sha256": "abc123...",
+      "size": 12345,
+      "filename": "FBARXST.20260202143000.PCTITLE.abc123.xml"
+    },
+    "messages": { ... },  // When downloaded
+    "acked": { ... }       // When downloaded
+  }
+}
+```
+
+### Phase 6: Endpoint Transport Switch
+
+The `/reports/{id}/file` endpoint now:
+
+```python
+if ENVIRONMENT == "production" and FINCEN_TRANSPORT == "sdtm" and sdtm_configured:
+    # Live SDTM filing
+    outcome, submission = perform_sdtm_submit(db, report_id, ip)
+    poll_sdtm_responses(db, report_id)  # Best-effort immediate poll
+else:
+    # Mock filing (staging/test/development)
+    outcome, submission = perform_mock_submit(db, report_id, ip)
+```
+
+### Phase 7: Scripts
+
+| Script | Purpose | Usage |
+|--------|---------|-------|
+| `poll_fincen_sdtm.py` | Background poller | `python -m app.scripts.poll_fincen_sdtm` |
+| `fincen_sdtm_ping.py` | Test connectivity | `python -m app.scripts.fincen_sdtm_ping` |
+
+**Poller Schedule (via Render Cron Job):**
+
+```
+*/15 * * * *  python -m app.scripts.poll_fincen_sdtm
+```
+
+### Phase 8: Tests
+
+**Test Coverage:**
+
+| Test Class | Coverage |
+|------------|----------|
+| `TestUtils` | gzip encode/decode, sha256, digits_only, country codes, sanitize |
+| `TestResponseProcessor` | MESSAGES accepted/rejected/warnings, ACKED parsing |
+| `TestFbarxBuilder` | XML generation, preflight failures, filename generation |
+
+### Files Created
+
+| File | Lines | Purpose |
+|------|-------|---------|
+| `api/app/services/fincen/__init__.py` | 30 | Module exports |
+| `api/app/services/fincen/utils.py` | 110 | Compression, hashing, normalization |
+| `api/app/services/fincen/sdtm_client.py` | 250 | SFTP client with retries |
+| `api/app/services/fincen/response_processor.py` | 300 | MESSAGES/ACKED parsers |
+| `api/app/services/fincen/fbarx_builder.py` | 550 | XML generation with data mapping |
+| `api/app/scripts/__init__.py` | 10 | Scripts module |
+| `api/app/scripts/poll_fincen_sdtm.py` | 100 | Background poller |
+| `api/app/scripts/fincen_sdtm_ping.py` | 70 | Connectivity test |
+| `api/tests/test_fincen_services.py` | 300 | Unit tests |
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `api/app/config.py` | Added SDTM/transmitter env vars + helpers |
+| `api/requirements.txt` | Added `paramiko>=3.4.0` |
+| `api/app/services/filing_lifecycle.py` | Added SDTM functions, poll backoff |
+| `api/app/routes/reports.py` | Transport switch logic |
+
+### Deployment Checklist
+
+**For Production SDTM:**
+
+1. Set `FINCEN_TRANSPORT=sdtm`
+2. Set `FINCEN_ENV=sandbox` (for testing) or `production`
+3. Configure SFTP credentials:
+   - `SDTM_USERNAME`
+   - `SDTM_PASSWORD`
+4. Configure transmitter IDs:
+   - `TRANSMITTER_TIN` (9 digits)
+   - `TRANSMITTER_TCC` (8 chars, starts with P)
+5. Create Render Cron Job:
+   - Schedule: `*/15 * * * *`
+   - Command: `python -m app.scripts.poll_fincen_sdtm`
+6. Test connectivity: `python -m app.scripts.fincen_sdtm_ping`
+
+**Status:** ✅ Killed (LEGENDARY SHARK 🦈🦈🦈)
+
+---
+
 ## Summary Update
 
 | Category | Count |
 |----------|-------|
-| 🔴 Critical Features | 2 |
+| 🔴 Critical Features | 3 |
 | 🟠 Major Features | 1 |
 | 🎨 UX/Design | 1 |
 | 🔧 Configuration | 2 |
 | 📄 Documentation | 2 |
 
-**Total Sharks Killed (Vol 2): 8 🦈**
+**Total Sharks Killed (Vol 2): 9 🦈**
 
 ---
 
 ## Next Steps
 
-1. **P1:** Billing Phase 2 - Subscription billing model
-2. **P1:** Entity Enhancements Phase 2 - Backend storage of new fields
-3. **P2:** Add property type validation against SiteX data
-4. **P2:** Stripe integration for payments
-5. **P3:** Surface lastSalePrice for pricing sanity check
-6. **P3:** Add APN-only lookup as alternative entry point
+1. **P0:** Test SDTM integration with FinCEN sandbox
+2. **P1:** Billing Phase 2 - Subscription billing model
+3. **P1:** Entity Enhancements Phase 2 - Backend storage of new fields
+4. **P2:** Add property type validation against SiteX data
+5. **P2:** Stripe integration for payments
+6. **P3:** Admin debug UI for SDTM submissions
 
 ---
 
-*Last updated: February 1, 2026*
+*Last updated: February 2, 2026*

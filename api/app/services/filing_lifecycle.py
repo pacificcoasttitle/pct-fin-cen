@@ -1,9 +1,12 @@
 """
 Filing lifecycle service - manages submission states and demo outcomes.
+
+Supports both mock filing (staging/test) and live SDTM filing (production).
 """
 import hashlib
-from datetime import datetime
-from typing import Optional, Tuple
+import logging
+from datetime import datetime, timedelta
+from typing import Optional, Tuple, List
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -12,7 +15,11 @@ from app.models import Report, FilingSubmission, AuditLog
 from app.config import get_settings
 from app.services.notifications import log_notification
 
+logger = logging.getLogger(__name__)
 settings = get_settings()
+
+# Poll backoff schedule (in minutes)
+POLL_BACKOFF_MINUTES = [15, 60, 180, 360, 720, 720, 720]  # 15m, 1h, 3h, 6h, then every 12h
 
 
 def generate_receipt_id(report_id: UUID) -> str:
@@ -393,3 +400,488 @@ def list_submissions(
     query = query.offset(offset).limit(limit)
     
     return query.all()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SDTM (Secure Direct Transfer Mode) Functions
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+def perform_sdtm_submit(
+    db: Session,
+    report_id: UUID,
+    ip_address: Optional[str] = None,
+) -> Tuple[str, FilingSubmission]:
+    """
+    Perform live SDTM submission to FinCEN.
+    
+    This function:
+    1. Enforces idempotency (won't re-upload if already submitted/accepted)
+    2. Builds FBARX XML from report data
+    3. Uploads to SDTM via SFTP
+    4. Updates submission status and stores artifacts
+    
+    Args:
+        db: Database session
+        report_id: Report UUID
+        ip_address: Optional client IP for audit
+        
+    Returns:
+        (status, submission) tuple
+        
+    Raises:
+        PreflightError: If XML validation fails (handled gracefully)
+    """
+    from app.services.fincen import (
+        build_fbarx_xml,
+        PreflightError,
+        SdtmClient,
+        gzip_b64_encode,
+        sha256_hex,
+    )
+    from app.services.fincen.fbarx_builder import generate_sdtm_filename
+    
+    submission = get_or_create_submission(db, report_id)
+    report = db.query(Report).filter(Report.id == report_id).first()
+    
+    if not report:
+        return mark_needs_review(db, report_id, ip_address, "Report not found")
+    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Idempotency check
+    # ═══════════════════════════════════════════════════════════════════════════
+    
+    if submission.status == "accepted":
+        logger.info(f"SDTM: Report {report_id} already accepted, skipping")
+        return "accepted", submission
+    
+    if submission.status in ("queued", "submitted"):
+        # Already in progress - check if we have outbound XML
+        snapshot = submission.payload_snapshot or {}
+        if snapshot.get("artifacts", {}).get("xml"):
+            logger.info(f"SDTM: Report {report_id} already submitted, skipping upload")
+            return "submitted", submission
+    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Increment attempt counter
+    # ═══════════════════════════════════════════════════════════════════════════
+    
+    submission.attempts += 1
+    submission.updated_at = datetime.utcnow()
+    
+    # Initialize payload_snapshot if needed
+    if not submission.payload_snapshot:
+        submission.payload_snapshot = {}
+    
+    snapshot = submission.payload_snapshot
+    snapshot["transport"] = "sdtm"
+    snapshot["fincen_env"] = settings.FINCEN_ENV
+    snapshot["ip_address"] = ip_address
+    snapshot["attempt"] = submission.attempts
+    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Build FBARX XML
+    # ═══════════════════════════════════════════════════════════════════════════
+    
+    try:
+        xml_content, debug_summary = build_fbarx_xml(report, submission, settings)
+    except PreflightError as e:
+        logger.warning(f"SDTM: Preflight failed for {report_id}: {e.message}")
+        snapshot["preflight_errors"] = e.errors
+        snapshot["debug_summary"] = {"error": e.message}
+        submission.payload_snapshot = snapshot
+        return mark_needs_review(
+            db, report_id, ip_address,
+            f"Preflight validation failed: {e.message}"
+        )
+    except Exception as e:
+        logger.error(f"SDTM: XML build error for {report_id}: {e}")
+        snapshot["build_error"] = str(e)
+        submission.payload_snapshot = snapshot
+        return mark_needs_review(
+            db, report_id, ip_address,
+            f"XML build error: {str(e)}"
+        )
+    
+    # Store debug summary
+    snapshot["debug_summary"] = debug_summary
+    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Generate filename and store artifact
+    # ═══════════════════════════════════════════════════════════════════════════
+    
+    timestamp = datetime.utcnow()
+    filename = generate_sdtm_filename(
+        settings.SDTM_ORGNAME,
+        str(submission.id),
+        timestamp
+    )
+    
+    snapshot["filename"] = filename
+    snapshot["generated_at"] = timestamp.isoformat()
+    
+    # Store compressed XML artifact
+    xml_bytes = xml_content.encode("utf-8")
+    if "artifacts" not in snapshot:
+        snapshot["artifacts"] = {}
+    
+    snapshot["artifacts"]["xml"] = {
+        "data": gzip_b64_encode(xml_content),
+        "sha256": sha256_hex(xml_bytes),
+        "size": len(xml_bytes),
+        "filename": filename,
+    }
+    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Upload to SDTM
+    # ═══════════════════════════════════════════════════════════════════════════
+    
+    try:
+        client = SdtmClient.from_settings()
+        with client:
+            remote_path, uploaded_size = client.upload(filename, xml_content)
+        
+        snapshot["uploaded_at"] = datetime.utcnow().isoformat()
+        snapshot["remote_path"] = remote_path
+        snapshot["uploaded_size"] = uploaded_size
+        
+        logger.info(f"SDTM: Uploaded {filename} ({uploaded_size} bytes) for report {report_id}")
+        
+    except Exception as e:
+        logger.error(f"SDTM: Upload failed for {report_id}: {e}")
+        snapshot["upload_error"] = str(e)
+        submission.payload_snapshot = snapshot
+        return mark_needs_review(
+            db, report_id, ip_address,
+            f"SDTM upload failed: {str(e)}"
+        )
+    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Update submission status
+    # ═══════════════════════════════════════════════════════════════════════════
+    
+    submission.status = "submitted"
+    submission.updated_at = datetime.utcnow()
+    
+    # Set up poll schedule
+    snapshot["poll_schedule"] = {
+        "next_poll_at": (datetime.utcnow() + timedelta(minutes=15)).isoformat(),
+        "poll_attempts": 0,
+    }
+    
+    submission.payload_snapshot = snapshot
+    
+    # Audit log
+    audit = AuditLog(
+        report_id=report_id,
+        actor_type="api",
+        action="sdtm_submitted",
+        details={
+            "filename": filename,
+            "attempt": submission.attempts,
+            "fincen_env": settings.FINCEN_ENV,
+        },
+        ip_address=ip_address,
+    )
+    db.add(audit)
+    
+    logger.info(f"SDTM: Submission complete for report {report_id}, status=submitted")
+    
+    return "submitted", submission
+
+
+def poll_sdtm_responses(
+    db: Session,
+    report_id: UUID,
+) -> Tuple[str, Optional[dict]]:
+    """
+    Poll SDTM for response files (MESSAGES.XML and ACKED).
+    
+    This function:
+    1. Checks for MESSAGES.XML (processing status)
+    2. If accepted, checks for ACKED (BSA ID)
+    3. Updates submission status accordingly
+    
+    Args:
+        db: Database session
+        report_id: Report UUID
+        
+    Returns:
+        (status, result_dict) tuple
+    """
+    from app.services.fincen import (
+        SdtmClient,
+        parse_messages_xml,
+        parse_acked_xml,
+        gzip_b64_encode,
+        sha256_hex,
+    )
+    from app.services.fincen.response_processor import (
+        extract_filing_status_from_messages,
+        extract_bsa_id_from_acked,
+    )
+    
+    submission = db.query(FilingSubmission).filter(
+        FilingSubmission.report_id == report_id
+    ).first()
+    
+    if not submission:
+        return "not_found", None
+    
+    if submission.status not in ("submitted", "queued"):
+        return submission.status, None
+    
+    snapshot = submission.payload_snapshot or {}
+    filename = snapshot.get("filename")
+    
+    if not filename:
+        logger.warning(f"SDTM Poll: No filename in snapshot for {report_id}")
+        return "error", {"error": "No filename in submission snapshot"}
+    
+    if "artifacts" not in snapshot:
+        snapshot["artifacts"] = {}
+    
+    poll_schedule = snapshot.get("poll_schedule", {})
+    poll_attempts = poll_schedule.get("poll_attempts", 0) + 1
+    
+    result = {
+        "poll_attempt": poll_attempts,
+        "messages_found": False,
+        "acked_found": False,
+    }
+    
+    try:
+        client = SdtmClient.from_settings()
+        with client:
+            # ═══════════════════════════════════════════════════════════════════
+            # Check for MESSAGES.XML
+            # ═══════════════════════════════════════════════════════════════════
+            
+            messages_filename = f"{filename}.MESSAGES.XML"
+            
+            # Only download if not already stored
+            if not snapshot["artifacts"].get("messages"):
+                messages_content = client.download(messages_filename)
+                
+                if messages_content:
+                    result["messages_found"] = True
+                    
+                    # Store artifact
+                    messages_bytes = messages_content.encode("utf-8")
+                    snapshot["artifacts"]["messages"] = {
+                        "data": gzip_b64_encode(messages_content),
+                        "sha256": sha256_hex(messages_bytes),
+                        "size": len(messages_bytes),
+                        "filename": messages_filename,
+                        "downloaded_at": datetime.utcnow().isoformat(),
+                    }
+                    
+                    # Parse and store normalized
+                    messages_result = parse_messages_xml(messages_content)
+                    snapshot["parsed_messages"] = extract_filing_status_from_messages(messages_result)
+                    
+                    logger.info(
+                        f"SDTM Poll: Found {messages_filename}, status={messages_result.status}"
+                    )
+                    
+                    # Handle rejection
+                    if messages_result.is_rejected:
+                        submission.payload_snapshot = snapshot
+                        return mark_rejected(
+                            db, report_id,
+                            messages_result.primary_rejection_code or "FINCEN_REJECTED",
+                            messages_result.primary_rejection_message or messages_result.error_summary,
+                            None
+                        )
+                    
+                    # Handle accepted_with_warnings - mark needs_review, don't accept yet
+                    if messages_result.status == "accepted_with_warnings":
+                        submission.payload_snapshot = snapshot
+                        return mark_needs_review(
+                            db, report_id, None,
+                            f"Accepted with warnings: {len(messages_result.warnings)} warning(s)"
+                        )
+            else:
+                result["messages_found"] = True
+            
+            # ═══════════════════════════════════════════════════════════════════
+            # Check for ACKED (only if messages shows accepted)
+            # ═══════════════════════════════════════════════════════════════════
+            
+            parsed_messages = snapshot.get("parsed_messages", {})
+            if parsed_messages.get("is_accepted"):
+                acked_filename = f"{filename}.ACKED"
+                
+                if not snapshot["artifacts"].get("acked"):
+                    acked_content = client.download(acked_filename)
+                    
+                    if acked_content:
+                        result["acked_found"] = True
+                        
+                        # Store artifact
+                        acked_bytes = acked_content.encode("utf-8")
+                        snapshot["artifacts"]["acked"] = {
+                            "data": gzip_b64_encode(acked_content),
+                            "sha256": sha256_hex(acked_bytes),
+                            "size": len(acked_bytes),
+                            "filename": acked_filename,
+                            "downloaded_at": datetime.utcnow().isoformat(),
+                        }
+                        
+                        # Parse and extract BSA ID
+                        acked_result = parse_acked_xml(acked_content)
+                        snapshot["parsed_acked"] = extract_bsa_id_from_acked(acked_result)
+                        
+                        if acked_result.bsa_id:
+                            logger.info(
+                                f"SDTM Poll: Found {acked_filename}, BSA ID={acked_result.bsa_id}"
+                            )
+                            
+                            submission.payload_snapshot = snapshot
+                            
+                            # Mark accepted with BSA ID
+                            status, sub = mark_accepted(
+                                db, report_id,
+                                acked_result.bsa_id,
+                                None
+                            )
+                            
+                            # Update report with live filing status
+                            report = db.query(Report).filter(Report.id == report_id).first()
+                            if report:
+                                report.filing_status = "filed_live"
+                            
+                            return status, {"bsa_id": acked_result.bsa_id}
+                else:
+                    result["acked_found"] = True
+    
+    except Exception as e:
+        logger.error(f"SDTM Poll: Error for {report_id}: {e}")
+        result["error"] = str(e)
+    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Update poll schedule
+    # ═══════════════════════════════════════════════════════════════════════════
+    
+    # Calculate next poll time with backoff
+    backoff_index = min(poll_attempts - 1, len(POLL_BACKOFF_MINUTES) - 1)
+    next_poll_minutes = POLL_BACKOFF_MINUTES[backoff_index]
+    
+    snapshot["poll_schedule"] = {
+        "next_poll_at": (datetime.utcnow() + timedelta(minutes=next_poll_minutes)).isoformat(),
+        "poll_attempts": poll_attempts,
+        "last_poll_at": datetime.utcnow().isoformat(),
+    }
+    
+    submission.payload_snapshot = snapshot
+    submission.updated_at = datetime.utcnow()
+    
+    # Check for timeout conditions
+    generated_at_str = snapshot.get("generated_at")
+    if generated_at_str:
+        generated_at = datetime.fromisoformat(generated_at_str)
+        hours_since = (datetime.utcnow() - generated_at).total_seconds() / 3600
+        
+        # No messages after 24 hours -> needs_review
+        if not result["messages_found"] and hours_since > 24:
+            return mark_needs_review(
+                db, report_id, None,
+                "No MESSAGES.XML received after 24 hours"
+            )
+        
+        # Messages accepted but no ACKED after 5 days -> needs_review
+        if result["messages_found"] and not result["acked_found"]:
+            messages_status = snapshot.get("parsed_messages", {}).get("status")
+            if messages_status == "accepted" and hours_since > 120:  # 5 days
+                return mark_needs_review(
+                    db, report_id, None,
+                    "No ACKED file received 5 days after acceptance"
+                )
+    
+    return "submitted", result
+
+
+def mark_needs_review(
+    db: Session,
+    report_id: UUID,
+    ip_address: Optional[str] = None,
+    reason: Optional[str] = None,
+) -> Tuple[str, FilingSubmission]:
+    """
+    Mark submission as needing review with optional reason.
+    """
+    submission = get_or_create_submission(db, report_id)
+    report = db.query(Report).filter(Report.id == report_id).first()
+    
+    submission.status = "needs_review"
+    submission.updated_at = datetime.utcnow()
+    
+    # Store reason in payload_snapshot
+    if reason:
+        if not submission.payload_snapshot:
+            submission.payload_snapshot = {}
+        submission.payload_snapshot["needs_review_reason"] = reason
+    
+    # Update report status
+    if report:
+        report.filing_status = "needs_review"
+        report.updated_at = datetime.utcnow()
+    
+    # Audit log
+    audit = AuditLog(
+        report_id=report_id,
+        actor_type="api",
+        action="filing_needs_review",
+        details={
+            "attempt": submission.attempts,
+            "reason": reason,
+        },
+        ip_address=ip_address,
+    )
+    db.add(audit)
+    
+    return "needs_review", submission
+
+
+def list_pending_polls(db: Session, limit: int = 100) -> List[FilingSubmission]:
+    """
+    List submissions ready for polling.
+    
+    Returns submissions where:
+    - transport == "sdtm"
+    - status in ("submitted", "queued")
+    - next_poll_at <= now
+    """
+    now = datetime.utcnow()
+    
+    submissions = db.query(FilingSubmission).filter(
+        FilingSubmission.status.in_(["submitted", "queued"])
+    ).all()
+    
+    # Filter by poll schedule in payload_snapshot
+    ready = []
+    for sub in submissions:
+        snapshot = sub.payload_snapshot or {}
+        
+        # Only SDTM submissions
+        if snapshot.get("transport") != "sdtm":
+            continue
+        
+        poll_schedule = snapshot.get("poll_schedule", {})
+        next_poll_str = poll_schedule.get("next_poll_at")
+        
+        if not next_poll_str:
+            ready.append(sub)
+            continue
+        
+        try:
+            next_poll = datetime.fromisoformat(next_poll_str)
+            if next_poll <= now:
+                ready.append(sub)
+        except ValueError:
+            ready.append(sub)
+        
+        if len(ready) >= limit:
+            break
+    
+    return ready

@@ -24,6 +24,33 @@ class Settings:
         self.R2_BUCKET_NAME: str = os.getenv("R2_BUCKET_NAME", "pct-fincen-documents")
         self.MAX_FILE_SIZE_MB: int = int(os.getenv("MAX_FILE_SIZE_MB", "10"))
         self.ALLOWED_FILE_TYPES: List[str] = self._parse_allowed_file_types()
+        
+        # ═══════════════════════════════════════════════════════════════════════
+        # FinCEN SDTM (Secure Direct Transfer Mode) Configuration
+        # ═══════════════════════════════════════════════════════════════════════
+        
+        # Transport mode: "mock" (default), "sdtm" (real FinCEN)
+        self.FINCEN_TRANSPORT: str = os.getenv("FINCEN_TRANSPORT", "mock")
+        
+        # FinCEN environment: "sandbox" or "production"
+        self.FINCEN_ENV: str = os.getenv("FINCEN_ENV", "sandbox")
+        
+        # SDTM SFTP connection settings
+        self.SDTM_HOST: str = os.getenv("SDTM_HOST", self._default_sdtm_host())
+        self.SDTM_PORT: int = int(os.getenv("SDTM_PORT", "2222"))
+        self.SDTM_USERNAME: str = os.getenv("SDTM_USERNAME", "")
+        self.SDTM_PASSWORD: str = os.getenv("SDTM_PASSWORD", "")
+        
+        # SDTM directory paths on remote server
+        self.SDTM_SUBMISSIONS_DIR: str = os.getenv("SDTM_SUBMISSIONS_DIR", "submissions")
+        self.SDTM_ACKS_DIR: str = os.getenv("SDTM_ACKS_DIR", "acks")
+        
+        # Organization name for SDTM filename (sanitized alphanumeric)
+        self.SDTM_ORGNAME: str = self._sanitize_orgname(os.getenv("SDTM_ORGNAME", "PCTITLE"))
+        
+        # Transmitter identification (REQUIRED for FBARX)
+        self.TRANSMITTER_TIN: str = os.getenv("TRANSMITTER_TIN", "")  # 9 digits, no hyphens
+        self.TRANSMITTER_TCC: str = os.getenv("TRANSMITTER_TCC", "")  # Must start with "P", length 8
     
     def _parse_allowed_file_types(self) -> List[str]:
         """Parse allowed file types from comma-separated string."""
@@ -37,6 +64,34 @@ class Settings:
     def r2_configured(self) -> bool:
         """Check if R2 is properly configured."""
         return bool(self.R2_ACCOUNT_ID and self.R2_ACCESS_KEY_ID and self.R2_SECRET_ACCESS_KEY)
+    
+    def _default_sdtm_host(self) -> str:
+        """Return default SDTM host based on FINCEN_ENV."""
+        env = os.getenv("FINCEN_ENV", "sandbox")
+        if env == "production":
+            return "bsaefiling-direct-transfer.fincen.gov"
+        return "bsaefiling-direct-transfer-sandbox.fincen.gov"
+    
+    def _sanitize_orgname(self, name: str) -> str:
+        """Sanitize org name to alphanumeric only (SDTM filename requirement)."""
+        import re
+        return re.sub(r'[^a-zA-Z0-9]', '', name)[:20] or "UNNAMED"
+    
+    @property
+    def sdtm_configured(self) -> bool:
+        """Check if SDTM is properly configured for live filing."""
+        return bool(
+            self.FINCEN_TRANSPORT == "sdtm"
+            and self.SDTM_USERNAME
+            and self.SDTM_PASSWORD
+            and self.TRANSMITTER_TIN
+            and self.TRANSMITTER_TCC
+        )
+    
+    @property
+    def transmitter_configured(self) -> bool:
+        """Check if transmitter identification is configured."""
+        return bool(self.TRANSMITTER_TIN and self.TRANSMITTER_TCC)
     
     def _parse_cors_origins(self) -> List[str]:
         """Parse CORS_ORIGINS from comma-separated string."""
