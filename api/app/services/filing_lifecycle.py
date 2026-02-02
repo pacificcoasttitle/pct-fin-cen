@@ -448,19 +448,36 @@ def perform_sdtm_submit(
         return mark_needs_review(db, report_id, ip_address, "Report not found")
     
     # ═══════════════════════════════════════════════════════════════════════════
-    # Idempotency check
+    # IDEMPOTENCY CHECKPOINT (A2 Hardening - EXPLICIT)
+    # ═══════════════════════════════════════════════════════════════════════════
+    # This guard MUST be explicit to prevent duplicate uploads:
+    #
+    # 1. If status == "accepted": Filing already complete, return immediately.
+    #    DO NOT rebuild XML, DO NOT reupload.
+    #
+    # 2. If status in {"queued", "submitted"} AND xml artifact exists:
+    #    Filing already in progress, return immediately.
+    #    DO NOT rebuild XML, DO NOT reupload.
+    #
+    # This prevents duplicate FinCEN submissions which could cause:
+    # - Duplicate BSA IDs
+    # - Wasted quota
+    # - Compliance issues
     # ═══════════════════════════════════════════════════════════════════════════
     
+    # IDEMPOTENCY RULE 1: Already accepted = complete, skip entirely
     if submission.status == "accepted":
-        logger.info(f"SDTM: Report {report_id} already accepted, skipping")
+        logger.info(f"SDTM IDEMPOTENCY: Report {report_id} already accepted - returning immediately")
         return "accepted", submission
     
+    # IDEMPOTENCY RULE 2: Already queued/submitted with XML = in progress, skip upload
     if submission.status in ("queued", "submitted"):
-        # Already in progress - check if we have outbound XML
         snapshot = submission.payload_snapshot or {}
         if snapshot.get("artifacts", {}).get("xml"):
-            logger.info(f"SDTM: Report {report_id} already submitted, skipping upload")
+            logger.info(f"SDTM IDEMPOTENCY: Report {report_id} already submitted with XML - returning immediately")
             return "submitted", submission
+        # Note: If status is queued/submitted but no XML, something failed mid-process
+        # Allow retry in this case (continue to rebuild/upload)
     
     # ═══════════════════════════════════════════════════════════════════════════
     # Increment attempt counter

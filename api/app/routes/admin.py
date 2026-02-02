@@ -20,6 +20,8 @@ from app.services.filing_lifecycle import (
     get_filing_stats,
     list_submissions,
     retry_submission,
+    poll_sdtm_responses,
+    list_pending_polls,
 )
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -340,3 +342,253 @@ def get_recent_activity(
         })
     
     return {"items": items}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SDTM DEBUG ENDPOINTS (Section C Hardening)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+@router.get("/filings/{submission_id}/debug")
+def get_filing_submission_debug(
+    submission_id: UUID,
+    db: Session = Depends(get_db),
+):
+    """
+    Get detailed filing submission information for debugging.
+    
+    Returns:
+    - Basic submission info (status, receipt_id, attempts, timestamps)
+    - SDTM-specific info (filename, transport, fincen_env)
+    - Artifact metadata (what files are stored, sizes, hashes)
+    - Poll schedule info
+    - Parsed response data
+    """
+    submission = db.query(FilingSubmission).filter(
+        FilingSubmission.id == submission_id
+    ).first()
+    
+    if not submission:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    
+    # Get report info
+    report = db.query(Report).filter(Report.id == submission.report_id).first()
+    
+    # Parse payload_snapshot for debug info
+    snapshot = submission.payload_snapshot or {}
+    artifacts = snapshot.get("artifacts", {})
+    
+    # Build artifact metadata (without the actual data)
+    artifact_meta = {}
+    for key, artifact in artifacts.items():
+        if isinstance(artifact, dict):
+            artifact_meta[key] = {
+                "filename": artifact.get("filename"),
+                "size": artifact.get("size"),
+                "sha256": artifact.get("sha256"),
+                "downloaded_at": artifact.get("downloaded_at"),
+                "has_data": bool(artifact.get("data")),
+            }
+    
+    return {
+        "submission": {
+            "id": str(submission.id),
+            "report_id": str(submission.report_id),
+            "property_address": report.property_address_text if report else None,
+            "status": submission.status,
+            "receipt_id": submission.receipt_id,
+            "rejection_code": submission.rejection_code,
+            "rejection_message": submission.rejection_message,
+            "attempts": submission.attempts,
+            "created_at": submission.created_at.isoformat(),
+            "updated_at": submission.updated_at.isoformat(),
+        },
+        "sdtm_info": {
+            "transport": snapshot.get("transport"),
+            "fincen_env": snapshot.get("fincen_env"),
+            "filename": snapshot.get("filename"),
+            "remote_path": snapshot.get("remote_path"),
+            "generated_at": snapshot.get("generated_at"),
+            "uploaded_at": snapshot.get("uploaded_at"),
+            "uploaded_size": snapshot.get("uploaded_size"),
+        },
+        "artifacts": artifact_meta,
+        "poll_schedule": snapshot.get("poll_schedule"),
+        "parsed_messages": snapshot.get("parsed_messages"),
+        "parsed_acked": snapshot.get("parsed_acked"),
+        "preflight_errors": snapshot.get("preflight_errors"),
+        "needs_review_reason": snapshot.get("needs_review_reason"),
+        "debug_summary": snapshot.get("debug_summary"),
+    }
+
+
+@router.get("/filings/{submission_id}/artifact/{artifact_type}")
+def download_filing_artifact(
+    submission_id: UUID,
+    artifact_type: str,
+    db: Session = Depends(get_db),
+):
+    """
+    Download a filing artifact (XML, MESSAGES.XML, or ACKED).
+    
+    Args:
+        submission_id: Filing submission UUID
+        artifact_type: One of "xml", "messages", "acked"
+        
+    Returns:
+        The decompressed artifact content as text/xml
+    """
+    from fastapi.responses import PlainTextResponse
+    from app.services.fincen.utils import gzip_b64_decode
+    
+    if artifact_type not in ("xml", "messages", "acked"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid artifact type: {artifact_type}. Must be one of: xml, messages, acked"
+        )
+    
+    submission = db.query(FilingSubmission).filter(
+        FilingSubmission.id == submission_id
+    ).first()
+    
+    if not submission:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    
+    snapshot = submission.payload_snapshot or {}
+    artifacts = snapshot.get("artifacts", {})
+    artifact = artifacts.get(artifact_type)
+    
+    if not artifact or not artifact.get("data"):
+        raise HTTPException(
+            status_code=404,
+            detail=f"Artifact '{artifact_type}' not found or has no data"
+        )
+    
+    # Decompress the artifact
+    try:
+        content = gzip_b64_decode(artifact["data"]).decode("utf-8")
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to decompress artifact: {str(e)}"
+        )
+    
+    filename = artifact.get("filename", f"{artifact_type}.xml")
+    
+    return PlainTextResponse(
+        content=content,
+        media_type="application/xml",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"'
+        }
+    )
+
+
+@router.post("/filings/{submission_id}/repoll")
+def trigger_filing_repoll(
+    submission_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """
+    Trigger a manual repoll for a submitted filing.
+    
+    This does NOT re-upload the XML, only checks for response files.
+    
+    Only works for submissions in "submitted" or "queued" status
+    with transport="sdtm".
+    """
+    
+    submission = db.query(FilingSubmission).filter(
+        FilingSubmission.id == submission_id
+    ).first()
+    
+    if not submission:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    
+    snapshot = submission.payload_snapshot or {}
+    
+    # Verify this is an SDTM submission
+    if snapshot.get("transport") != "sdtm":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot repoll non-SDTM submission (transport={snapshot.get('transport')})"
+        )
+    
+    # Verify status allows repoll
+    if submission.status not in ("submitted", "queued"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot repoll submission in '{submission.status}' status"
+        )
+    
+    client_ip = get_client_ip(request)
+    
+    # Log the manual repoll action
+    from app.models import AuditLog
+    audit = AuditLog(
+        report_id=submission.report_id,
+        actor_type="admin",
+        action="manual_repoll_triggered",
+        details={
+            "submission_id": str(submission.id),
+            "previous_status": submission.status,
+        },
+        ip_address=client_ip,
+    )
+    db.add(audit)
+    
+    # Perform the repoll
+    try:
+        status, result = poll_sdtm_responses(db, submission.report_id)
+        db.commit()
+        
+        return {
+            "ok": True,
+            "message": f"Repoll completed. Status: {status}",
+            "status": status,
+            "result": result,
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Repoll failed: {str(e)}"
+        )
+
+
+@router.get("/sdtm/pending")
+def list_pending_sdtm_polls(
+    db: Session = Depends(get_db),
+    limit: int = Query(50, ge=1, le=100),
+):
+    """
+    List SDTM submissions that are pending/ready for polling.
+    
+    Useful for debugging why polls might not be running.
+    """
+    pending = list_pending_polls(db, limit=limit)
+    
+    items = []
+    for sub in pending:
+        report = db.query(Report).filter(Report.id == sub.report_id).first()
+        snapshot = sub.payload_snapshot or {}
+        poll_schedule = snapshot.get("poll_schedule", {})
+        
+        items.append({
+            "id": str(sub.id),
+            "report_id": str(sub.report_id),
+            "property_address": report.property_address_text if report else None,
+            "status": sub.status,
+            "filename": snapshot.get("filename"),
+            "attempts": sub.attempts,
+            "poll_attempts": poll_schedule.get("poll_attempts", 0),
+            "next_poll_at": poll_schedule.get("next_poll_at"),
+            "last_poll_at": poll_schedule.get("last_poll_at"),
+            "generated_at": snapshot.get("generated_at"),
+        })
+    
+    return {
+        "items": items,
+        "total": len(items),
+    }

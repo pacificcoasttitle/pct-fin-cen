@@ -762,6 +762,194 @@ else:
 
 ---
 
+## FinCEN SDTM + FBARX Integration — Production Hardening Addendum
+
+**Date:** February 2, 2026
+
+This addendum documents the final hardening measures applied to make the SDTM + FBARX integration production-ready.
+
+---
+
+### 1. Confirmation Statement
+
+> **RRER is an internal workflow name. All outbound filings use FBARX XML Schema 2.0 over SDTM.**
+
+The internal report type is called "RRER" (Real Estate Report) for business context, but the actual XML transmitted to FinCEN follows the **FBARX XML Schema 2.0** specification and is transmitted via **SDTM (Secure Direct Transfer Mode)** SFTP.
+
+---
+
+### 2. Environment Flags
+
+| Variable | Purpose | Required |
+|----------|---------|----------|
+| `FINCEN_TRANSPORT` | `mock` or `sdtm` | Yes |
+| `FINCEN_ENV` | `sandbox` or `production` | Yes |
+| `SDTM_HOST` | SFTP hostname (auto-set if FINCEN_ENV provided) | Optional |
+| `SDTM_PORT` | SFTP port (default: 2222) | Optional |
+| `SDTM_USERNAME` | SFTP username | Yes for SDTM |
+| `SDTM_PASSWORD` | SFTP password | Yes for SDTM |
+| `TRANSMITTER_TIN` | 9-digit Transmitter TIN | Yes for SDTM |
+| `TRANSMITTER_TCC` | 8-char TCC starting with "P" | Yes for SDTM |
+| `SDTM_ORGNAME` | Organization name for filenames | Optional |
+
+**Helper Properties:**
+- `settings.sdtm_configured` → True if all required SDTM variables are set
+- `settings.transmitter_configured` → True if TIN + TCC are set
+
+---
+
+### 3. Preflight Rules Summary
+
+The FBARX builder performs **two-stage preflight validation**:
+
+**Stage 1: Data Preflight (before XML generation)**
+
+Blocks submission if:
+- ❌ `TRANSMITTER_TIN` missing or not 9 digits
+- ❌ `TRANSMITTER_TCC` missing or doesn't start with "P" or not 8 chars
+- ❌ `reportingPerson.companyName` missing or empty
+- ❌ Buyer missing identification (no SSN, EIN, passport, or foreign TIN)
+- ❌ Buyer missing required address fields
+- ❌ Forbidden placeholder text detected (UNKNOWN, N/A, NONE, etc.)
+
+**Stage 2: Structural Preflight (after XML generation)**
+
+Validates generated XML:
+- ❌ XML not well-formed (parse error)
+- ❌ Root element not `EFilingBatchXML`
+- ❌ Missing required Activity-level parties (35, 37, 15)
+- ❌ Transmitter (35) missing PartyIdentification types 4 (TIN) and 28 (TCC)
+- ❌ No Account elements
+- ❌ No Financial Institution party (41)
+- ❌ SeqNum values not unique or not numeric
+- ❌ Root counts don't match actual structure
+
+**On preflight failure:**
+- `PreflightError` raised
+- `mark_needs_review()` called with specific error message
+- NO SDTM upload attempted
+- Errors stored in `payload_snapshot.preflight_errors`
+
+---
+
+### 4. Polling & Escalation Rules
+
+**Poll Backoff Schedule:**
+
+| Poll # | Wait Time |
+|--------|-----------|
+| 1 | 15 minutes |
+| 2 | 1 hour |
+| 3 | 3 hours |
+| 4 | 6 hours |
+| 5+ | 12 hours (repeats) |
+
+**Time-Based Escalation:**
+
+| Condition | Action |
+|-----------|--------|
+| No `MESSAGES.XML` after 24 hours | `mark_needs_review("No FinCEN response after 24 hours")` |
+| `MESSAGES.XML` accepted but no `ACKED` after 5 days | `mark_needs_review("No ACKED after acceptance window")` |
+| `MESSAGES.XML` status = `accepted_with_warnings` | `mark_needs_review("Accepted with warnings: [count] warning(s)")` |
+| `MESSAGES.XML` status = `rejected` | `mark_rejected(code, message)` |
+| `ACKED` contains BSA ID | `mark_accepted(bsa_id)` |
+
+---
+
+### 5. Debug Playbook
+
+#### Where Artifacts Are Stored
+
+All SDTM artifacts are stored in `FilingSubmission.payload_snapshot.artifacts`:
+
+```json
+{
+  "artifacts": {
+    "xml": {
+      "data": "<gzip+base64 encoded XML>",
+      "sha256": "abc123...",
+      "size": 12345,
+      "filename": "FBARXST.20260202143000.PCTITLE.abc123.xml"
+    },
+    "messages": {
+      "data": "<gzip+base64 encoded MESSAGES.XML>",
+      "downloaded_at": "2026-02-02T15:00:00Z",
+      ...
+    },
+    "acked": {
+      "data": "<gzip+base64 encoded ACKED>",
+      "downloaded_at": "2026-02-02T16:00:00Z",
+      ...
+    }
+  }
+}
+```
+
+#### Admin Debug Endpoints
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/admin/filings/{id}/debug` | GET | View detailed submission info |
+| `/admin/filings/{id}/artifact/{type}` | GET | Download artifact (xml, messages, acked) |
+| `/admin/filings/{id}/repoll` | POST | Trigger manual repoll (no reupload) |
+| `/admin/sdtm/pending` | GET | List submissions ready for polling |
+
+#### Diagnosing Issues
+
+**Filing Rejected:**
+1. Check `/admin/filings/{id}/debug` → `parsed_messages.errors`
+2. Download MESSAGES.XML: `/admin/filings/{id}/artifact/messages`
+3. Review error codes in FinCEN documentation
+4. Fix data issues in wizard
+5. Use "Retry Filing" to resubmit (creates new XML)
+
+**Accepted with Warnings:**
+1. Status will be `needs_review`
+2. Check `parsed_messages.warnings`
+3. Decide if warnings are acceptable
+4. If acceptable, manually update status (future: admin action)
+
+**Stuck in "submitted" Status:**
+1. Check `poll_schedule.next_poll_at` - is polling running?
+2. Try manual repoll: `/admin/filings/{id}/repoll`
+3. Check SDTM connectivity: `python -m app.scripts.fincen_sdtm_ping`
+4. Check poller logs for errors
+
+**When to Repoll vs Refile:**
+- **Repoll:** Status is `submitted`, just need to check for response files
+- **Refile:** Status is `rejected` or `needs_review` AND data has been corrected
+
+---
+
+### 6. Operational Checklist (Pre-Go-Live)
+
+- [ ] **SDTM ping success:** `python -m app.scripts.fincen_sdtm_ping` exits 0
+- [ ] **Sandbox submission accepted:** Test filing goes through successfully
+- [ ] **ACKED received:** BSA ID populated in `receipt_id`
+- [ ] **Admin debug verified:** Can view submission, download artifacts
+- [ ] **Poller running:** Render Cron Job configured and executing
+- [ ] **Environment variables set:**
+  - [ ] `FINCEN_TRANSPORT=sdtm`
+  - [ ] `FINCEN_ENV=sandbox` (or `production` when ready)
+  - [ ] `SDTM_USERNAME` and `SDTM_PASSWORD`
+  - [ ] `TRANSMITTER_TIN` (9 digits)
+  - [ ] `TRANSMITTER_TCC` (8 chars, starts with P)
+
+---
+
+### 7. Files Modified in Hardening Addendum
+
+| File | Changes |
+|------|---------|
+| `api/app/services/fincen/fbarx_builder.py` | Added `_validate_xml_structure()` post-build preflight |
+| `api/app/services/filing_lifecycle.py` | Explicit idempotency comments |
+| `api/app/routes/admin.py` | Added SDTM debug endpoints |
+| `docs/KilledSharks-2.md` | This addendum |
+
+**Status:** ✅ Hardened
+
+---
+
 ## Summary Update
 
 | Category | Count |
@@ -770,9 +958,9 @@ else:
 | 🟠 Major Features | 1 |
 | 🎨 UX/Design | 1 |
 | 🔧 Configuration | 2 |
-| 📄 Documentation | 2 |
+| 📄 Documentation | 3 |
 
-**Total Sharks Killed (Vol 2): 9 🦈**
+**Total Sharks Killed (Vol 2): 9 🦈 + 1 Hardening Addendum**
 
 ---
 
@@ -783,7 +971,7 @@ else:
 3. **P1:** Entity Enhancements Phase 2 - Backend storage of new fields
 4. **P2:** Add property type validation against SiteX data
 5. **P2:** Stripe integration for payments
-6. **P3:** Admin debug UI for SDTM submissions
+6. ~~**P3:** Admin debug UI for SDTM submissions~~ ✅ Done (backend endpoints)
 
 ---
 

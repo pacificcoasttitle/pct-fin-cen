@@ -351,12 +351,147 @@ def build_fbarx_xml(
     debug_summary["final_seq_count"] = seq_counter[0]
     debug_summary["xml_length"] = len(xml_content)
     
+    # ═══════════════════════════════════════════════════════════════════════════
+    # STEP 9: POST-BUILD STRUCTURAL PREFLIGHT (A1 Hardening)
+    # Validates the generated XML structure before returning
+    # ═══════════════════════════════════════════════════════════════════════════
+    
+    structural_errors = _validate_xml_structure(xml_content, seq_counter[0], debug_summary)
+    if structural_errors:
+        raise PreflightError(
+            f"XML structural validation failed with {len(structural_errors)} error(s)",
+            errors=structural_errors
+        )
+    
     logger.info(
-        f"FBARX XML built: report={report.id}, "
+        f"FBARX XML built and validated: report={report.id}, "
         f"seq_count={seq_counter[0]}, length={len(xml_content)}"
     )
     
     return xml_content, debug_summary
+
+
+def _validate_xml_structure(xml_content: str, expected_seq_count: int, debug: dict) -> List[str]:
+    """
+    Post-build structural preflight validation (Section A1).
+    
+    Validates:
+    - XML is well-formed (parseable)
+    - Required Activity-level parties exist: 35, 37, 15
+    - Transmitter (35) has BOTH PartyIdentification types: 4 (TIN) and 28 (TCC)
+    - At least one Account exists
+    - At least one Account-level Party (41) exists
+    - All SeqNum attributes are numeric and unique
+    - Root counts match generated structure
+    
+    Returns list of errors (empty if valid).
+    """
+    import xml.etree.ElementTree as ET
+    
+    errors = []
+    
+    # ─────────────────────────────────────────────────────────────────────────
+    # 1. Check XML is well-formed (parseable)
+    # ─────────────────────────────────────────────────────────────────────────
+    try:
+        root = ET.fromstring(xml_content)
+    except ET.ParseError as e:
+        errors.append(f"XML is not well-formed: {e}")
+        return errors  # Can't continue without parsing
+    
+    # ─────────────────────────────────────────────────────────────────────────
+    # 2. Check root element
+    # ─────────────────────────────────────────────────────────────────────────
+    if "EFilingBatchXML" not in root.tag:
+        errors.append(f"Root element must be EFilingBatchXML, got: {root.tag}")
+    
+    # ─────────────────────────────────────────────────────────────────────────
+    # 3. Collect all SeqNum values and verify uniqueness
+    # ─────────────────────────────────────────────────────────────────────────
+    seq_nums = []
+    for elem in root.iter():
+        seq = elem.get("SeqNum")
+        if seq is not None:
+            if not seq.isdigit():
+                errors.append(f"SeqNum '{seq}' is not numeric in element {elem.tag}")
+            else:
+                seq_nums.append(int(seq))
+    
+    if len(seq_nums) != len(set(seq_nums)):
+        errors.append("SeqNum values are not unique")
+    
+    # ─────────────────────────────────────────────────────────────────────────
+    # 4. Check required Activity-level parties: 35, 37, 15
+    # ─────────────────────────────────────────────────────────────────────────
+    party_types_found = set()
+    transmitter_id_types = set()
+    
+    for party in root.findall(".//Party"):
+        type_code_elem = party.find("ActivityPartyTypeCode")
+        if type_code_elem is not None and type_code_elem.text:
+            party_type = type_code_elem.text.strip()
+            party_types_found.add(party_type)
+            
+            # For Party 35 (Transmitter), check PartyIdentification types
+            if party_type == "35":
+                for party_id in party.findall(".//PartyIdentification"):
+                    id_type_elem = party_id.find("PartyIdentificationTypeCode")
+                    if id_type_elem is not None and id_type_elem.text:
+                        transmitter_id_types.add(id_type_elem.text.strip())
+    
+    required_activity_parties = {"35", "37", "15"}
+    missing_parties = required_activity_parties - party_types_found
+    if missing_parties:
+        errors.append(f"Missing required Activity-level parties: {missing_parties}")
+    
+    # ─────────────────────────────────────────────────────────────────────────
+    # 5. Check Transmitter (35) has BOTH PartyIdentification types: 4 and 28
+    # ─────────────────────────────────────────────────────────────────────────
+    required_transmitter_ids = {"4", "28"}
+    missing_ids = required_transmitter_ids - transmitter_id_types
+    if missing_ids:
+        errors.append(f"Transmitter (Party 35) missing PartyIdentification types: {missing_ids}")
+    
+    # ─────────────────────────────────────────────────────────────────────────
+    # 6. Check at least one Account exists
+    # ─────────────────────────────────────────────────────────────────────────
+    accounts = root.findall(".//Account")
+    if not accounts:
+        errors.append("No Account elements found (at least one required)")
+    
+    # ─────────────────────────────────────────────────────────────────────────
+    # 7. Check at least one Account-level Party (41) exists
+    # ─────────────────────────────────────────────────────────────────────────
+    if "41" not in party_types_found:
+        errors.append("No Financial Institution party (type 41) found")
+    
+    # ─────────────────────────────────────────────────────────────────────────
+    # 8. Verify root counts match structure
+    # ─────────────────────────────────────────────────────────────────────────
+    total_activity_count = root.get("TotalActivityCount")
+    total_party_count = root.get("TotalPartyCount")
+    total_account_count = root.get("TotalAccountCount")
+    
+    actual_activities = len(root.findall(".//Activity"))
+    actual_parties = len(party_types_found)
+    actual_accounts = len(accounts)
+    
+    if total_activity_count and int(total_activity_count) != actual_activities:
+        errors.append(f"TotalActivityCount mismatch: declared {total_activity_count}, found {actual_activities}")
+    
+    if total_account_count and int(total_account_count) != actual_accounts:
+        errors.append(f"TotalAccountCount mismatch: declared {total_account_count}, found {actual_accounts}")
+    
+    # Store validation results in debug
+    debug["structural_validation"] = {
+        "parties_found": list(party_types_found),
+        "transmitter_id_types": list(transmitter_id_types),
+        "account_count": actual_accounts,
+        "seq_count": len(seq_nums),
+        "errors": errors,
+    }
+    
+    return errors
 
 
 def _extract_individual_filer(
