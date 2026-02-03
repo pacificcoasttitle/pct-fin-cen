@@ -123,6 +123,53 @@ async def health_check(db: Session = Depends(get_db)):
     }
 
 
+@app.post("/seed-now")
+async def seed_now(db: Session = Depends(get_db)):
+    """
+    Emergency seed endpoint - creates demo users if table is empty.
+    
+    No authentication required (safe because it only creates if empty).
+    This is a temporary endpoint to bootstrap staging environments.
+    """
+    from app.models.user import User
+    from app.models.company import Company
+    
+    user_count = db.query(User).count()
+    
+    if user_count > 0:
+        return {
+            "seeded": False,
+            "message": f"Database already has {user_count} users. No action taken.",
+            "user_count": user_count,
+        }
+    
+    # Run the seed
+    try:
+        from app.services.demo_seed import seed_demo_data
+        result = seed_demo_data(db)
+        
+        new_user_count = db.query(User).count()
+        company_count = db.query(Company).count()
+        
+        return {
+            "seeded": True,
+            "message": "Demo data created successfully!",
+            "user_count": new_user_count,
+            "company_count": company_count,
+            "details": {
+                "requests_created": result.get("requests_created", 0),
+                "reports_created": result.get("reports_created", 0),
+            }
+        }
+    except Exception as e:
+        import traceback
+        return {
+            "seeded": False,
+            "error": str(e),
+            "traceback": traceback.format_exc(),
+        }
+
+
 @app.get("/version")
 async def version():
     """Version endpoint returning build/version information."""
