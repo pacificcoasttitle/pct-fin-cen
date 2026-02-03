@@ -18,6 +18,13 @@ import logging
 import sys
 import json
 
+# Load .env file for local development
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # dotenv not required in production
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
