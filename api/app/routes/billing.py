@@ -94,6 +94,7 @@ class CompanyRateResponse(BaseModel):
     company_id: str
     company_name: str
     company_code: str
+    billing_type: str
     filing_fee_cents: int
     filing_fee_dollars: float
     payment_terms_days: int
@@ -104,6 +105,7 @@ class CompanyRateResponse(BaseModel):
 
 
 class UpdateCompanyRateRequest(BaseModel):
+    billing_type: Optional[str] = None  # "invoice_only" or "hybrid"
     filing_fee_cents: Optional[int] = None
     payment_terms_days: Optional[int] = None
     billing_notes: Optional[str] = None
@@ -726,7 +728,7 @@ async def get_company_rates(
     db: Session = Depends(get_db),
 ):
     """
-    Get all companies with their billing rates.
+    Get all companies with their billing rates and billing type.
     """
     companies = db.query(Company).filter(
         Company.company_type == "client"
@@ -749,6 +751,7 @@ async def get_company_rates(
             "company_id": str(company.id),
             "company_name": company.name,
             "company_code": company.code,
+            "billing_type": company.billing_type or "invoice_only",
             "filing_fee_cents": company.filing_fee_cents or 7500,
             "filing_fee_dollars": (company.filing_fee_cents or 7500) / 100.0,
             "payment_terms_days": company.payment_terms_days or 30,
@@ -768,16 +771,29 @@ async def update_company_rate(
     db: Session = Depends(get_db),
 ):
     """
-    Update a company's billing rate.
+    Update a company's billing rate and billing type.
     """
     company = db.query(Company).filter(Company.id == company_id).first()
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
     
+    # Valid billing types
+    VALID_BILLING_TYPES = ("invoice_only", "hybrid")
+    
     old_values = {
+        "billing_type": company.billing_type,
         "filing_fee_cents": company.filing_fee_cents,
         "payment_terms_days": company.payment_terms_days,
     }
+    
+    # Handle billing_type update
+    if request.billing_type is not None:
+        if request.billing_type not in VALID_BILLING_TYPES:
+            raise HTTPException(
+                status_code=422,
+                detail=f"billing_type must be one of: {', '.join(VALID_BILLING_TYPES)}"
+            )
+        company.billing_type = request.billing_type
     
     if request.filing_fee_cents is not None:
         if request.filing_fee_cents < 0:
@@ -792,14 +808,19 @@ async def update_company_rate(
     if request.billing_notes is not None:
         company.billing_notes = request.billing_notes
     
-    # Audit log
+    # Audit log - special handling for billing_type changes
+    event_type = "company.billing_rate_updated"
+    if request.billing_type is not None and old_values["billing_type"] != company.billing_type:
+        event_type = "company.billing_type_changed"
+    
     log_change(
         db=db,
         entity_type="company",
         entity_id=str(company.id),
-        event_type="company.billing_rate_updated",
+        event_type=event_type,
         old_values=old_values,
         new_values={
+            "billing_type": company.billing_type,
             "filing_fee_cents": company.filing_fee_cents,
             "payment_terms_days": company.payment_terms_days,
         },
@@ -811,6 +832,7 @@ async def update_company_rate(
     return {
         "company_id": str(company.id),
         "company_name": company.name,
+        "billing_type": company.billing_type or "invoice_only",
         "filing_fee_cents": company.filing_fee_cents or 7500,
         "filing_fee_dollars": (company.filing_fee_cents or 7500) / 100.0,
         "payment_terms_days": company.payment_terms_days or 30,

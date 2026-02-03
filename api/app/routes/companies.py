@@ -3,6 +3,7 @@ Company Management API Routes
 Handles CRUD operations for client companies.
 """
 
+import re
 from datetime import datetime
 from typing import List, Optional
 from uuid import uuid4
@@ -18,9 +19,13 @@ from app.models.user import User
 from app.models.submission_request import SubmissionRequest
 from app.models.report import Report
 from app.models.invoice import Invoice
-from app.services.audit import log_event, log_change, ENTITY_COMPANY
+from app.services.audit import log_event, log_change, ENTITY_COMPANY, ENTITY_USER
 
 router = APIRouter(prefix="/companies", tags=["companies"])
+
+# Valid values for billing_type and payment_terms
+VALID_BILLING_TYPES = ("invoice_only", "hybrid")
+VALID_PAYMENT_TERMS = (10, 15, 30, 45, 60)
 
 
 # ============================================================================
@@ -33,22 +38,54 @@ class AddressSchema(BaseModel):
     state: Optional[str] = None
     zip: Optional[str] = None
 
+
 class CompanyCreateRequest(BaseModel):
+    """
+    Schema for creating a new company with full onboarding data.
+    Supports the multi-step wizard on the frontend.
+    """
+    # === Step 1: Company Info ===
     name: str
-    code: str  # Unique identifier like "ACME", "PCT"
+    code: str  # Unique identifier like "ACME", "PCT" (uppercased automatically)
     company_type: str = "client"  # "internal" or "client"
-    billing_email: Optional[str] = None
-    billing_contact_name: Optional[str] = None
-    address: Optional[AddressSchema] = None
     phone: Optional[str] = None
+    address: Optional[AddressSchema] = None
+
+    # === Step 2: Billing Configuration ===
+    billing_email: Optional[str] = None  # REQUIRED for client companies
+    billing_contact_name: Optional[str] = None
+    billing_type: str = "invoice_only"  # "invoice_only" or "hybrid"
+    filing_fee_cents: int = 7500  # Default $75.00
+    payment_terms_days: int = 30  # Default Net 30
+    billing_notes: Optional[str] = None
+
+    # === Step 3: Initial Admin User (optional) ===
+    create_admin_user: bool = False  # If true, create first admin user
+    admin_user_name: Optional[str] = None  # Required if create_admin_user=True
+    admin_user_email: Optional[str] = None  # Required if create_admin_user=True
+
 
 class CompanyUpdateRequest(BaseModel):
+    """Schema for updating an existing company."""
     name: Optional[str] = None
     billing_email: Optional[str] = None
     billing_contact_name: Optional[str] = None
     address: Optional[AddressSchema] = None
     phone: Optional[str] = None
     settings: Optional[dict] = None
+    billing_type: Optional[str] = None  # "invoice_only" or "hybrid"
+
+
+class ClientCompanyUpdateRequest(BaseModel):
+    """
+    Limited schema for clients updating their own company.
+    Clients cannot change billing_type, filing_fee, or payment_terms.
+    """
+    billing_email: Optional[str] = None
+    billing_contact_name: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[AddressSchema] = None
+
 
 class CompanyStatusRequest(BaseModel):
     status: str  # "active", "suspended", "inactive"
@@ -82,6 +119,129 @@ async def get_company_stats(
         "clients": clients,
         "internal": total - clients,
         "new_this_month": new_this_month,
+    }
+
+
+# ============================================================================
+# MY COMPANY (Client access to own company)
+# Must come before /{company_id} routes to avoid conflicts
+# ============================================================================
+
+@router.get("/me")
+async def get_my_company(
+    db: Session = Depends(get_db),
+):
+    """
+    Return the current user's company information.
+    For client_admin and client_user roles only.
+    
+    GET /companies/me
+    """
+    # In demo mode, get a demo client user
+    # In production, get from auth context
+    demo_user = db.query(User).filter(User.email == "admin@demoescrow.com").first()
+    if not demo_user:
+        # Fallback: get any client user
+        demo_user = db.query(User).filter(User.role.in_(["client_admin", "client_user"])).first()
+    
+    if not demo_user or not demo_user.company_id:
+        raise HTTPException(status_code=404, detail="No company associated with user")
+    
+    company = db.query(Company).filter(Company.id == demo_user.company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    return {
+        "id": str(company.id),
+        "name": company.name,
+        "code": company.code,
+        "status": company.status,
+        "phone": company.phone,
+        "address": company.address,
+        "billing_email": company.billing_email,
+        "billing_contact_name": company.billing_contact_name,
+        "billing_type": company.billing_type,
+        "filing_fee_cents": company.filing_fee_cents or 7500,
+        "filing_fee_dollars": (company.filing_fee_cents or 7500) / 100.0,
+        "payment_terms_days": company.payment_terms_days or 30,
+    }
+
+
+@router.patch("/me")
+async def update_my_company(
+    request: ClientCompanyUpdateRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Client admin can update limited company fields.
+    
+    PATCH /companies/me
+    {
+        "billing_email": "billing@company.com",
+        "billing_contact_name": "Jane Doe",
+        "phone": "555-1234",
+        "address": {"street": "123 Main St", "city": "San Diego", "state": "CA", "zip": "92101"}
+    }
+    
+    Clients CANNOT update: name, code, billing_type, filing_fee_cents, payment_terms_days
+    """
+    # In demo mode, get a demo client admin
+    demo_user = db.query(User).filter(
+        User.email == "admin@demoescrow.com",
+        User.role == "client_admin"
+    ).first()
+    if not demo_user:
+        demo_user = db.query(User).filter(User.role == "client_admin").first()
+    
+    if not demo_user or not demo_user.company_id:
+        raise HTTPException(status_code=404, detail="No company associated with user")
+    
+    company = db.query(Company).filter(Company.id == demo_user.company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    # Track changes for audit
+    old_values = {}
+    
+    if request.billing_email is not None:
+        if request.billing_email and not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", request.billing_email.strip()):
+            raise HTTPException(status_code=422, detail="Invalid email format")
+        old_values["billing_email"] = company.billing_email
+        company.billing_email = request.billing_email.strip() if request.billing_email else None
+    
+    if request.billing_contact_name is not None:
+        old_values["billing_contact_name"] = company.billing_contact_name
+        company.billing_contact_name = request.billing_contact_name.strip() if request.billing_contact_name else None
+    
+    if request.phone is not None:
+        old_values["phone"] = company.phone
+        company.phone = request.phone.strip() if request.phone else None
+    
+    if request.address is not None:
+        old_values["address"] = company.address
+        company.address = request.address.dict()
+    
+    company.updated_at = datetime.utcnow()
+    
+    # Audit log
+    log_event(
+        db=db,
+        entity_type=ENTITY_COMPANY,
+        entity_id=str(company.id),
+        event_type="company.updated_by_client",
+        actor_type="client_admin",
+        actor_id=str(demo_user.id),
+        details={
+            "updated_fields": list(old_values.keys()),
+            "old_values": old_values,
+        },
+    )
+    
+    db.commit()
+    
+    return {
+        "ok": True,
+        "message": "Company updated successfully",
     }
 
 
@@ -138,13 +298,15 @@ async def list_companies(
         ).count()
         
         result.append({
-            "id": company.id,
+            "id": str(company.id),
             "name": company.name,
             "code": company.code,
             "company_type": company.company_type,
             "status": company.status,
             "billing_email": company.billing_email,
             "billing_contact_name": company.billing_contact_name,
+            "billing_type": company.billing_type or "invoice_only",
+            "filing_fee_cents": company.filing_fee_cents or 7500,
             "address": company.address,
             "phone": company.phone,
             "user_count": user_count,
@@ -167,7 +329,7 @@ async def get_company(
     company_id: str,
     db: Session = Depends(get_db),
 ):
-    """Get detailed company information including stats."""
+    """Get detailed company information including stats and billing config."""
     company = db.query(Company).filter(Company.id == company_id).first()
     
     if not company:
@@ -178,6 +340,11 @@ async def get_company(
     active_user_count = db.query(User).filter(
         User.company_id == company_id,
         User.status == "active"
+    ).count()
+    admin_count = db.query(User).filter(
+        User.company_id == company_id,
+        User.role == "client_admin",
+        User.status != "disabled"
     ).count()
     
     request_count = db.query(SubmissionRequest).filter(
@@ -209,7 +376,7 @@ async def get_company(
     ).scalar() or 0
     
     return {
-        "id": company.id,
+        "id": str(company.id),
         "name": company.name,
         "code": company.code,
         "company_type": company.company_type,
@@ -218,12 +385,21 @@ async def get_company(
         "billing_contact_name": company.billing_contact_name,
         "address": company.address,
         "phone": company.phone,
+        # Billing configuration
+        "billing_type": company.billing_type,
+        "filing_fee_cents": company.filing_fee_cents or 7500,
+        "filing_fee_dollars": (company.filing_fee_cents or 7500) / 100.0,
+        "payment_terms_days": company.payment_terms_days or 30,
+        "billing_notes": company.billing_notes,
+        "stripe_customer_id": company.stripe_customer_id,
+        # Metadata
         "settings": company.settings,
         "created_at": company.created_at.isoformat() if company.created_at else None,
         "updated_at": company.updated_at.isoformat() if company.updated_at else None,
         "stats": {
             "total_users": user_count,
             "active_users": active_user_count,
+            "admin_count": admin_count,
             "total_requests": request_count,
             "total_reports": report_count,
             "filed_reports": filed_count,
@@ -232,13 +408,116 @@ async def get_company(
         },
         "recent_reports": [
             {
-                "id": r.id,
+                "id": str(r.id),
                 "property_address_text": r.property_address_text,
                 "status": r.status,
                 "created_at": r.created_at.isoformat() if r.created_at else None,
             }
             for r in recent_reports
         ],
+    }
+
+
+# ============================================================================
+# GET COMPANY READINESS
+# ============================================================================
+
+@router.get("/{company_id}/readiness")
+async def get_company_readiness(
+    company_id: str,
+    db: Session = Depends(get_db),
+):
+    """
+    Return a checklist of what's configured for this company.
+    Used to show setup progress on company detail.
+    
+    GET /companies/{company_id}/readiness
+    """
+    company = db.query(Company).filter(Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    # Get users for this company
+    users = db.query(User).filter(
+        User.company_id == company.id,
+        User.status == "active"
+    ).all()
+    admin_users = [u for u in users if u.role == "client_admin"]
+    
+    # Check if company has any filings
+    has_filings = db.query(Report).filter(Report.company_id == company.id).count() > 0
+    
+    # Build the readiness checklist
+    checks = [
+        {
+            "key": "billing_email",
+            "label": "Billing email configured",
+            "passed": bool(company.billing_email),
+            "detail": company.billing_email or "Not set",
+            "required": True,
+        },
+        {
+            "key": "billing_type_set",
+            "label": "Billing type confirmed",
+            "passed": company.billing_type is not None,
+            "detail": company.billing_type or "Not set",
+            "required": True,
+        },
+        {
+            "key": "filing_fee_configured",
+            "label": "Filing fee set",
+            "passed": company.filing_fee_cents is not None,
+            "detail": f"${(company.filing_fee_cents or 7500) / 100:.2f}",
+            "required": True,
+        },
+        {
+            "key": "admin_user",
+            "label": "Admin user created",
+            "passed": len(admin_users) > 0,
+            "detail": f"{len(admin_users)} admin(s): {', '.join(u.email for u in admin_users)}" if admin_users else "No admin user",
+            "required": True,
+        },
+        {
+            "key": "any_user",
+            "label": "At least one active user",
+            "passed": len(users) > 0,
+            "detail": f"{len(users)} active user(s)" if users else "No users",
+            "required": True,
+        },
+        {
+            "key": "address",
+            "label": "Company address set",
+            "passed": bool(company.address and company.address.get("street")),
+            "detail": "Set" if company.address and company.address.get("street") else "Not set",
+            "required": False,
+        },
+        {
+            "key": "card_on_file",
+            "label": "Card on file (hybrid only)",
+            "passed": company.billing_type != "hybrid" or bool(company.stripe_customer_id),
+            "detail": "N/A" if company.billing_type != "hybrid" else ("Card on file" if company.stripe_customer_id else "No card — required for hybrid"),
+            "required": company.billing_type == "hybrid",
+        },
+    ]
+    
+    # Calculate overall readiness
+    required_checks = [c for c in checks if c.get("required", False)]
+    passed_required = sum(1 for c in required_checks if c["passed"])
+    total_required = len(required_checks)
+    
+    # All required items must pass (except card_on_file which is soft requirement)
+    core_checks = [c for c in required_checks if c["key"] != "card_on_file"]
+    all_core_passed = all(c["passed"] for c in core_checks)
+    
+    return {
+        "company_id": str(company.id),
+        "company_name": company.name,
+        "ready": all_core_passed,
+        "passed_count": passed_required,
+        "total_count": total_required,
+        "percentage": round((passed_required / total_required) * 100) if total_required > 0 else 0,
+        "checks": checks,
+        "has_filings": has_filings,
     }
 
 
@@ -252,33 +531,135 @@ async def create_company(
     db: Session = Depends(get_db),
 ):
     """
-    Create a new company.
-    Typically used by FinClear admins to onboard new clients.
+    Create a new company with full onboarding data.
+    Supports the multi-step wizard on the frontend.
+    
+    POST /companies
+    {
+        "name": "Pacific Coast Title",
+        "code": "PCTITLE",
+        "company_type": "client",
+        "billing_email": "billing@pctitle.com",
+        "billing_type": "invoice_only",
+        "filing_fee_cents": 7500,
+        "payment_terms_days": 30,
+        "create_admin_user": true,
+        "admin_user_name": "John Doe",
+        "admin_user_email": "john@pctitle.com"
+    }
     """
-    # Check code uniqueness
-    existing = db.query(Company).filter(Company.code == request.code.upper()).first()
+    # ----------------------------------------------------------------
+    # VALIDATION: Company code uniqueness
+    # ----------------------------------------------------------------
+    code_upper = request.code.strip().upper()
+    existing = db.query(Company).filter(Company.code == code_upper).first()
     if existing:
         raise HTTPException(
             status_code=400,
-            detail=f"Company code '{request.code}' already exists"
+            detail=f"Company code '{code_upper}' already exists"
         )
     
-    # Validate company_type
+    # ----------------------------------------------------------------
+    # VALIDATION: company_type
+    # ----------------------------------------------------------------
     if request.company_type not in ("internal", "client"):
         raise HTTPException(
-            status_code=400,
+            status_code=422,
             detail="company_type must be 'internal' or 'client'"
         )
     
+    # ----------------------------------------------------------------
+    # VALIDATION: billing_email required for client companies
+    # ----------------------------------------------------------------
+    if request.company_type == "client" and not request.billing_email:
+        raise HTTPException(
+            status_code=422,
+            detail="billing_email is required for client companies"
+        )
+    
+    # ----------------------------------------------------------------
+    # VALIDATION: billing_email format
+    # ----------------------------------------------------------------
+    if request.billing_email:
+        if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", request.billing_email.strip()):
+            raise HTTPException(
+                status_code=422,
+                detail="Invalid billing email format"
+            )
+    
+    # ----------------------------------------------------------------
+    # VALIDATION: billing_type
+    # ----------------------------------------------------------------
+    if request.billing_type not in VALID_BILLING_TYPES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"billing_type must be one of: {', '.join(VALID_BILLING_TYPES)}"
+        )
+    
+    # ----------------------------------------------------------------
+    # VALIDATION: filing_fee_cents range ($0 to $1000)
+    # ----------------------------------------------------------------
+    if request.filing_fee_cents < 0 or request.filing_fee_cents > 100000:
+        raise HTTPException(
+            status_code=422,
+            detail="filing_fee_cents must be between 0 and 100000 ($0 to $1000)"
+        )
+    
+    # ----------------------------------------------------------------
+    # VALIDATION: payment_terms_days
+    # ----------------------------------------------------------------
+    if request.payment_terms_days not in VALID_PAYMENT_TERMS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"payment_terms_days must be one of: {', '.join(str(d) for d in VALID_PAYMENT_TERMS)}"
+        )
+    
+    # ----------------------------------------------------------------
+    # VALIDATION: admin user fields if create_admin_user=True
+    # ----------------------------------------------------------------
+    if request.create_admin_user:
+        if not request.admin_user_name or not request.admin_user_name.strip():
+            raise HTTPException(
+                status_code=422,
+                detail="admin_user_name is required when create_admin_user is true"
+            )
+        if not request.admin_user_email or not request.admin_user_email.strip():
+            raise HTTPException(
+                status_code=422,
+                detail="admin_user_email is required when create_admin_user is true"
+            )
+        # Validate email format
+        if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", request.admin_user_email.strip()):
+            raise HTTPException(
+                status_code=422,
+                detail="Invalid admin user email format"
+            )
+        # Check email uniqueness
+        existing_user = db.query(User).filter(
+            User.email == request.admin_user_email.lower().strip()
+        ).first()
+        if existing_user:
+            raise HTTPException(
+                status_code=409,
+                detail=f"A user with email {request.admin_user_email} already exists"
+            )
+    
+    # ----------------------------------------------------------------
+    # CREATE COMPANY
+    # ----------------------------------------------------------------
     company = Company(
         id=str(uuid4()),
-        name=request.name,
-        code=request.code.upper(),
+        name=request.name.strip(),
+        code=code_upper,
         company_type=request.company_type,
-        billing_email=request.billing_email,
-        billing_contact_name=request.billing_contact_name,
+        billing_email=request.billing_email.strip() if request.billing_email else None,
+        billing_contact_name=request.billing_contact_name.strip() if request.billing_contact_name else None,
         address=request.address.dict() if request.address else {},
-        phone=request.phone,
+        phone=request.phone.strip() if request.phone else None,
+        billing_type=request.billing_type,
+        filing_fee_cents=request.filing_fee_cents,
+        payment_terms_days=request.payment_terms_days,
+        billing_notes=request.billing_notes.strip() if request.billing_notes else None,
         status="active",
         settings={},
         created_at=datetime.utcnow(),
@@ -288,17 +669,55 @@ async def create_company(
     db.add(company)
     db.flush()
     
-    # Audit log
+    # ----------------------------------------------------------------
+    # CREATE ADMIN USER (if requested, for client companies)
+    # ----------------------------------------------------------------
+    admin_user = None
+    if request.create_admin_user and request.company_type == "client":
+        admin_user = User(
+            id=str(uuid4()),
+            name=request.admin_user_name.strip(),
+            email=request.admin_user_email.lower().strip(),
+            role="client_admin",
+            company_id=company.id,
+            status="active",  # In demo mode. When auth is added, this becomes "invited"
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
+        )
+        db.add(admin_user)
+        db.flush()
+        
+        # Audit log for user creation
+        log_event(
+            db=db,
+            entity_type=ENTITY_USER,
+            entity_id=str(admin_user.id),
+            event_type="user.created",
+            actor_type="admin",
+            details={
+                "created_during": "company_onboarding",
+                "company_id": str(company.id),
+                "role": "client_admin",
+                "name": admin_user.name,
+                "email": admin_user.email,
+            },
+        )
+    
+    # Audit log for company creation
     log_event(
         db=db,
         entity_type=ENTITY_COMPANY,
         entity_id=str(company.id),
         event_type="company.created",
-        actor_type="admin",  # TODO: Get from auth context
+        actor_type="admin",
         details={
             "name": company.name,
             "code": company.code,
             "company_type": company.company_type,
+            "billing_type": company.billing_type,
+            "filing_fee_cents": company.filing_fee_cents,
+            "payment_terms_days": company.payment_terms_days,
+            "admin_user_created": admin_user is not None,
         },
     )
     
@@ -306,10 +725,15 @@ async def create_company(
     db.refresh(company)
     
     return {
-        "id": company.id,
+        "id": str(company.id),
         "name": company.name,
         "code": company.code,
         "status": company.status,
+        "billing_type": company.billing_type,
+        "filing_fee_cents": company.filing_fee_cents,
+        "payment_terms_days": company.payment_terms_days,
+        "admin_user_created": admin_user is not None,
+        "admin_user_email": admin_user.email if admin_user else None,
         "message": "Company created successfully",
     }
 
@@ -324,25 +748,47 @@ async def update_company(
     request: CompanyUpdateRequest,
     db: Session = Depends(get_db),
 ):
-    """Update company details."""
+    """Update company details including billing_type."""
     company = db.query(Company).filter(Company.id == company_id).first()
     
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
     
+    # Track old values for audit
+    old_values = {}
+    
     # Update fields if provided
     if request.name is not None:
-        company.name = request.name
+        old_values["name"] = company.name
+        company.name = request.name.strip()
     if request.billing_email is not None:
-        company.billing_email = request.billing_email
+        # Validate email format
+        if request.billing_email and not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", request.billing_email.strip()):
+            raise HTTPException(status_code=422, detail="Invalid billing email format")
+        old_values["billing_email"] = company.billing_email
+        company.billing_email = request.billing_email.strip() if request.billing_email else None
     if request.billing_contact_name is not None:
-        company.billing_contact_name = request.billing_contact_name
+        old_values["billing_contact_name"] = company.billing_contact_name
+        company.billing_contact_name = request.billing_contact_name.strip() if request.billing_contact_name else None
     if request.address is not None:
+        old_values["address"] = company.address
         company.address = request.address.dict()
     if request.phone is not None:
-        company.phone = request.phone
+        old_values["phone"] = company.phone
+        company.phone = request.phone.strip() if request.phone else None
     if request.settings is not None:
+        old_values["settings"] = company.settings
         company.settings = request.settings
+    
+    # Handle billing_type update with validation
+    if request.billing_type is not None:
+        if request.billing_type not in VALID_BILLING_TYPES:
+            raise HTTPException(
+                status_code=422,
+                detail=f"billing_type must be one of: {', '.join(VALID_BILLING_TYPES)}"
+            )
+        old_values["billing_type"] = company.billing_type
+        company.billing_type = request.billing_type
     
     company.updated_at = datetime.utcnow()
     
@@ -352,19 +798,19 @@ async def update_company(
         entity_type=ENTITY_COMPANY,
         entity_id=str(company.id),
         event_type="company.updated",
-        actor_type="admin",  # TODO: Get from auth context
+        actor_type="admin",
         details={
-            "updated_fields": [
-                k for k, v in request.model_dump(exclude_unset=True).items() if v is not None
-            ],
+            "updated_fields": list(old_values.keys()),
+            "old_values": old_values,
         },
     )
     
     db.commit()
     
     return {
-        "id": company.id,
+        "id": str(company.id),
         "name": company.name,
+        "billing_type": company.billing_type,
         "message": "Company updated successfully",
     }
 

@@ -73,6 +73,8 @@ interface Company {
   status: string
   billing_email: string | null
   billing_contact_name: string | null
+  billing_type: string
+  filing_fee_cents: number
   address: any
   phone: string | null
   user_count: number
@@ -93,9 +95,12 @@ interface CompanyStats {
 interface CompanyDetail extends Company {
   settings: any
   updated_at: string
+  billing_notes: string | null
+  stripe_customer_id: string | null
   stats: {
     total_users: number
     active_users: number
+    admin_count: number
     total_requests: number
     total_reports: number
     filed_reports: number
@@ -108,6 +113,7 @@ interface CompanyDetail extends Company {
 interface BillingSettings {
   company_id: string
   company_name: string
+  billing_type: string
   filing_fee_cents: number
   filing_fee_dollars: number
   payment_terms_days: number
@@ -115,6 +121,17 @@ interface BillingSettings {
   billing_email: string | null
   billing_contact_name: string | null
 }
+
+// US States for address dropdown
+const US_STATES = [
+  "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA",
+  "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD",
+  "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
+  "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC",
+  "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"
+]
+
+const PAYMENT_TERMS_OPTIONS = [10, 15, 30, 45, 60]
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   active: { label: "Active", variant: "default" },
@@ -136,21 +153,42 @@ export default function AdminCompaniesPage() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [loadingDetail, setLoadingDetail] = useState(false)
   
-  // Create dialog
+  // Create wizard dialog
   const [createOpen, setCreateOpen] = useState(false)
   const [creating, setCreating] = useState(false)
-  const [newCompany, setNewCompany] = useState({
-    name: "",
-    code: "",
-    billing_email: "",
-    billing_contact_name: "",
-    phone: "",
+  const [wizardStep, setWizardStep] = useState(1)
+  const [codeManuallyEdited, setCodeManuallyEdited] = useState(false)
+  const [wizardErrors, setWizardErrors] = useState<Record<string, string>>({})
+  
+  // Step 1: Company Info
+  const [companyName, setCompanyName] = useState("")
+  const [companyCode, setCompanyCode] = useState("")
+  const [companyPhone, setCompanyPhone] = useState("")
+  const [companyAddress, setCompanyAddress] = useState({
+    street: "",
+    city: "",
+    state: "",
+    zip: ""
   })
   
-  // Billing settings
+  // Step 2: Billing
+  const [billingType, setBillingType] = useState("invoice_only")
+  const [filingFeeDollars, setFilingFeeDollars] = useState("75.00")
+  const [paymentTermsDays, setPaymentTermsDays] = useState(30)
+  const [billingEmail, setBillingEmail] = useState("")
+  const [billingContactName, setBillingContactName] = useState("")
+  const [wizardBillingNotes, setWizardBillingNotes] = useState("")
+  
+  // Step 3: Admin User
+  const [createAdminUser, setCreateAdminUser] = useState(true)
+  const [adminName, setAdminName] = useState("")
+  const [adminEmail, setAdminEmail] = useState("")
+  
+  // Billing settings (in detail sheet)
   const [billingSettings, setBillingSettings] = useState<BillingSettings | null>(null)
   const [editingBilling, setEditingBilling] = useState(false)
   const [savingBilling, setSavingBilling] = useState(false)
+  const [editBillingType, setEditBillingType] = useState("")
   const [filingFee, setFilingFee] = useState("")
   const [paymentTerms, setPaymentTerms] = useState("")
   const [billingNotes, setBillingNotes] = useState("")
@@ -222,12 +260,101 @@ export default function AdminCompaniesPage() {
       if (response.ok) {
         const data = await response.json()
         setBillingSettings(data)
+        setEditBillingType(data.billing_type || "invoice_only")
         setFilingFee(String(data.filing_fee_dollars))
         setPaymentTerms(String(data.payment_terms_days))
         setBillingNotes(data.billing_notes || "")
       }
     } catch (error) {
       console.error("Failed to fetch billing settings:", error)
+    }
+  }
+  
+  // Generate company code from name
+  const generateCode = (name: string): string => {
+    const cleaned = name.replace(/[^a-zA-Z0-9\s]/g, "").trim().toUpperCase()
+    // If name is one word and <= 10 chars, use it
+    if (!cleaned.includes(" ") && cleaned.length <= 10) return cleaned
+    // Otherwise, take significant words
+    const stopWords = ["AND", "THE", "OF", "LLC", "INC", "CORP", "CO", "COMPANY", "TITLE", "ESCROW"]
+    const words = cleaned.split(/\s+/).filter(w => !stopWords.includes(w))
+    if (words.length === 0) return cleaned.slice(0, 10)
+    const code = words.map(w => w.slice(0, Math.ceil(10 / words.length))).join("").slice(0, 10)
+    return code || cleaned.slice(0, 10)
+  }
+  
+  // Reset wizard state
+  const resetWizard = () => {
+    setWizardStep(1)
+    setCodeManuallyEdited(false)
+    setWizardErrors({})
+    // Step 1
+    setCompanyName("")
+    setCompanyCode("")
+    setCompanyPhone("")
+    setCompanyAddress({ street: "", city: "", state: "", zip: "" })
+    // Step 2
+    setBillingType("invoice_only")
+    setFilingFeeDollars("75.00")
+    setPaymentTermsDays(30)
+    setBillingEmail("")
+    setBillingContactName("")
+    setWizardBillingNotes("")
+    // Step 3
+    setCreateAdminUser(true)
+    setAdminName("")
+    setAdminEmail("")
+  }
+  
+  // Validate wizard step
+  const validateStep = (step: number): boolean => {
+    const errors: Record<string, string> = {}
+    
+    if (step === 1) {
+      if (!companyName.trim()) errors.name = "Company name is required"
+      if (!companyCode.trim()) errors.code = "Company code is required"
+      else if (companyCode.length < 2 || companyCode.length > 10) errors.code = "Code must be 2-10 characters"
+    }
+    
+    if (step === 2) {
+      if (!billingEmail.trim()) errors.billing_email = "Billing email is required"
+      else if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(billingEmail)) errors.billing_email = "Invalid email format"
+      
+      const feeNum = parseFloat(filingFeeDollars)
+      if (isNaN(feeNum) || feeNum < 0 || feeNum > 1000) errors.filing_fee = "Fee must be between $0 and $1000"
+    }
+    
+    if (step === 3 && createAdminUser) {
+      if (!adminName.trim()) errors.admin_name = "Admin name is required"
+      if (!adminEmail.trim()) errors.admin_email = "Admin email is required"
+      else if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(adminEmail)) errors.admin_email = "Invalid email format"
+    }
+    
+    setWizardErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+  
+  // Handle next step
+  const handleNextStep = () => {
+    if (validateStep(wizardStep)) {
+      setWizardStep(s => s + 1)
+    }
+  }
+  
+  // Handle company name change with auto-code generation
+  const handleCompanyNameChange = (name: string) => {
+    setCompanyName(name)
+    if (!codeManuallyEdited) {
+      setCompanyCode(generateCode(name))
+    }
+  }
+  
+  // Handle billing type change
+  const handleBillingTypeChange = (type: string) => {
+    setBillingType(type)
+    // Auto-switch to Net 10 for hybrid
+    if (type === "hybrid" && paymentTermsDays === 30) {
+      setPaymentTermsDays(10)
     }
   }
   
@@ -239,10 +366,12 @@ export default function AdminCompaniesPage() {
     try {
       const feeCents = Math.round(parseFloat(filingFee) * 100)
       
-      const response = await fetch(`${API_BASE_URL}/companies/${selectedCompany.id}/billing-settings`, {
+      // Use billing rates endpoint which supports billing_type
+      const response = await fetch(`${API_BASE_URL}/billing/admin/rates/${selectedCompany.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          billing_type: editBillingType,
           filing_fee_cents: feeCents,
           payment_terms_days: parseInt(paymentTerms),
           billing_notes: billingNotes || null,
@@ -251,12 +380,15 @@ export default function AdminCompaniesPage() {
       
       if (response.ok) {
         const data = await response.json()
-        setBillingSettings(data)
+        // Refresh billing settings from company endpoint
+        fetchBillingSettings(selectedCompany.id)
         setEditingBilling(false)
         toast({
           title: "Success",
           description: "Billing settings updated",
         })
+        // Refresh company list to show updated billing_type
+        fetchCompanies()
       } else {
         const error = await response.json()
         toast({
@@ -276,39 +408,83 @@ export default function AdminCompaniesPage() {
     }
   }
 
-  // Create company
+  // Create company (submit wizard)
   const handleCreate = async () => {
-    if (!newCompany.name || !newCompany.code) {
+    // Final validation
+    if (!validateStep(1) || !validateStep(2)) {
       toast({
         title: "Validation Error",
-        description: "Name and code are required",
+        description: "Please fix the errors before submitting",
+        variant: "destructive",
+      })
+      return
+    }
+    if (createAdminUser && !validateStep(3)) {
+      toast({
+        title: "Validation Error",
+        description: "Please fix the admin user errors",
         variant: "destructive",
       })
       return
     }
     
     setCreating(true)
+    setWizardErrors({})
+    
     try {
+      const filingFeeCents = Math.round(parseFloat(filingFeeDollars) * 100)
+      
+      const payload = {
+        name: companyName.trim(),
+        code: companyCode.trim().toUpperCase(),
+        company_type: "client",
+        phone: companyPhone.trim() || null,
+        address: (companyAddress.street || companyAddress.city) ? companyAddress : null,
+        billing_type: billingType,
+        filing_fee_cents: filingFeeCents,
+        payment_terms_days: paymentTermsDays,
+        billing_email: billingEmail.trim(),
+        billing_contact_name: billingContactName.trim() || null,
+        billing_notes: wizardBillingNotes.trim() || null,
+        create_admin_user: createAdminUser,
+        admin_user_name: createAdminUser ? adminName.trim() : null,
+        admin_user_email: createAdminUser ? adminEmail.trim().toLowerCase() : null,
+      }
+      
       const response = await fetch(`${API_BASE_URL}/companies`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...newCompany,
-          company_type: "client",
-        }),
+        body: JSON.stringify(payload),
       })
       
       if (response.ok) {
+        const data = await response.json()
+        
+        // Success toast
         toast({
           title: "Success",
-          description: "Company created successfully",
+          description: createAdminUser 
+            ? `${companyName} created! Admin user ${adminEmail} can now log in.`
+            : `${companyName} created successfully!`,
         })
+        
+        // Hybrid reminder
+        if (billingType === "hybrid") {
+          setTimeout(() => {
+            toast({
+              title: "Reminder",
+              description: "Client admin will need to add a card on file for hybrid billing.",
+            })
+          }, 1500)
+        }
+        
         setCreateOpen(false)
-        setNewCompany({ name: "", code: "", billing_email: "", billing_contact_name: "", phone: "" })
+        resetWizard()
         fetchCompanies()
         fetchStats()
       } else {
         const error = await response.json()
+        setWizardErrors({ submit: error.detail || "Failed to create company" })
         toast({
           title: "Error",
           description: error.detail || "Failed to create company",
@@ -316,9 +492,10 @@ export default function AdminCompaniesPage() {
         })
       }
     } catch (error) {
+      setWizardErrors({ submit: "Network error. Please try again." })
       toast({
         title: "Error",
-        description: "Failed to create company",
+        description: "Network error. Please try again.",
         variant: "destructive",
       })
     } finally {
@@ -391,76 +568,396 @@ export default function AdminCompaniesPage() {
             <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
             Refresh
           </Button>
-          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+          <Dialog open={createOpen} onOpenChange={(open) => {
+            setCreateOpen(open)
+            if (!open) resetWizard()
+          }}>
             <DialogTrigger asChild>
               <Button className="bg-gradient-to-r from-blue-600 to-cyan-500">
                 <Plus className="h-4 w-4 mr-2" />
                 Add Company
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="sm:max-w-[600px]">
               <DialogHeader>
-                <DialogTitle>Add New Company</DialogTitle>
+                <DialogTitle className="flex items-center justify-between">
+                  Add New Company
+                  <span className="text-sm font-normal text-muted-foreground">
+                    Step {wizardStep}/4
+                  </span>
+                </DialogTitle>
                 <DialogDescription>
-                  Create a new client company. You can invite users after creation.
+                  {wizardStep === 1 && "Enter company information"}
+                  {wizardStep === 2 && "Configure billing settings"}
+                  {wizardStep === 3 && "Create the first admin user"}
+                  {wizardStep === 4 && "Review and confirm"}
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="col-span-2">
-                    <Label>Company Name *</Label>
-                    <Input
-                      value={newCompany.name}
-                      onChange={(e) => setNewCompany({ ...newCompany, name: e.target.value })}
-                      placeholder="Pacific Coast Title"
-                    />
-                  </div>
-                  <div>
-                    <Label>Company Code *</Label>
-                    <Input
-                      value={newCompany.code}
-                      onChange={(e) => setNewCompany({ ...newCompany, code: e.target.value.toUpperCase() })}
-                      placeholder="PCT"
-                      maxLength={10}
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Unique identifier (3-10 chars)
-                    </p>
-                  </div>
-                  <div>
-                    <Label>Phone</Label>
-                    <Input
-                      value={newCompany.phone}
-                      onChange={(e) => setNewCompany({ ...newCompany, phone: e.target.value })}
-                      placeholder="(555) 123-4567"
-                    />
-                  </div>
-                  <div>
-                    <Label>Billing Contact</Label>
-                    <Input
-                      value={newCompany.billing_contact_name}
-                      onChange={(e) => setNewCompany({ ...newCompany, billing_contact_name: e.target.value })}
-                      placeholder="John Smith"
-                    />
-                  </div>
-                  <div>
-                    <Label>Billing Email</Label>
-                    <Input
-                      type="email"
-                      value={newCompany.billing_email}
-                      onChange={(e) => setNewCompany({ ...newCompany, billing_email: e.target.value })}
-                      placeholder="billing@company.com"
-                    />
-                  </div>
-                </div>
+              
+              {/* Step Indicator */}
+              <div className="flex items-center gap-2 py-4">
+                {[1, 2, 3, 4].map((step) => (
+                  <button
+                    key={step}
+                    onClick={() => step < wizardStep && setWizardStep(step)}
+                    className={`flex-1 h-2 rounded-full transition-colors ${
+                      step <= wizardStep ? "bg-blue-500" : "bg-slate-200"
+                    } ${step < wizardStep ? "cursor-pointer hover:bg-blue-400" : ""}`}
+                  />
+                ))}
               </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setCreateOpen(false)}>
+              
+              {/* Step Content */}
+              <div className="min-h-[300px]">
+                {/* Step 1: Company Info */}
+                {wizardStep === 1 && (
+                  <div className="space-y-4">
+                    <div>
+                      <Label>Company Name *</Label>
+                      <Input
+                        value={companyName}
+                        onChange={(e) => handleCompanyNameChange(e.target.value)}
+                        placeholder="Pacific Coast Title"
+                        className={wizardErrors.name ? "border-red-500" : ""}
+                      />
+                      {wizardErrors.name && <p className="text-xs text-red-500 mt-1">{wizardErrors.name}</p>}
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>Company Code *</Label>
+                        <Input
+                          value={companyCode}
+                          onChange={(e) => {
+                            setCodeManuallyEdited(true)
+                            setCompanyCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))
+                          }}
+                          placeholder="PCTITLE"
+                          maxLength={10}
+                          className={wizardErrors.code ? "border-red-500" : ""}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {codeManuallyEdited ? "Custom code" : "Auto-generated from name"}
+                        </p>
+                        {wizardErrors.code && <p className="text-xs text-red-500 mt-1">{wizardErrors.code}</p>}
+                      </div>
+                      <div>
+                        <Label>Phone</Label>
+                        <Input
+                          value={companyPhone}
+                          onChange={(e) => setCompanyPhone(e.target.value)}
+                          placeholder="(555) 123-4567"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-3 pt-2">
+                      <Label className="text-muted-foreground">Company Address (optional)</Label>
+                      <Input
+                        value={companyAddress.street}
+                        onChange={(e) => setCompanyAddress({...companyAddress, street: e.target.value})}
+                        placeholder="Street Address"
+                      />
+                      <div className="grid grid-cols-3 gap-3">
+                        <Input
+                          value={companyAddress.city}
+                          onChange={(e) => setCompanyAddress({...companyAddress, city: e.target.value})}
+                          placeholder="City"
+                        />
+                        <Select
+                          value={companyAddress.state}
+                          onValueChange={(val) => setCompanyAddress({...companyAddress, state: val})}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="State" />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-[200px]">
+                            {US_STATES.map((state) => (
+                              <SelectItem key={state} value={state}>{state}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          value={companyAddress.zip}
+                          onChange={(e) => setCompanyAddress({...companyAddress, zip: e.target.value})}
+                          placeholder="ZIP"
+                          maxLength={10}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Step 2: Billing */}
+                {wizardStep === 2 && (
+                  <div className="space-y-4">
+                    <div>
+                      <Label>Billing Type *</Label>
+                      <div className="flex gap-4 mt-2">
+                        <label className={`flex-1 flex items-center gap-2 p-3 border rounded-lg cursor-pointer ${billingType === "invoice_only" ? "border-blue-500 bg-blue-50" : ""}`}>
+                          <input
+                            type="radio"
+                            name="billing_type"
+                            value="invoice_only"
+                            checked={billingType === "invoice_only"}
+                            onChange={() => handleBillingTypeChange("invoice_only")}
+                          />
+                          <div>
+                            <p className="font-medium">Invoice Only</p>
+                            <p className="text-xs text-muted-foreground">Invoices sent on your terms. No card required.</p>
+                          </div>
+                        </label>
+                        <label className={`flex-1 flex items-center gap-2 p-3 border rounded-lg cursor-pointer ${billingType === "hybrid" ? "border-blue-500 bg-blue-50" : ""}`}>
+                          <input
+                            type="radio"
+                            name="billing_type"
+                            value="hybrid"
+                            checked={billingType === "hybrid"}
+                            onChange={() => handleBillingTypeChange("hybrid")}
+                          />
+                          <div>
+                            <p className="font-medium">Hybrid</p>
+                            <p className="text-xs text-muted-foreground">Card on file auto-charged if unpaid.</p>
+                          </div>
+                        </label>
+                      </div>
+                      {billingType === "hybrid" && (
+                        <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm">
+                          <p className="text-amber-800">
+                            ⚠️ Hybrid billing requires the client to add a card on file.
+                            After creation, they will be prompted on their Billing page.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>Filing Fee *</Label>
+                        <div className="relative mt-1">
+                          <span className="absolute left-3 top-2.5 text-muted-foreground">$</span>
+                          <Input
+                            type="text"
+                            value={filingFeeDollars}
+                            onChange={(e) => {
+                              const cleaned = e.target.value.replace(/[^0-9.]/g, "")
+                              const parts = cleaned.split(".")
+                              if (parts.length <= 2 && (!parts[1] || parts[1].length <= 2)) {
+                                setFilingFeeDollars(cleaned)
+                              }
+                            }}
+                            placeholder="75.00"
+                            className={`pl-7 ${wizardErrors.filing_fee ? "border-red-500" : ""}`}
+                          />
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">Per-filing charge</p>
+                        {wizardErrors.filing_fee && <p className="text-xs text-red-500">{wizardErrors.filing_fee}</p>}
+                      </div>
+                      <div>
+                        <Label>Payment Terms *</Label>
+                        <Select
+                          value={String(paymentTermsDays)}
+                          onValueChange={(val) => setPaymentTermsDays(Number(val))}
+                        >
+                          <SelectTrigger className="mt-1">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {PAYMENT_TERMS_OPTIONS.map((days) => (
+                              <SelectItem key={days} value={String(days)}>Net {days}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>Billing Email *</Label>
+                        <Input
+                          type="email"
+                          value={billingEmail}
+                          onChange={(e) => setBillingEmail(e.target.value)}
+                          placeholder="billing@company.com"
+                          className={wizardErrors.billing_email ? "border-red-500" : ""}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">Invoices sent here</p>
+                        {wizardErrors.billing_email && <p className="text-xs text-red-500">{wizardErrors.billing_email}</p>}
+                      </div>
+                      <div>
+                        <Label>Billing Contact</Label>
+                        <Input
+                          value={billingContactName}
+                          onChange={(e) => setBillingContactName(e.target.value)}
+                          placeholder="Jane Smith"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <Label>Billing Notes (internal)</Label>
+                      <Input
+                        value={wizardBillingNotes}
+                        onChange={(e) => setWizardBillingNotes(e.target.value)}
+                        placeholder="e.g., Volume discount, special terms..."
+                      />
+                    </div>
+                  </div>
+                )}
+                
+                {/* Step 3: Admin User */}
+                {wizardStep === 3 && (
+                  <div className="space-y-4">
+                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-sm text-blue-800">
+                        Create the first admin user for this company. They will be able to
+                        submit filing requests, manage their team, and view billing.
+                      </p>
+                    </div>
+                    
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        id="create_admin"
+                        checked={createAdminUser}
+                        onChange={(e) => setCreateAdminUser(e.target.checked)}
+                        className="h-4 w-4"
+                      />
+                      <label htmlFor="create_admin" className="font-medium">
+                        Create admin user now
+                      </label>
+                    </div>
+                    
+                    {createAdminUser ? (
+                      <div className="space-y-4 pt-2">
+                        <div>
+                          <Label>Admin Name *</Label>
+                          <Input
+                            value={adminName}
+                            onChange={(e) => setAdminName(e.target.value)}
+                            placeholder="John Doe"
+                            className={wizardErrors.admin_name ? "border-red-500" : ""}
+                          />
+                          {wizardErrors.admin_name && <p className="text-xs text-red-500 mt-1">{wizardErrors.admin_name}</p>}
+                        </div>
+                        <div>
+                          <Label>Admin Email *</Label>
+                          <Input
+                            type="email"
+                            value={adminEmail}
+                            onChange={(e) => setAdminEmail(e.target.value)}
+                            placeholder="john@company.com"
+                            className={wizardErrors.admin_email ? "border-red-500" : ""}
+                          />
+                          {wizardErrors.admin_email && <p className="text-xs text-red-500 mt-1">{wizardErrors.admin_email}</p>}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Role: <strong>Client Administrator</strong> (first user is always admin)
+                        </p>
+                        <p className="text-xs text-muted-foreground italic">
+                          In demo mode, this user can log in immediately. When production auth is enabled, an invitation email will be sent.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="p-4 bg-slate-50 rounded-lg">
+                        <p className="text-sm text-muted-foreground">
+                          You can invite users later from Admin → Users.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {/* Step 4: Review */}
+                {wizardStep === 4 && (
+                  <div className="space-y-4">
+                    {wizardErrors.submit && (
+                      <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <p className="text-sm text-red-600">{wizardErrors.submit}</p>
+                      </div>
+                    )}
+                    
+                    <div className="border rounded-lg divide-y">
+                      <div className="p-4">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-semibold text-sm text-muted-foreground uppercase">Company Info</h4>
+                          <button onClick={() => setWizardStep(1)} className="text-xs text-blue-600 hover:underline">Edit</button>
+                        </div>
+                        <div className="mt-2 space-y-1 text-sm">
+                          <p><span className="text-muted-foreground">Name:</span> {companyName}</p>
+                          <p><span className="text-muted-foreground">Code:</span> {companyCode}</p>
+                          {companyPhone && <p><span className="text-muted-foreground">Phone:</span> {companyPhone}</p>}
+                          {companyAddress.street && (
+                            <p><span className="text-muted-foreground">Address:</span> {companyAddress.street}, {companyAddress.city}, {companyAddress.state} {companyAddress.zip}</p>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="p-4">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-semibold text-sm text-muted-foreground uppercase">Billing</h4>
+                          <button onClick={() => setWizardStep(2)} className="text-xs text-blue-600 hover:underline">Edit</button>
+                        </div>
+                        <div className="mt-2 space-y-1 text-sm">
+                          <p><span className="text-muted-foreground">Type:</span> <Badge variant={billingType === "hybrid" ? "default" : "secondary"}>{billingType === "invoice_only" ? "Invoice Only" : "Hybrid"}</Badge></p>
+                          <p><span className="text-muted-foreground">Filing Fee:</span> ${filingFeeDollars} per filing</p>
+                          <p><span className="text-muted-foreground">Terms:</span> Net {paymentTermsDays}</p>
+                          <p><span className="text-muted-foreground">Email:</span> {billingEmail}</p>
+                          {billingContactName && <p><span className="text-muted-foreground">Contact:</span> {billingContactName}</p>}
+                        </div>
+                      </div>
+                      
+                      <div className="p-4">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-semibold text-sm text-muted-foreground uppercase">Admin User</h4>
+                          <button onClick={() => setWizardStep(3)} className="text-xs text-blue-600 hover:underline">Edit</button>
+                        </div>
+                        <div className="mt-2 space-y-1 text-sm">
+                          {createAdminUser ? (
+                            <>
+                              <p><span className="text-muted-foreground">Name:</span> {adminName}</p>
+                              <p><span className="text-muted-foreground">Email:</span> {adminEmail}</p>
+                              <p><span className="text-muted-foreground">Role:</span> Client Administrator</p>
+                            </>
+                          ) : (
+                            <p className="text-muted-foreground italic">No admin user will be created</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {billingType === "hybrid" && (
+                      <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                        <p className="text-sm text-amber-800">
+                          ⚠️ Hybrid billing: Client admin will need to add a card on file from their Billing page.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              
+              <DialogFooter className="gap-2">
+                <Button variant="outline" onClick={() => {
+                  setCreateOpen(false)
+                  resetWizard()
+                }}>
                   Cancel
                 </Button>
-                <Button onClick={handleCreate} disabled={creating}>
-                  {creating ? "Creating..." : "Create Company"}
-                </Button>
+                {wizardStep > 1 && (
+                  <Button variant="outline" onClick={() => setWizardStep(s => s - 1)}>
+                    Back
+                  </Button>
+                )}
+                {wizardStep < 4 ? (
+                  <Button onClick={handleNextStep}>
+                    Next
+                  </Button>
+                ) : (
+                  <Button onClick={handleCreate} disabled={creating} className="bg-green-600 hover:bg-green-700">
+                    {creating ? "Creating..." : "Create Company"}
+                  </Button>
+                )}
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -596,6 +1093,7 @@ export default function AdminCompaniesPage() {
                   <TableRow>
                     <TableHead>Company</TableHead>
                     <TableHead>Code</TableHead>
+                    <TableHead>Billing</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-center">Users</TableHead>
                     <TableHead className="text-center">Filings</TableHead>
@@ -625,6 +1123,11 @@ export default function AdminCompaniesPage() {
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="font-mono">{company.code}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={company.billing_type === "hybrid" ? "default" : "secondary"} className="text-xs">
+                          {company.billing_type === "hybrid" ? "Hybrid" : "Invoice"}
+                        </Badge>
                       </TableCell>
                       <TableCell>
                         <Badge variant={statusConfig[company.status]?.variant || "secondary"}>
@@ -786,6 +1289,7 @@ export default function AdminCompaniesPage() {
                         <Button variant="outline" size="sm" onClick={() => {
                           setEditingBilling(false)
                           if (billingSettings) {
+                            setEditBillingType(billingSettings.billing_type || "invoice_only")
                             setFilingFee(String(billingSettings.filing_fee_dollars))
                             setPaymentTerms(String(billingSettings.payment_terms_days))
                             setBillingNotes(billingSettings.billing_notes || "")
@@ -802,6 +1306,46 @@ export default function AdminCompaniesPage() {
                   
                   {billingSettings && (
                     <div className="space-y-4">
+                      {/* Billing Type */}
+                      <div>
+                        <Label className="text-muted-foreground text-xs">Billing Type</Label>
+                        {editingBilling ? (
+                          <div className="flex gap-3 mt-1">
+                            <label className={`flex items-center gap-2 px-3 py-2 border rounded-lg cursor-pointer text-sm ${editBillingType === "invoice_only" ? "border-blue-500 bg-blue-50" : ""}`}>
+                              <input
+                                type="radio"
+                                name="edit_billing_type"
+                                value="invoice_only"
+                                checked={editBillingType === "invoice_only"}
+                                onChange={() => setEditBillingType("invoice_only")}
+                              />
+                              Invoice Only
+                            </label>
+                            <label className={`flex items-center gap-2 px-3 py-2 border rounded-lg cursor-pointer text-sm ${editBillingType === "hybrid" ? "border-blue-500 bg-blue-50" : ""}`}>
+                              <input
+                                type="radio"
+                                name="edit_billing_type"
+                                value="hybrid"
+                                checked={editBillingType === "hybrid"}
+                                onChange={() => setEditBillingType("hybrid")}
+                              />
+                              Hybrid
+                            </label>
+                          </div>
+                        ) : (
+                          <div className="mt-1">
+                            <Badge variant={billingSettings.billing_type === "hybrid" ? "default" : "secondary"}>
+                              {billingSettings.billing_type === "hybrid" ? "Hybrid" : "Invoice Only"}
+                            </Badge>
+                          </div>
+                        )}
+                        {editingBilling && editBillingType === "hybrid" && (
+                          <p className="text-xs text-amber-600 mt-1">
+                            ⚠️ Hybrid requires client to have card on file for auto-charge.
+                          </p>
+                        )}
+                      </div>
+                      
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <Label className="text-muted-foreground text-xs">Filing Fee</Label>
@@ -826,15 +1370,19 @@ export default function AdminCompaniesPage() {
                         <div>
                           <Label className="text-muted-foreground text-xs">Payment Terms</Label>
                           {editingBilling ? (
-                            <div className="flex items-center gap-2 mt-1">
-                              <Input
-                                type="number"
-                                value={paymentTerms}
-                                onChange={(e) => setPaymentTerms(e.target.value)}
-                                className="w-20"
-                              />
-                              <span className="text-muted-foreground">days</span>
-                            </div>
+                            <Select
+                              value={paymentTerms}
+                              onValueChange={setPaymentTerms}
+                            >
+                              <SelectTrigger className="mt-1">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {PAYMENT_TERMS_OPTIONS.map((days) => (
+                                  <SelectItem key={days} value={String(days)}>Net {days}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           ) : (
                             <p className="text-lg font-semibold">
                               Net {billingSettings.payment_terms_days}

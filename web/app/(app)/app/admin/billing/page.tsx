@@ -117,6 +117,7 @@ interface CompanyRate {
   company_id: string;
   company_name: string;
   company_code: string;
+  billing_type: string;
   filing_fee_cents: number;
   filing_fee_dollars: number;
   payment_terms_days: number;
@@ -181,6 +182,7 @@ export default function AdminBillingPage() {
   // Edit Rate Dialog
   const [editRateOpen, setEditRateOpen] = useState(false);
   const [editingRate, setEditingRate] = useState<CompanyRate | null>(null);
+  const [editBillingType, setEditBillingType] = useState("invoice_only");
   const [editFilingFee, setEditFilingFee] = useState("");
   const [editPaymentTerms, setEditPaymentTerms] = useState("");
   const [editBillingNotes, setEditBillingNotes] = useState("");
@@ -371,6 +373,7 @@ export default function AdminBillingPage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          billing_type: editBillingType,
           filing_fee_cents: Math.round(parseFloat(editFilingFee) * 100),
           payment_terms_days: parseInt(editPaymentTerms),
           billing_notes: editBillingNotes || null,
@@ -393,6 +396,7 @@ export default function AdminBillingPage() {
 
   const openEditRate = (rate: CompanyRate) => {
     setEditingRate(rate);
+    setEditBillingType(rate.billing_type || "invoice_only");
     setEditFilingFee(String(rate.filing_fee_dollars));
     setEditPaymentTerms(String(rate.payment_terms_days));
     setEditBillingNotes(rate.billing_notes || "");
@@ -818,6 +822,7 @@ export default function AdminBillingPage() {
                     <TableRow>
                       <TableHead>Company</TableHead>
                       <TableHead>Code</TableHead>
+                      <TableHead>Billing Type</TableHead>
                       <TableHead>Filing Fee</TableHead>
                       <TableHead>Payment Terms</TableHead>
                       <TableHead>Total Billed</TableHead>
@@ -831,6 +836,11 @@ export default function AdminBillingPage() {
                         <TableCell className="font-medium">{rate.company_name}</TableCell>
                         <TableCell>
                           <Badge variant="outline" className="font-mono">{rate.company_code}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={rate.billing_type === "hybrid" ? "default" : "secondary"}>
+                            {rate.billing_type === "hybrid" ? "Hybrid" : "Invoice Only"}
+                          </Badge>
                         </TableCell>
                         <TableCell className="font-semibold text-green-600">
                           {formatCurrency(rate.filing_fee_cents)}
@@ -1068,6 +1078,22 @@ export default function AdminBillingPage() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div>
+              <Label>Billing Type</Label>
+              <div className="flex gap-3 mt-1">
+                <label className={`flex items-center gap-2 px-3 py-2 border rounded-lg cursor-pointer text-sm ${editBillingType === "invoice_only" ? "border-blue-500 bg-blue-50" : ""}`}>
+                  <input type="radio" name="rate_billing_type" value="invoice_only" checked={editBillingType === "invoice_only"} onChange={() => setEditBillingType("invoice_only")} />
+                  Invoice Only
+                </label>
+                <label className={`flex items-center gap-2 px-3 py-2 border rounded-lg cursor-pointer text-sm ${editBillingType === "hybrid" ? "border-blue-500 bg-blue-50" : ""}`}>
+                  <input type="radio" name="rate_billing_type" value="hybrid" checked={editBillingType === "hybrid"} onChange={() => setEditBillingType("hybrid")} />
+                  Hybrid
+                </label>
+              </div>
+              {editBillingType === "hybrid" && (
+                <p className="text-xs text-amber-600 mt-1">Hybrid requires client to have a card on file.</p>
+              )}
+            </div>
+            <div>
               <Label>Filing Fee</Label>
               <div className="relative">
                 <span className="absolute left-3 top-2.5 text-muted-foreground">$</span>
@@ -1076,10 +1102,16 @@ export default function AdminBillingPage() {
             </div>
             <div>
               <Label>Payment Terms</Label>
-              <div className="flex items-center gap-2">
-                <Input type="number" value={editPaymentTerms} onChange={e => setEditPaymentTerms(e.target.value)} className="w-24" />
-                <span className="text-muted-foreground">days</span>
-              </div>
+              <Select value={editPaymentTerms} onValueChange={setEditPaymentTerms}>
+                <SelectTrigger className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[10, 15, 30, 45, 60].map((days) => (
+                    <SelectItem key={days} value={String(days)}>Net {days}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label>Billing Notes (Internal)</Label>

@@ -8,13 +8,13 @@
 
 | Category | Count |
 |----------|-------|
-| 🔴 Critical Features | 5 |
+| 🔴 Critical Features | 6 |
 | 🟠 Major Features | 1 |
 | 🎨 UX/Design | 2 |
 | 🔧 Configuration | 3 |
 | 📄 Documentation | 3 |
 
-**Total Sharks Killed (Vol 2): 12 🦈 + 1 Hardening Addendum**
+**Total Sharks Killed (Vol 2): 13 🦈 + 1 Hardening Addendum**
 
 ---
 
@@ -1323,17 +1323,98 @@ PDFSHIFT_ENABLED=true
 
 ---
 
+### 54. Company Onboarding Enhancement — Multi-Step Creation Wizard ✅
+
+**Date:** February 3, 2026
+
+**Problem:**
+Company creation was a basic 5-field modal that captured almost nothing needed to serve a company:
+- No billing configuration (billing_type, filing_fee, payment_terms)
+- No admin user creation
+- No address collection
+- No company readiness checklist
+- `billing_type` was invisible — not editable anywhere in the UI
+- COO had to visit 2+ pages and 6+ clicks to fully set up a company
+- `billing_email` not required, causing invoice failures
+- No dedicated company detail page (only a side sheet)
+- No client company settings page
+
+**Solution:** Complete company onboarding overhaul.
+
+#### Multi-Step Creation Wizard
+
+| Step | What It Captures |
+|------|-----------------|
+| 1. Company Info | Name, code (auto-generated), phone, address |
+| 2. Billing Config | Billing type, filing fee, payment terms, billing email, billing contact |
+| 3. Admin User | First client_admin name + email (optional but encouraged) |
+| 4. Review | Summary of all fields, edit links back to each step |
+
+#### billing_type Now Visible Everywhere
+
+| Location | Before | After |
+|----------|--------|-------|
+| Company creation | ❌ Not available | ✅ Step 2 of wizard |
+| Company detail sheet | ❌ Not shown | ✅ In billing section |
+| Billing rates tab | ❌ No column | ✅ Billing Type column + editable |
+| Company list table | ❌ No indicator | ✅ Badge on each row |
+| Client company settings | ❌ Page not functional | ✅ Visible (read-only) |
+
+#### New Features
+
+| Feature | Description |
+|---------|------------|
+| Company readiness checklist | Shows setup progress: billing email, admin user, address, card on file |
+| Dedicated company detail page | `/app/admin/companies/{id}` — deep-linkable, full company view |
+| Client company settings | `/app/settings/company` — clients can view/edit limited fields |
+| Auto-generated company code | Name → code suggestion (editable) |
+| billing_email required | Enforced for all client companies |
+| Admin user at creation | Optional checkbox to create first client_admin during onboarding |
+
+#### API Changes
+
+| Endpoint | Change |
+|----------|--------|
+| `POST /companies` | Expanded schema: billing_type, filing_fee_cents, payment_terms_days, create_admin_user, admin_user_name, admin_user_email |
+| `PATCH /companies/{id}` | Now accepts billing_type |
+| `PATCH /billing/admin/rates/{id}` | Now accepts billing_type |
+| `GET /companies/{id}/readiness` | **NEW** — Returns setup checklist |
+| `GET /companies/{id}/users` | Already exists — Returns users for a company |
+| `GET /companies/me` | **NEW** — Client's own company info |
+| `PATCH /companies/me` | **NEW** — Client admin updates limited fields |
+
+#### Files Created
+
+| File | Purpose |
+|------|---------|
+| `web/app/(app)/app/admin/companies/[id]/page.tsx` | Dedicated company detail page |
+| `web/components/CompanyReadinessChecklist.tsx` | Reusable readiness checklist component |
+
+#### Files Modified
+
+| File | Change |
+|------|--------|
+| `api/app/routes/companies.py` | Expanded creation schema, readiness endpoint, /me endpoints |
+| `api/app/routes/billing.py` | billing_type in rates endpoint |
+| `web/app/(app)/app/admin/companies/page.tsx` | Multi-step wizard replaces simple modal, billing_type in list table + detail sheet |
+| `web/app/(app)/app/admin/billing/page.tsx` | billing_type column + edit in rates tab |
+| `web/app/(app)/app/settings/company/page.tsx` | Full rewrite — now fetches from API, shows billing info |
+
+**Status:** ✅ Killed (ONBOARDING SHARK 🦈)
+
+---
+
 ## Summary Update
 
 | Category | Count |
 |----------|-------|
-| 🔴 Critical Features | 5 |
+| 🔴 Critical Features | 6 |
 | 🟠 Major Features | 1 |
 | 🎨 UX/Design | 2 |
 | 🔧 Configuration | 3 |
 | 📄 Documentation | 3 |
 
-**Total Sharks Killed (Vol 2): 12 🦈 + 1 Hardening Addendum**
+**Total Sharks Killed (Vol 2): 13 🦈 + 1 Hardening Addendum**
 
 ---
 
@@ -1350,4 +1431,4 @@ PDFSHIFT_ENABLED=true
 
 ---
 
-*Last updated: February 3, 2026*
+*Last updated: February 3, 2026 (Shark #54)*
