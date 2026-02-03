@@ -1,11 +1,13 @@
 """
 FinCEN Response File Processor.
 
-Parses MESSAGES.XML and ACKED response files from FinCEN SDTM.
+Parses MESSAGES.XML and ACK response files from FinCEN SDTM.
 
 Response file types:
 - filename.MESSAGES.XML - Processing status (accepted/rejected/warnings)
-- filename.ACKED - Contains BSA ID upon successful acceptance
+- filename.ACK - Contains BSA ID upon successful acceptance
+
+NOTE: FinCEN uses .ACK extension (not .ACKED) per Jan 2026 spec.
 """
 import logging
 import re

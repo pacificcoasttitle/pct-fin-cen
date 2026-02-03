@@ -4,7 +4,7 @@ FinCEN SDTM (Secure Direct Transfer Mode) integration services.
 This module provides:
 - SFTP client for SDTM file transfer
 - RERX XML builder for generating Residential Real Estate Report XML
-- Response processor for parsing MESSAGES.XML and ACKED files
+- Response processor for parsing MESSAGES.XML and .ACK files
 - Utility functions for compression and hashing
 
 Note: RERX (Real Estate Report) replaced FBARX as of Dec 2025 FinCEN spec.

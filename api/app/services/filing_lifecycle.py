@@ -613,12 +613,14 @@ def poll_sdtm_responses(
     report_id: UUID,
 ) -> Tuple[str, Optional[dict]]:
     """
-    Poll SDTM for response files (MESSAGES.XML and ACKED).
+    Poll SDTM for response files (.MESSAGES.XML and .ACK).
     
     This function:
-    1. Checks for MESSAGES.XML (processing status)
-    2. If accepted, checks for ACKED (BSA ID)
+    1. Checks for .MESSAGES.XML (processing status)
+    2. If accepted, checks for .ACK file (contains BSA ID)
     3. Updates submission status accordingly
+    
+    NOTE: FinCEN uses .ACK extension, NOT .ACKED (per Jan 2026 spec)
     
     Args:
         db: Database session
@@ -723,12 +725,13 @@ def poll_sdtm_responses(
                 result["messages_found"] = True
             
             # ═══════════════════════════════════════════════════════════════════
-            # Check for ACKED (only if messages shows accepted)
+            # Check for .ACK file (only if MESSAGES.XML shows accepted)
+            # NOTE: FinCEN uses .ACK extension, NOT .ACKED (per Jan 2026 spec)
             # ═══════════════════════════════════════════════════════════════════
             
             parsed_messages = snapshot.get("parsed_messages", {})
             if parsed_messages.get("is_accepted"):
-                acked_filename = f"{filename}.ACKED"
+                acked_filename = f"{filename}.ACK"  # CRITICAL: .ACK not .ACKED
                 
                 if not snapshot["artifacts"].get("acked"):
                     acked_content = client.download(acked_filename)
@@ -807,13 +810,13 @@ def poll_sdtm_responses(
                 "No MESSAGES.XML received after 24 hours"
             )
         
-        # Messages accepted but no ACKED after 5 days -> needs_review
+        # Messages accepted but no .ACK after 5 days -> needs_review
         if result["messages_found"] and not result["acked_found"]:
             messages_status = snapshot.get("parsed_messages", {}).get("status")
             if messages_status == "accepted" and hours_since > 120:  # 5 days
                 return mark_needs_review(
                     db, report_id, None,
-                    "No ACKED file received 5 days after acceptance"
+                    "No .ACK file received 5 days after acceptance"
                 )
     
     return "submitted", result

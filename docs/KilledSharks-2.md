@@ -1022,6 +1022,47 @@ For `FINCEN_ENV=sandbox`:
 
 ---
 
+## Critical Bug Fix: .ACK File Extension
+
+**Date:** February 3, 2026
+
+### Issue
+
+The poller was looking for `.ACKED` files but FinCEN actually writes `.ACK` files.
+
+| What code expected | What FinCEN writes |
+|--------------------|-------------------|
+| `filename.ACKED` | `filename.ACK` |
+
+### Impact (if unfixed)
+
+- Poller would **never find** acknowledgement files
+- Filings would appear stuck in "submitted" forever
+- After 5 days → escalates to `needs_review`
+- BSA IDs would never be extracted
+
+### Fix Applied
+
+```python
+# BEFORE (bug)
+acked_filename = f"{filename}.ACKED"
+
+# AFTER (correct)
+acked_filename = f"{filename}.ACK"  # CRITICAL: .ACK not .ACKED
+```
+
+### Files Updated
+
+| File | Change |
+|------|--------|
+| `api/app/services/filing_lifecycle.py` | Fixed filename pattern |
+| `api/app/services/fincen/response_processor.py` | Updated docstring |
+| `api/app/services/fincen/__init__.py` | Updated docstring |
+
+**Status:** ✅ Bug Fixed
+
+---
+
 ## Summary Update
 
 | Category | Count |
