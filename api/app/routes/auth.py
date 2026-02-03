@@ -111,3 +111,78 @@ async def get_current_user_info(
         "company_name": company.name if company else None,
         "company_code": company.code if company else None,
     }
+
+
+@router.get("/status")
+async def auth_status(db: Session = Depends(get_db)):
+    """
+    Check auth system status and demo users.
+    
+    Diagnostic endpoint to verify demo users exist in database.
+    """
+    from app.config import get_settings
+    settings = get_settings()
+    
+    # Expected demo users
+    expected_emails = [
+        "coo@pct.com",
+        "admin@pctfincen.com",
+        "staff@pctfincen.com",
+        "admin@demotitle.com",
+        "user@demotitle.com",
+        "admin@acmetitle.com",
+    ]
+    
+    # Check which users exist
+    users_status = []
+    for email in expected_emails:
+        user = db.query(User).filter(User.email == email).first()
+        users_status.append({
+            "email": email,
+            "exists": user is not None,
+            "role": user.role if user else None,
+            "status": user.status if user else None,
+        })
+    
+    total_users = db.query(User).count()
+    total_companies = db.query(Company).count()
+    
+    return {
+        "environment": settings.ENVIRONMENT,
+        "total_users": total_users,
+        "total_companies": total_companies,
+        "demo_users": users_status,
+        "seed_required": total_users == 0,
+    }
+
+
+@router.post("/seed-demo")
+async def seed_demo_users(db: Session = Depends(get_db)):
+    """
+    Manually trigger demo seed.
+    
+    Creates demo users if they don't exist. Safe to call multiple times.
+    """
+    from app.services.demo_seed import seed_demo_data
+    
+    # Check if already seeded
+    user_count = db.query(User).count()
+    if user_count > 0:
+        return {
+            "seeded": False,
+            "message": f"Users already exist ({user_count} users). Skipping seed.",
+            "user_count": user_count,
+        }
+    
+    # Run the seed
+    try:
+        result = seed_demo_data(db)
+        new_user_count = db.query(User).count()
+        return {
+            "seeded": True,
+            "message": f"Demo data created successfully",
+            "user_count": new_user_count,
+            "details": result,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Seed failed: {str(e)}")
