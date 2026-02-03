@@ -3,10 +3,10 @@ import { NextRequest, NextResponse } from "next/server"
 /**
  * Demo login endpoint.
  * 
- * For the demo, we accept specific demo email addresses without password.
- * Each email maps to a specific role and company.
+ * Calls the backend to get REAL user data from the database.
+ * Stores real UUIDs in the session cookie.
  * 
- * Demo accounts:
+ * Demo accounts (defined in backend demo_seed.py):
  * - coo@pct.com → COO (executive dashboard only)
  * - admin@pctfincen.com → PCT Admin (internal operations)
  * - staff@pctfincen.com → PCT Staff (assigned work)
@@ -14,58 +14,7 @@ import { NextRequest, NextResponse } from "next/server"
  * - user@demotitle.com → Client User (basic tracking)
  */
 
-interface DemoUser {
-  id: string
-  email: string
-  name: string
-  role: "coo" | "pct_admin" | "pct_staff" | "client_admin" | "client_user"
-  companyId: string | null
-  companyName: string
-}
-
-// Demo users configuration - matches seed data in api/app/services/demo_seed.py
-const DEMO_USERS: Record<string, DemoUser> = {
-  "coo@pct.com": {
-    id: "demo-coo",
-    email: "coo@pct.com",
-    name: "James Richardson",
-    role: "coo",
-    companyId: null,
-    companyName: "FinClear Solutions",
-  },
-  "admin@pctfincen.com": {
-    id: "demo-pct-admin",
-    email: "admin@pctfincen.com",
-    name: "Sarah Mitchell",
-    role: "pct_admin",
-    companyId: null,
-    companyName: "FinClear Solutions",
-  },
-  "staff@pctfincen.com": {
-    id: "demo-pct-staff",
-    email: "staff@pctfincen.com",
-    name: "Michael Chen",
-    role: "pct_staff",
-    companyId: null,
-    companyName: "FinClear Solutions",
-  },
-  "admin@demotitle.com": {
-    id: "demo-client-admin",
-    email: "admin@demotitle.com",
-    name: "Jennifer Walsh",
-    role: "client_admin",
-    companyId: "demo-client-company",
-    companyName: "Pacific Coast Title",
-  },
-  "user@demotitle.com": {
-    id: "demo-client-user",
-    email: "user@demotitle.com",
-    name: "David Park",
-    role: "client_user",
-    companyId: "demo-client-company",
-    companyName: "Pacific Coast Title",
-  },
-}
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://pct-fin-cen-staging.onrender.com"
 
 export async function POST(request: NextRequest) {
   try {
@@ -74,75 +23,75 @@ export async function POST(request: NextRequest) {
     // Normalize email
     const normalizedEmail = email?.toLowerCase().trim()
 
-    // Check if this is a valid demo user
-    const demoUser = DEMO_USERS[normalizedEmail]
-
-    if (demoUser) {
-      const response = NextResponse.json({ 
-        ok: true,
-        user: {
-          id: demoUser.id,
-          email: demoUser.email,
-          name: demoUser.name,
-          role: demoUser.role,
-          companyId: demoUser.companyId,
-          companyName: demoUser.companyName,
-        }
-      })
-
-      // Determine if we're in production/staging (secure cookies)
-      const isProduction = process.env.NODE_ENV === "production"
-
-      // Encode user data for cookie (simple base64 for demo)
-      const sessionData = Buffer.from(JSON.stringify({
-        id: demoUser.id,
-        email: demoUser.email,
-        name: demoUser.name,
-        role: demoUser.role,
-        companyId: demoUser.companyId,
-        companyName: demoUser.companyName,
-      })).toString("base64")
-
-      // Set session cookie with user data
-      // Note: httpOnly is false so client-side JS can read user info for sidebar
-      // This is acceptable for demo purposes - production should use server components
-      response.cookies.set("pct_demo_session", sessionData, {
-        httpOnly: false,
-        sameSite: "lax",
-        secure: isProduction,
-        path: "/",
-        maxAge: 60 * 60 * 8, // 8 hours
-      })
-
-      return response
+    if (!normalizedEmail) {
+      return NextResponse.json(
+        { ok: false, message: "Email is required" },
+        { status: 400 }
+      )
     }
 
-    // Fallback: Check legacy env var credentials
-    const validEmail = process.env.DEMO_LOGIN_EMAIL || process.env.NEXT_PUBLIC_DEMO_LOGIN_EMAIL
+    // Call backend to get REAL user data from database
+    const backendResponse = await fetch(`${API_BASE_URL}/auth/demo-login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: normalizedEmail }),
+    })
 
-    if (validEmail && normalizedEmail === validEmail.toLowerCase()) {
-      const response = NextResponse.json({ ok: true })
-      const isProduction = process.env.NODE_ENV === "production"
-
-      response.cookies.set("pct_demo_session", "1", {
-        httpOnly: false,
-        sameSite: "lax",
-        secure: isProduction,
-        path: "/",
-        maxAge: 60 * 60 * 8,
-      })
-
-      return response
+    if (!backendResponse.ok) {
+      const errorData = await backendResponse.json().catch(() => ({}))
+      const errorMessage = errorData.detail || "User not found"
+      console.error("Demo login failed:", errorMessage)
+      return NextResponse.json(
+        { ok: false, message: errorMessage },
+        { status: 401 }
+      )
     }
 
+    const userData = await backendResponse.json()
+
+    // Build response with real user data from backend
+    const response = NextResponse.json({ 
+      ok: true,
+      user: {
+        id: userData.user_id,           // REAL UUID from database
+        email: userData.email,
+        name: userData.name,
+        role: userData.role,
+        companyId: userData.company_id, // REAL UUID from database (or null)
+        companyName: userData.company_name,
+      }
+    })
+
+    // Determine if we're in production/staging (secure cookies)
+    const isProduction = process.env.NODE_ENV === "production"
+
+    // Encode REAL user data for cookie (base64)
+    const sessionData = Buffer.from(JSON.stringify({
+      id: userData.user_id,             // REAL UUID
+      email: userData.email,
+      name: userData.name,
+      role: userData.role,
+      companyId: userData.company_id,   // REAL UUID (or null)
+      companyName: userData.company_name || "",
+    })).toString("base64")
+
+    // Set session cookie with REAL user data
+    // Note: httpOnly is false so client-side JS can read user info for sidebar
+    // This is acceptable for demo purposes - production should use server components
+    response.cookies.set("pct_demo_session", sessionData, {
+      httpOnly: false,
+      sameSite: "lax",
+      secure: isProduction,
+      path: "/",
+      maxAge: 60 * 60 * 8, // 8 hours
+    })
+
+    return response
+  } catch (error) {
+    console.error("Login error:", error)
     return NextResponse.json(
-      { ok: false, message: "Invalid email. Use a demo account email." },
-      { status: 401 }
-    )
-  } catch {
-    return NextResponse.json(
-      { ok: false, message: "Invalid request" },
-      { status: 400 }
+      { ok: false, message: "Login failed. Please try again." },
+      { status: 500 }
     )
   }
 }

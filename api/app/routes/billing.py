@@ -136,7 +136,7 @@ class UpdateInvoiceStatusRequest(BaseModel):
 
 def get_demo_user(db: Session) -> Optional[User]:
     """Get the demo user from session/cookie. For now, return demo client admin."""
-    return db.query(User).filter(User.email == "admin@demoescrow.com").first()
+    return db.query(User).filter(User.email == "admin@demotitle.com").first()
 
 
 def get_demo_admin(db: Session) -> Optional[User]:

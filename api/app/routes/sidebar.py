@@ -4,6 +4,7 @@ Provides real-time badge counts for navigation.
 """
 
 from typing import Optional
+from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
@@ -13,6 +14,15 @@ from app.models.report import Report
 from app.models.company import Company
 
 router = APIRouter(prefix="/sidebar", tags=["sidebar"])
+
+
+def is_valid_uuid(value: str) -> bool:
+    """Check if a string is a valid UUID."""
+    try:
+        UUID(value)
+        return True
+    except (ValueError, TypeError):
+        return False
 
 
 @router.get("/counts")
@@ -53,6 +63,12 @@ def get_sidebar_counts(
     
     # Client roles see their company's counts
     elif role in ("client_admin", "client_user"):
+        # Validate company_id is a real UUID (not a fake string like "demo-client-company")
+        if company_id and not is_valid_uuid(company_id):
+            # Invalid company_id - return zeros instead of crashing
+            # This handles legacy sessions with fake IDs gracefully
+            return {"requests_active": 0}
+        
         if not company_id:
             # Try to get demo company as fallback
             demo_company = db.query(Company).filter(Company.code == "DEMO").first()

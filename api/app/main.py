@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.database import get_db
-from app.routes import reports_router, parties_router, demo_router, admin_router, submission_requests_router, invoices_router, companies_router, users_router, sidebar_router, documents_router, audit_router, property_router, billing_router
+from app.routes import reports_router, parties_router, demo_router, admin_router, submission_requests_router, invoices_router, companies_router, users_router, sidebar_router, documents_router, audit_router, property_router, billing_router, auth_router
 
 settings = get_settings()
 
@@ -44,6 +44,7 @@ app.include_router(documents_router)
 app.include_router(audit_router)
 app.include_router(property_router)
 app.include_router(billing_router)
+app.include_router(auth_router)
 
 
 @app.get("/")

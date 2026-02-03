@@ -8,13 +8,13 @@
 
 | Category | Count |
 |----------|-------|
-| 🔴 Critical Features | 6 |
+| 🔴 Critical Features | 7 |
 | 🟠 Major Features | 1 |
 | 🎨 UX/Design | 2 |
 | 🔧 Configuration | 3 |
 | 📄 Documentation | 3 |
 
-**Total Sharks Killed (Vol 2): 13 🦈 + 1 Hardening Addendum**
+**Total Sharks Killed (Vol 2): 14 🦈 + 1 Hardening Addendum**
 
 ---
 
@@ -1404,17 +1404,85 @@ Company creation was a basic 5-field modal that captured almost nothing needed t
 
 ---
 
+### 55. Demo Auth Fix — Real Database IDs ✅
+
+**Date:** February 3, 2026
+
+**Problem:**
+Demo login stored **hardcoded fake IDs** in the session cookie (e.g., `companyId: "demo-client-company"` instead of a real UUID). This caused:
+- All client-side API calls to fail (401, 404, 500)
+- Sidebar counts endpoint returning errors (CORS masking 500s)
+- Billing endpoints returning 401 for client roles
+- Company settings showing "No company found"
+- **Effectively, NO client-side features worked in demo mode**
+
+**Root Cause:**
+The frontend login API route (`web/app/api/auth/login/route.ts`) had a hardcoded `DEMO_USERS` object with fake IDs like `"demo-client-company"` and `"demo-client-admin"`. When these fake IDs were stored in the session cookie, backend endpoints couldn't find matching database records.
+
+**Solution:**
+1. **Created backend auth endpoint** (`api/app/routes/auth.py`):
+   - `POST /auth/demo-login` — Looks up user by email in database, returns REAL UUIDs
+   - Updates `last_login_at` timestamp
+   - Returns real `user_id`, `company_id`, `company_name`, `company_code`
+
+2. **Rewrote frontend login route** (`web/app/api/auth/login/route.ts`):
+   - Removed all hardcoded `DEMO_USERS` with fake IDs
+   - Now calls backend `/auth/demo-login` to get real user data
+   - Stores REAL UUIDs in session cookie
+
+3. **Added UUID validation to sidebar endpoint** (`api/app/routes/sidebar.py`):
+   - Added `is_valid_uuid()` helper
+   - Returns zeros instead of crashing for invalid company_id
+   - Gracefully handles legacy sessions with fake IDs
+
+4. **Fixed incorrect demo user email** (`api/app/routes/billing.py`):
+   - Changed `admin@demoescrow.com` → `admin@demotitle.com`
+
+**Files Created:**
+
+| File | Purpose |
+|------|---------|
+| `api/app/routes/auth.py` | Demo login endpoint returning real UUIDs |
+
+**Files Modified:**
+
+| File | Change |
+|------|--------|
+| `api/app/routes/__init__.py` | Export auth_router |
+| `api/app/main.py` | Register auth router |
+| `api/app/routes/sidebar.py` | UUID validation, graceful fallback |
+| `api/app/routes/billing.py` | Fixed demo user email |
+| `web/app/api/auth/login/route.ts` | Complete rewrite — calls backend, stores real UUIDs |
+
+**Verification Checklist:**
+
+- [x] Zero instances of "demo-client-company" in codebase
+- [x] CORS correctly configured for `fincenclear.com`
+- [x] Sidebar counts endpoint validates UUIDs
+- [x] All demo user email references point to `admin@demotitle.com`
+
+**Impact:**
+All client-side features now work correctly:
+- ✅ Company Settings loads with real company data
+- ✅ Billing endpoints return 200 (not 401)
+- ✅ Sidebar counts display correctly
+- ✅ Dashboard loads with real data
+
+**Status:** ✅ Killed (CRITICAL AUTH SHARK 🦈)
+
+---
+
 ## Summary Update
 
 | Category | Count |
 |----------|-------|
-| 🔴 Critical Features | 6 |
+| 🔴 Critical Features | 7 |
 | 🟠 Major Features | 1 |
 | 🎨 UX/Design | 2 |
 | 🔧 Configuration | 3 |
 | 📄 Documentation | 3 |
 
-**Total Sharks Killed (Vol 2): 13 🦈 + 1 Hardening Addendum**
+**Total Sharks Killed (Vol 2): 14 🦈 + 1 Hardening Addendum**
 
 ---
 
@@ -1431,4 +1499,4 @@ Company creation was a basic 5-field modal that captured almost nothing needed t
 
 ---
 
-*Last updated: February 3, 2026 (Shark #54)*
+*Last updated: February 3, 2026 (Shark #55)*
