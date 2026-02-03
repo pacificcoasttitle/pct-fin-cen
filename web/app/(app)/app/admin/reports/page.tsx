@@ -43,35 +43,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { getAdminReports, retryFiling, type AdminReportItem } from "@/lib/api"
-
-const STATUS_MAP: Record<string, { label: string; color: string }> = {
-  draft: { label: "Draft", color: "bg-slate-100 text-slate-700" },
-  determination_complete: { label: "Determined", color: "bg-blue-100 text-blue-700" },
-  awaiting_parties: { label: "Awaiting Parties", color: "bg-amber-100 text-amber-700" },
-  collecting: { label: "Collecting", color: "bg-amber-100 text-amber-700" },
-  ready_to_file: { label: "Ready to File", color: "bg-green-100 text-green-700" },
-  filed: { label: "Filed", color: "bg-emerald-100 text-emerald-700" },
-  exempt: { label: "Exempt", color: "bg-purple-100 text-purple-700" },
-}
-
-const FILING_STATUS_MAP: Record<string, { label: string; color: string; icon: React.ComponentType<{ className?: string }> }> = {
-  not_started: { label: "Not Started", color: "bg-slate-100 text-slate-600", icon: Clock },
-  queued: { label: "Queued", color: "bg-blue-100 text-blue-700", icon: Clock },
-  submitted: { label: "Submitted", color: "bg-blue-100 text-blue-700", icon: Clock },
-  accepted: { label: "Accepted", color: "bg-emerald-100 text-emerald-700", icon: CheckCircle2 },
-  rejected: { label: "Rejected", color: "bg-red-100 text-red-700", icon: XCircle },
-  needs_review: { label: "Needs Review", color: "bg-amber-100 text-amber-700", icon: AlertCircle },
-  filed_mock: { label: "Filed (Demo)", color: "bg-emerald-100 text-emerald-700", icon: CheckCircle2 },
-}
-
-function getStatusInfo(status: string) {
-  return STATUS_MAP[status] || { label: status, color: "bg-slate-100 text-slate-700" }
-}
-
-function getFilingStatusInfo(status: string | null) {
-  if (!status) return FILING_STATUS_MAP.not_started
-  return FILING_STATUS_MAP[status] || FILING_STATUS_MAP.not_started
-}
+import { StatusBadge } from "@/components/ui/StatusBadge"
+import { ReceiptId } from "@/components/ui/ReceiptId"
 
 export default function AdminReportsPage() {
   const [reports, setReports] = useState<AdminReportItem[]>([])
@@ -106,13 +79,14 @@ export default function AdminReportsPage() {
     fetchReports()
   }, [statusFilter, filingStatusFilter])
 
-  // Local search filter (in addition to server-side)
+  // Local search filter (in addition to server-side) - includes receipt_id
   const filteredReports = useMemo(() => {
     if (!searchQuery) return reports
     const lower = searchQuery.toLowerCase()
     return reports.filter((r) =>
       r.property_address_text?.toLowerCase().includes(lower) ||
-      r.id.toLowerCase().includes(lower)
+      r.id.toLowerCase().includes(lower) ||
+      r.receipt_id?.toLowerCase().includes(lower)
     )
   }, [reports, searchQuery])
 
@@ -186,7 +160,7 @@ export default function AdminReportsPage() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <Input
                   type="search"
-                  placeholder="Search reports..."
+                  placeholder="Search address, ID, receipt..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-9 w-full sm:w-64"
@@ -241,9 +215,6 @@ export default function AdminReportsPage() {
                 </TableHeader>
                 <TableBody>
                   {filteredReports.map((report) => {
-                    const statusInfo = getStatusInfo(report.status)
-                    const filingInfo = getFilingStatusInfo(report.filing_status)
-                    const FilingIcon = filingInfo.icon
                     const canRetry = report.filing_status === "rejected" || report.filing_status === "needs_review"
                     
                     return (
@@ -259,20 +230,13 @@ export default function AdminReportsPage() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="secondary" className={statusInfo.color}>
-                            {statusInfo.label}
-                          </Badge>
+                          <StatusBadge type="report" status={report.status} />
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-col gap-1">
-                            <Badge variant="secondary" className={filingInfo.color}>
-                              <FilingIcon className="h-3 w-3 mr-1" />
-                              {filingInfo.label}
-                            </Badge>
+                            <StatusBadge type="filing" status={report.filing_status || "not_started"} />
                             {report.receipt_id && (
-                              <span className="text-xs font-mono text-slate-500">
-                                {report.receipt_id}
-                              </span>
+                              <ReceiptId value={report.receipt_id} size="sm" truncate truncateLength={12} />
                             )}
                           </div>
                         </TableCell>

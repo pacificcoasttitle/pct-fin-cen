@@ -5,7 +5,9 @@ import { useDemo } from "@/hooks/use-demo";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, Send, Clock, CheckCircle, AlertCircle, RefreshCw, Loader2, Users } from "lucide-react";
+import { FileText, Send, Clock, CheckCircle, AlertCircle, RefreshCw, Loader2, Users, Shield } from "lucide-react";
+import { ReceiptId } from "@/components/ui/ReceiptId";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Progress } from "@/components/ui/progress";
 import Link from "next/link";
 import { getSubmissionStats, getMyRequests, type SubmissionStats, type SubmissionRequest } from "@/lib/api";
@@ -158,6 +160,79 @@ export default function ClientDashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Filing Summary Card */}
+      {!loading && (stats?.completed ?? 0) + (stats?.exempt ?? 0) > 0 && (
+        <Card className="border-green-200 bg-green-50/30">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-green-800">
+              <FileText className="h-5 w-5" />
+              Filing Summary
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-4">
+              <div className="bg-white rounded-lg p-3 border border-green-200">
+                <div className="flex items-center gap-2 text-green-600 mb-1">
+                  <CheckCircle className="h-4 w-4" />
+                  <span className="text-sm font-medium">Filed</span>
+                </div>
+                <p className="text-2xl font-bold text-green-800">{stats?.completed ?? 0}</p>
+              </div>
+              <div className="bg-white rounded-lg p-3 border border-purple-200">
+                <div className="flex items-center gap-2 text-purple-600 mb-1">
+                  <Shield className="h-4 w-4" />
+                  <span className="text-sm font-medium">Exempt</span>
+                </div>
+                <p className="text-2xl font-bold text-purple-800">{stats?.exempt ?? 0}</p>
+              </div>
+              <div className="bg-white rounded-lg p-3 border border-blue-200">
+                <div className="flex items-center gap-2 text-blue-600 mb-1">
+                  <AlertCircle className="h-4 w-4" />
+                  <span className="text-sm font-medium">In Progress</span>
+                </div>
+                <p className="text-2xl font-bold text-blue-800">{stats?.in_progress ?? 0}</p>
+              </div>
+              <div className="bg-white rounded-lg p-3 border border-yellow-200">
+                <div className="flex items-center gap-2 text-yellow-600 mb-1">
+                  <Clock className="h-4 w-4" />
+                  <span className="text-sm font-medium">Pending</span>
+                </div>
+                <p className="text-2xl font-bold text-yellow-800">{stats?.pending ?? 0}</p>
+              </div>
+            </div>
+            
+            {/* Most Recent Filing */}
+            {recentRequests.filter(r => r.status === "completed" && r.receipt_id).length > 0 && (
+              <div className="mt-4 pt-4 border-t border-green-200">
+                <p className="text-sm font-medium text-green-800 mb-2">Most Recent Filing:</p>
+                {(() => {
+                  const lastFiled = recentRequests.find(r => r.status === "completed" && r.receipt_id);
+                  if (!lastFiled) return null;
+                  return (
+                    <div className="bg-white rounded-lg p-3 border border-green-200 flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">{lastFiled.property_address.street}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {lastFiled.property_address.city}, {lastFiled.property_address.state}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        {lastFiled.receipt_id && (
+                          <ReceiptId value={lastFiled.receipt_id} size="sm" showLabel />
+                        )}
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Filed {formatDistanceToNow(new Date(lastFiled.updated_at), { addSuffix: true })}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Recent Activity */}
       <Card>

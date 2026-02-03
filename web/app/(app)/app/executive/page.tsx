@@ -5,6 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { ReceiptId } from "@/components/ui/ReceiptId";
+import Link from "next/link";
 import {
   TrendingUp,
   DollarSign,
@@ -81,6 +83,36 @@ export default function ExecutiveDashboardPage() {
         </Button>
       </div>
 
+      {/* Attention Required Banner */}
+      {!loading && ((stats?.rejected_filings ?? 0) > 0 || (stats?.needs_review_filings ?? 0) > 0) && (
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <AlertTriangle className="h-6 w-6 text-red-600" />
+                <div>
+                  <p className="font-semibold text-red-800">Attention Required</p>
+                  <p className="text-sm text-red-600">
+                    {(stats?.rejected_filings ?? 0) > 0 && (
+                      <span>{stats?.rejected_filings} filing{(stats?.rejected_filings ?? 0) > 1 ? "s" : ""} rejected</span>
+                    )}
+                    {(stats?.rejected_filings ?? 0) > 0 && (stats?.needs_review_filings ?? 0) > 0 && " • "}
+                    {(stats?.needs_review_filings ?? 0) > 0 && (
+                      <span>{stats?.needs_review_filings} filing{(stats?.needs_review_filings ?? 0) > 1 ? "s" : ""} need{(stats?.needs_review_filings ?? 0) === 1 ? "s" : ""} review</span>
+                    )}
+                  </p>
+                </div>
+              </div>
+              <Link href="/app/admin/filings?status=needs_review">
+                <Button variant="outline" className="border-red-300 text-red-700 hover:bg-red-100">
+                  View Filings
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Revenue Section */}
       <section>
         <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
@@ -109,29 +141,39 @@ export default function ExecutiveDashboardPage() {
 
           <Card>
             <CardHeader className="pb-2">
-              <CardDescription>Revenue Per Filing</CardDescription>
-              <CardTitle className="text-3xl">$75.00</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-slate-500">Standard rate</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Filings This Month</CardDescription>
+              <CardDescription>Avg Revenue Per Filing</CardDescription>
               {loading ? (
-                <Skeleton className="h-9 w-16" />
+                <Skeleton className="h-9 w-24" />
               ) : (
                 <CardTitle className="text-3xl">
-                  {stats?.filed_this_month ?? 0}
+                  {formatCurrency(stats?.avg_revenue_per_filing ?? 7500)}
                 </CardTitle>
               )}
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-slate-500">Completed filings</p>
+              <p className="text-sm text-slate-500">From billing events</p>
             </CardContent>
           </Card>
+
+          <Link href="/app/admin/reports?filing_status=accepted&period=month">
+            <Card className="cursor-pointer hover:bg-slate-50 transition-colors">
+              <CardHeader className="pb-2">
+                <CardDescription>Filings This Month</CardDescription>
+                {loading ? (
+                  <Skeleton className="h-9 w-16" />
+                ) : (
+                  <CardTitle className="text-3xl">
+                    {stats?.filed_this_month ?? 0}
+                  </CardTitle>
+                )}
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-slate-500 flex items-center gap-1">
+                  Completed filings <ArrowUpRight className="h-3 w-3" />
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
 
           <Card>
             <CardHeader className="pb-2">
@@ -150,6 +192,63 @@ export default function ExecutiveDashboardPage() {
           </Card>
         </div>
       </section>
+
+      {/* Recent Filings Table */}
+      {!loading && stats?.recent_filings && stats.recent_filings.length > 0 && (
+        <section>
+          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+            <CheckCircle className="h-5 w-5 text-green-600" />
+            Recent Filings
+          </h2>
+          <Card>
+            <CardContent className="p-0">
+              <table className="w-full">
+                <thead className="bg-slate-50 border-b">
+                  <tr>
+                    <th className="text-left px-4 py-3 text-sm font-medium text-slate-600">Property</th>
+                    <th className="text-left px-4 py-3 text-sm font-medium text-slate-600">Company</th>
+                    <th className="text-left px-4 py-3 text-sm font-medium text-slate-600">Filed</th>
+                    <th className="text-left px-4 py-3 text-sm font-medium text-slate-600">Receipt ID</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stats.recent_filings.map((filing, idx) => (
+                    <tr key={filing.report_id} className={idx % 2 === 0 ? "" : "bg-slate-50/50"}>
+                      <td className="px-4 py-3 text-sm font-medium truncate max-w-[200px]">
+                        {filing.property_address}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-slate-600">{filing.company_name}</td>
+                      <td className="px-4 py-3 text-sm text-slate-600">
+                        {filing.filed_at 
+                          ? new Date(filing.filed_at).toLocaleDateString("en-US", { 
+                              month: "short", 
+                              day: "numeric",
+                              hour: "numeric",
+                              minute: "2-digit"
+                            })
+                          : "—"
+                        }
+                      </td>
+                      <td className="px-4 py-3">
+                        {filing.receipt_id ? (
+                          <ReceiptId value={filing.receipt_id} size="sm" />
+                        ) : (
+                          <span className="text-xs text-slate-400">Pending</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </CardContent>
+            <div className="border-t px-4 py-2 text-right">
+              <Link href="/app/admin/filings" className="text-sm text-blue-600 hover:underline">
+                View All Filings →
+              </Link>
+            </div>
+          </Card>
+        </section>
+      )}
 
       {/* Operations Section */}
       <section>

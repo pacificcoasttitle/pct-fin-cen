@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
+import { ReceiptId } from "@/components/ui/ReceiptId"
 import { 
   Loader2, 
   AlertTriangle, 
@@ -804,22 +805,22 @@ export default function WizardPage() {
             </Card>
           )}
 
-          {/* File */}
-          {readyResult?.ready && !fileResult && !["accepted", "filed_mock"].includes(report?.filing_status || "") && (
+          {/* File - Ready to Submit */}
+          {readyResult?.ready && !fileResult && !["accepted", "submitted", "queued", "filed_mock"].includes(report?.filing_status || "") && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Send className="h-5 w-5" />
-                  File to FinCEN (Demo)
+                  File to FinCEN
                 </CardTitle>
                 <CardDescription>
-                  Submit the report to FinCEN (demo mode - no live filing)
+                  Submit the report to FinCEN for processing
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <Button onClick={handleFile} disabled={filing}>
                   {filing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  {report?.filing_status === "rejected" ? "Retry Filing (Demo)" : "File Report (Demo)"}
+                  {report?.filing_status === "rejected" ? "Retry Filing" : "File Report"}
                 </Button>
                 {report?.filing_status === "rejected" && (
                   <p className="text-sm text-red-600 mt-2">
@@ -837,20 +838,30 @@ export default function WizardPage() {
                 <div className="text-center">
                   <CheckCircle2 className="h-12 w-12 text-green-600 mx-auto mb-4" />
                   <div className="flex items-center justify-center gap-2 mb-2">
-                    <h3 className="text-xl font-bold text-green-800">Successfully Filed!</h3>
-                    <Badge className="bg-amber-100 text-amber-800 border-amber-200">
-                      Demo
-                    </Badge>
+                    <h3 className="text-xl font-bold text-green-800">
+                      {fileResult?.is_demo ? "Filing Complete (Demo)" : "FinCEN Filing Accepted"}
+                    </h3>
+                    {fileResult?.is_demo ? (
+                      <Badge className="bg-amber-100 text-amber-800 border-amber-200">Demo</Badge>
+                    ) : (
+                      <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200">Live Filing</Badge>
+                    )}
                   </div>
                   <p className="text-muted-foreground mb-4">
-                    {fileResult?.message || "Report has been filed (demo mode)"}
+                    {fileResult?.is_demo 
+                      ? "This is a simulated filing for testing purposes."
+                      : "Your report has been accepted by FinCEN."}
                   </p>
-                  <div className="inline-block bg-green-100 border border-green-200 rounded-lg px-6 py-3">
-                    <p className="text-xs text-green-600 font-medium uppercase mb-1">Receipt ID</p>
-                    <p className="text-xl font-mono font-bold text-green-800">
-                      {fileResult?.receipt_id || report?.receipt_id}
-                    </p>
-                  </div>
+                  {(fileResult?.receipt_id || report?.receipt_id) && (
+                    <div className="inline-block bg-green-100 border border-green-200 rounded-lg px-6 py-3">
+                      <p className="text-xs text-green-600 font-medium uppercase mb-1">Receipt ID</p>
+                      <ReceiptId 
+                        value={fileResult?.receipt_id || report?.receipt_id || ""} 
+                        size="lg" 
+                        className="text-green-800 hover:text-green-700"
+                      />
+                    </div>
+                  )}
                   <p className="text-sm text-muted-foreground mt-4">
                     Filed at: {new Date(fileResult?.filed_at || report?.filed_at || "").toLocaleString()}
                   </p>
@@ -859,22 +870,50 @@ export default function WizardPage() {
             </Card>
           )}
 
+          {/* File Result - Submitted (awaiting FinCEN response) */}
+          {(fileResult?.status === "submitted" || report?.filing_status === "submitted") && (
+            <Card className="border-blue-200 bg-blue-50/50">
+              <CardContent className="pt-6">
+                <div className="text-center">
+                  <Clock className="h-12 w-12 text-blue-600 mx-auto mb-4 animate-pulse" />
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <h3 className="text-xl font-bold text-blue-800">Report Submitted to FinCEN</h3>
+                    <Badge className="bg-blue-100 text-blue-800 border-blue-200">Awaiting Response</Badge>
+                  </div>
+                  <p className="text-muted-foreground mb-4">
+                    Your report has been uploaded to FinCEN via SDTM.
+                    FinCEN typically responds within 5 hours.
+                  </p>
+                  <p className="text-sm text-blue-700 bg-blue-100 rounded-lg px-4 py-2 inline-block">
+                    Your BSA receipt ID will appear here once FinCEN accepts the filing.
+                    Check back or view status in the reports page.
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-4">
+                    Submitted: {new Date(fileResult?.filed_at || report?.updated_at || "").toLocaleString()}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* File Result - Rejected */}
-          {(fileResult?.status === "rejected") && (
+          {(fileResult?.status === "rejected" || report?.filing_status === "rejected") && (
             <Card className="border-red-200 bg-red-50/50">
               <CardContent className="pt-6">
                 <div className="text-center">
                   <AlertTriangle className="h-12 w-12 text-red-600 mx-auto mb-4" />
                   <div className="flex items-center justify-center gap-2 mb-2">
                     <h3 className="text-xl font-bold text-red-800">Filing Rejected</h3>
-                    <Badge className="bg-red-100 text-red-800 border-red-200">
-                      Demo
-                    </Badge>
+                    {fileResult?.is_demo ? (
+                      <Badge className="bg-amber-100 text-amber-800 border-amber-200">Demo</Badge>
+                    ) : (
+                      <Badge className="bg-red-100 text-red-800 border-red-200">FinCEN Rejected</Badge>
+                    )}
                   </div>
                   <p className="text-muted-foreground mb-4">
-                    {fileResult?.message}
+                    {fileResult?.message || "FinCEN rejected this filing. Please review and correct any errors."}
                   </p>
-                  {fileResult.rejection_code && (
+                  {fileResult?.rejection_code && (
                     <div className="inline-block bg-red-100 border border-red-200 rounded-lg px-6 py-3">
                       <p className="text-xs text-red-600 font-medium uppercase mb-1">Rejection Code</p>
                       <p className="text-lg font-mono font-bold text-red-800">
@@ -899,11 +938,11 @@ export default function WizardPage() {
                   <div className="flex items-center justify-center gap-2 mb-2">
                     <h3 className="text-xl font-bold text-amber-800">Pending Review</h3>
                     <Badge className="bg-amber-100 text-amber-800 border-amber-200">
-                      Demo
+                      Needs Attention
                     </Badge>
                   </div>
                   <p className="text-muted-foreground mb-4">
-                    {fileResult?.message || "Filing submitted but requires internal review"}
+                    {fileResult?.message || "Filing submitted but requires internal review before FinCEN acceptance"}
                   </p>
                 </div>
               </CardContent>

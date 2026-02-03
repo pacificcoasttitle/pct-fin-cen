@@ -246,8 +246,12 @@ def get_executive_stats(db: Session = Depends(get_db)):
     Get executive-level statistics for the COO dashboard.
     Returns aggregated metrics across all companies.
     Includes early determination exemption insights.
+    Includes filing status breakdown (accepted/rejected/needs_review).
+    Uses real revenue from BillingEvents.
     """
     from sqlalchemy import func
+    from app.models.billing_event import BillingEvent
+    from app.models.filing_submission import FilingSubmission
     
     # Total reports
     total_reports = db.query(Report).count()
@@ -270,9 +274,27 @@ def get_executive_stats(db: Session = Depends(get_db)):
         Report.filed_at >= start_of_month
     ).count()
     
-    # Calculate revenue (mock: $75 per filing)
-    revenue_per_filing = 7500  # cents
-    mtd_revenue_cents = filed_this_month * revenue_per_filing
+    # ==========================================================================
+    # REAL REVENUE from BillingEvents (not hardcoded $75)
+    # ==========================================================================
+    # MTD revenue from billing events
+    mtd_revenue_result = db.query(func.sum(BillingEvent.amount_cents)).filter(
+        BillingEvent.created_at >= start_of_month,
+        BillingEvent.amount_cents > 0  # Only positive (not credits)
+    ).scalar()
+    mtd_revenue_cents = mtd_revenue_result or 0
+    
+    # Calculate average revenue per filing from actual billing events
+    total_billing_events = db.query(BillingEvent).filter(
+        BillingEvent.amount_cents > 0
+    ).count()
+    total_revenue_cents = db.query(func.sum(BillingEvent.amount_cents)).filter(
+        BillingEvent.amount_cents > 0
+    ).scalar() or 0
+    
+    avg_revenue_per_filing = 7500  # Default to $75
+    if total_billing_events > 0:
+        avg_revenue_per_filing = int(total_revenue_cents / total_billing_events)
     
     # Average completion time (from creation to filing) - mock for now
     avg_completion_days = 3.2
@@ -281,7 +303,62 @@ def get_executive_stats(db: Session = Depends(get_db)):
     compliance_rate = 98.2  # Mock for now
     
     # ==========================================================================
-    # NEW: Early Determination / Submission Stats
+    # FILING STATUS BREAKDOWN (for attention alerts)
+    # ==========================================================================
+    # Count by filing_status
+    rejected_filings = db.query(FilingSubmission).filter(
+        FilingSubmission.status == "rejected"
+    ).count()
+    
+    needs_review_filings = db.query(FilingSubmission).filter(
+        FilingSubmission.status == "needs_review"
+    ).count()
+    
+    pending_filings = db.query(FilingSubmission).filter(
+        FilingSubmission.status.in_(["queued", "submitted"])
+    ).count()
+    
+    accepted_filings = db.query(FilingSubmission).filter(
+        FilingSubmission.status == "accepted"
+    ).count()
+    
+    # ==========================================================================
+    # RECENT FILINGS (last 5 accepted with receipt IDs)
+    # ==========================================================================
+    recent_filings_query = db.query(
+        FilingSubmission, Report
+    ).join(
+        Report, Report.id == FilingSubmission.report_id
+    ).filter(
+        FilingSubmission.status == "accepted"
+    ).order_by(
+        FilingSubmission.updated_at.desc()
+    ).limit(5).all()
+    
+    recent_filings = []
+    for submission, report in recent_filings_query:
+        company_name = "Unknown"
+        if report.company_id:
+            from app.models.company import Company
+            company = db.query(Company).filter(Company.id == report.company_id).first()
+            if company:
+                company_name = company.name
+        
+        receipt_id = None
+        if submission.payload_snapshot:
+            parsed = submission.payload_snapshot.get("parsed_messages", {})
+            receipt_id = parsed.get("bsa_id")
+        
+        recent_filings.append({
+            "report_id": str(report.id),
+            "property_address": report.property_address_text or "N/A",
+            "company_name": company_name,
+            "filed_at": submission.updated_at.isoformat() if submission.updated_at else None,
+            "receipt_id": receipt_id,
+        })
+    
+    # ==========================================================================
+    # Early Determination / Submission Stats
     # ==========================================================================
     # Total submissions
     total_submissions = db.query(SubmissionRequest).count()
@@ -321,9 +398,17 @@ def get_executive_stats(db: Session = Depends(get_db)):
         "pending_reports": pending_reports,
         "filed_this_month": filed_this_month,
         "mtd_revenue_cents": mtd_revenue_cents,
+        "avg_revenue_per_filing": avg_revenue_per_filing,  # NEW: actual average
         "compliance_rate": compliance_rate,
         "avg_completion_days": avg_completion_days,
-        # NEW: Early determination stats
+        # Filing status breakdown (NEW)
+        "rejected_filings": rejected_filings,
+        "needs_review_filings": needs_review_filings,
+        "pending_filings": pending_filings,
+        "accepted_filings": accepted_filings,
+        # Recent filings (NEW)
+        "recent_filings": recent_filings,
+        # Early determination stats
         "total_submissions": total_submissions,
         "exempt_submissions": exempt_submissions,
         "reportable_submissions": reportable_submissions,

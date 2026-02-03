@@ -8,13 +8,13 @@
 
 | Category | Count |
 |----------|-------|
-| 🔴 Critical Features | 0 |
+| 🔴 Critical Features | 4 |
 | 🟠 Major Features | 1 |
-| 🎨 UX/Design | 0 |
-| 🔧 Configuration | 0 |
-| 📄 Documentation | 2 |
+| 🎨 UX/Design | 2 |
+| 🔧 Configuration | 3 |
+| 📄 Documentation | 3 |
 
-**Total Sharks Killed (Vol 2): 3 🦈**
+**Total Sharks Killed (Vol 2): 11 🦈 + 1 Hardening Addendum**
 
 ---
 
@@ -1126,17 +1126,116 @@ Updated `api/app/scripts/fincen_sdtm_ping.py` to auto-load `.env` file for local
 
 ---
 
+### 51. Filing Status Display — Full System Remediation ✅
+
+**Date:** February 3, 2026
+
+**Problem:** Investigation revealed significant gaps in how filing status and receipt IDs are displayed across all user roles:
+
+- COO dashboard: No individual filing visibility, revenue hardcoded at $75, no rejection alerts
+- Staff queue: No filing status column, no receipt ID, no rejection visibility
+- Wizard: Always showed "Demo" badge even for live SDTM filings
+- Client requests: Receipt ID in interface but not rendered in table, inconsistent field naming
+- Client dashboard: No filing summary at all
+- Status badges duplicated 16+ times with inconsistent vocabulary
+- No shared status component
+- No receipt ID search capability
+
+**Solution:** Comprehensive remediation across all user-facing pages.
+
+#### Shared Components Created
+
+| Component | Purpose |
+|-----------|---------|
+| `StatusBadge.tsx` | Universal status badge with type-specific vocabularies (report, filing, request, invoice, party, user) |
+| `ReceiptId.tsx` | Copyable receipt ID display with consistent styling, truncation, and tooltips |
+| `usePollFilingStatus.ts` | Auto-refresh hook for pending filing status (polls every 60s) |
+
+#### Status Vocabulary Standardization
+
+| Type | Statuses |
+|------|----------|
+| Report | draft, determination_complete, awaiting_parties, collecting, ready_to_file, filed, exempt, cancelled |
+| Filing | not_started, queued, submitted, accepted, rejected, needs_review |
+| Request (client) | pending, exempt, reportable, in_progress, completed, cancelled |
+
+#### Changes by Role
+
+**COO (/app/executive):**
+- Revenue now calculated from actual BillingEvent records, not hardcoded $75
+- Added `avg_revenue_per_filing` from real billing data
+- Added rejection/needs_review alert banner when issues exist
+- Added "Recent Filings" mini-table with receipt IDs
+- Stats are clickable, linking to filtered admin views
+
+**PCT Admin:**
+- Replaced inline status maps with shared StatusBadge component
+- Receipt ID search/filter added (searches address, ID, receipt)
+- ReceiptId component shows copyable IDs with click-to-copy
+
+**PCT Staff:**
+- Queue now shows filing status column alongside report status
+- Receipt ID visible for filed reports using shared ReceiptId component
+- Rejection/needs_review attention banner at top of queue
+- `needs_attention` count added to queue stats
+
+**Client Wizard:**
+- Shows "Live Filing" badge for SDTM submissions
+- Shows "Demo" badge only for mock filings (using `is_demo` from FileResult)
+- Shows "Awaiting FinCEN Response" card for `submitted` status
+- Contextual messaging based on actual filing transport
+
+**Client Admin/User:**
+- Receipt ID now rendered in requests table for completed requests
+- Receipt ID column added to requests table
+- Field naming standardized (supports both `receipt_id` and `filing_receipt_id`)
+- Receipt ID shows whenever present regardless of request status
+- Dashboard now includes filing summary card with counts by status
+- Filing summary shows most recent filing with receipt ID
+
+**Executive Dashboard Backend:**
+- `GET /reports/executive-stats` now returns:
+  - `avg_revenue_per_filing` from actual BillingEvent sum/count
+  - `rejected_filings`, `needs_review_filings`, `pending_filings`, `accepted_filings` counts
+  - `recent_filings` array with last 5 accepted filings (receipt_id, company, address)
+
+#### Files Created
+
+| File | Purpose |
+|------|---------|
+| `web/components/ui/StatusBadge.tsx` | Shared status badge component (all status configs exported) |
+| `web/components/ui/ReceiptId.tsx` | Copyable receipt ID component |
+| `web/hooks/usePollFilingStatus.ts` | Filing status polling hook |
+
+#### Files Modified
+
+| File | Change |
+|------|--------|
+| `web/app/(app)/app/executive/page.tsx` | Real revenue, alert banner, recent filings table, clickable stats |
+| `web/app/(app)/app/staff/queue/page.tsx` | Filing status column, receipt ID, attention banner, needs_attention count |
+| `web/app/(app)/app/reports/[id]/wizard/page.tsx` | Demo vs Live badge, submitted state card, contextual messaging |
+| `web/app/(app)/app/requests/page.tsx` | Receipt ID column in table, uses StatusBadge |
+| `web/app/(app)/app/requests/[id]/page.tsx` | Receipt ID shows when present (not status-gated), uses ReceiptId component |
+| `web/app/(app)/app/dashboard/page.tsx` | Filing summary card with counts and most recent filing |
+| `web/app/(app)/app/admin/reports/page.tsx` | Uses shared StatusBadge and ReceiptId, receipt ID search |
+| `web/lib/api.ts` | Added ExecutiveStats fields (avg_revenue_per_filing, filing counts, recent_filings) |
+| `api/app/routes/reports.py` | executive-stats: real revenue from BillingEvents, filing breakdown, recent filings |
+
+**Status:** ✅ Killed (VISIBILITY SHARK 🦈)
+
+---
+
 ## Summary Update
 
 | Category | Count |
 |----------|-------|
-| 🔴 Critical Features | 3 |
+| 🔴 Critical Features | 4 |
 | 🟠 Major Features | 1 |
-| 🎨 UX/Design | 1 |
+| 🎨 UX/Design | 2 |
 | 🔧 Configuration | 3 |
 | 📄 Documentation | 3 |
 
-**Total Sharks Killed (Vol 2): 10 🦈 + 1 Hardening Addendum**
+**Total Sharks Killed (Vol 2): 11 🦈 + 1 Hardening Addendum**
 
 ---
 
@@ -1152,4 +1251,4 @@ Updated `api/app/scripts/fincen_sdtm_ping.py` to auto-load `.env` file for local
 
 ---
 
-*Last updated: February 2, 2026*
+*Last updated: February 3, 2026*

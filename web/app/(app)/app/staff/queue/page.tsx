@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { StatusBadge, FILING_STATUS_CONFIG, REPORT_STATUS_CONFIG } from "@/components/ui/StatusBadge";
+import { ReceiptId } from "@/components/ui/ReceiptId";
 import {
   Table,
   TableBody,
@@ -74,6 +76,7 @@ interface QueueReport {
   wizard_step: number;
   determination: Record<string, unknown> | null;
   filing_status: string | null;
+  receipt_id: string | null;
   created_at: string;
   updated_at: string;
   parties_total: number;
@@ -88,6 +91,7 @@ interface QueueCounts {
   collecting: number;
   ready: number;
   total: number;
+  needs_attention: number; // rejected or needs_review filings
 }
 
 const statusConfig: Record<string, { label: string; color: string; description: string }> = {
@@ -122,7 +126,8 @@ export default function StaffQueuePage() {
     needs_setup: 0, 
     collecting: 0, 
     ready: 0, 
-    total: 0 
+    total: 0,
+    needs_attention: 0 
   });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -150,6 +155,9 @@ export default function StaffQueuePage() {
           collecting: items.filter((r) => r.status === "collecting").length,
           ready: items.filter((r) => r.status === "ready_to_file").length,
           total: items.length,
+          needs_attention: items.filter((r) => 
+            r.filing_status === "rejected" || r.filing_status === "needs_review"
+          ).length,
         });
       }
     } catch (error) {
@@ -404,6 +412,33 @@ export default function StaffQueuePage() {
         </div>
       </div>
 
+      {/* Attention Banner - show if any filings need attention */}
+      {counts.needs_attention > 0 && (
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="py-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-red-600" />
+                <span className="text-red-800 font-medium">
+                  {counts.needs_attention} filing{counts.needs_attention > 1 ? "s" : ""} need{counts.needs_attention === 1 ? "s" : ""} attention
+                </span>
+                <span className="text-red-600 text-sm">
+                  — {reports.filter(r => r.filing_status === "rejected").length} rejected, {reports.filter(r => r.filing_status === "needs_review").length} needs review
+                </span>
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm"
+                className="border-red-300 text-red-700 hover:bg-red-100"
+                onClick={() => setActiveTab("all")}
+              >
+                View All
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Stats Cards */}
       <div className="grid gap-4 sm:grid-cols-4">
         <Card 
@@ -525,6 +560,7 @@ export default function StaffQueuePage() {
                       <TableHead>Property</TableHead>
                       <TableHead>Escrow #</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead>Filing Status</TableHead>
                       <TableHead>Progress</TableHead>
                       <TableHead>Deadline</TableHead>
                       <TableHead className="text-right">Action</TableHead>
@@ -580,9 +616,27 @@ export default function StaffQueuePage() {
                               </code>
                             </TableCell>
                             <TableCell>
-                              <Badge className={config?.color || "bg-slate-500"}>
-                                {config?.label || report.status}
-                              </Badge>
+                              <StatusBadge type="report" status={report.status} />
+                            </TableCell>
+                            <TableCell>
+                              {/* Filing Status Column */}
+                              {report.filing_status ? (
+                                <div className="flex flex-col gap-1">
+                                  <StatusBadge type="filing" status={report.filing_status} />
+                                  {report.receipt_id && (
+                                    <ReceiptId 
+                                      value={report.receipt_id} 
+                                      size="sm" 
+                                      truncate 
+                                      truncateLength={10} 
+                                    />
+                                  )}
+                                </div>
+                              ) : report.status === "filed" || report.status === "ready_to_file" ? (
+                                <span className="text-xs text-muted-foreground">Not submitted</span>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              )}
                             </TableCell>
                             <TableCell>
                               {report.status === "collecting" || report.status === "ready_to_file" ? (
@@ -620,7 +674,7 @@ export default function StaffQueuePage() {
                           {/* Expanded Party Details Row */}
                           {isExpanded && (
                             <TableRow key={`${report.id}-parties`}>
-                              <TableCell colSpan={6} className="p-0">
+                              <TableCell colSpan={7} className="p-0">
                                 {renderPartyDetails(report)}
                               </TableCell>
                             </TableRow>

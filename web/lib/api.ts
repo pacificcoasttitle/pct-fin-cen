@@ -540,6 +540,7 @@ export interface SubmissionStats {
   pending: number;
   in_progress: number;
   completed: number;
+  exempt: number;
   this_month: number;
 }
 
@@ -593,8 +594,24 @@ export interface ExecutiveStats {
   pending_reports: number;
   filed_this_month: number;
   mtd_revenue_cents: number;
+  avg_revenue_per_filing?: number;  // Actual average from billing events
   compliance_rate: number;
   avg_completion_days: number;
+  
+  // Filing status breakdown
+  rejected_filings?: number;
+  needs_review_filings?: number;
+  pending_filings?: number;
+  accepted_filings?: number;
+  
+  // Recent filings
+  recent_filings?: {
+    report_id: string;
+    property_address: string;
+    company_name: string;
+    filed_at: string | null;
+    receipt_id: string | null;
+  }[];
   
   // Early determination stats (from SubmissionRequests)
   total_submissions?: number;

@@ -12,6 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+import { ReceiptId } from "@/components/ui/ReceiptId";
 import {
   ArrowLeft,
   Building2,
@@ -29,7 +31,7 @@ import {
 
 interface SubmissionRequest {
   id: string;
-  status: "pending" | "in_progress" | "completed" | "cancelled";
+  status: "pending" | "exempt" | "reportable" | "in_progress" | "completed" | "cancelled";
   property_address: {
     street: string;
     city: string;
@@ -50,38 +52,19 @@ interface SubmissionRequest {
   created_at: string;
   updated_at: string;
   report_id?: string;
-  filing_receipt_id?: string;
+  // Standardized: use receipt_id (matches API and list page)
+  receipt_id?: string;
+  filing_receipt_id?: string; // Keep for backwards compat, prefer receipt_id
 }
 
-const statusConfig = {
-  pending: {
-    label: "Pending Review",
-    icon: Clock,
-    color: "text-yellow-600",
-    bg: "bg-yellow-50",
-    border: "border-yellow-200",
-  },
-  in_progress: {
-    label: "In Progress",
-    icon: RefreshCw,
-    color: "text-blue-600",
-    bg: "bg-blue-50",
-    border: "border-blue-200",
-  },
-  completed: {
-    label: "Completed",
-    icon: CheckCircle2,
-    color: "text-green-600",
-    bg: "bg-green-50",
-    border: "border-green-200",
-  },
-  cancelled: {
-    label: "Cancelled",
-    icon: AlertCircle,
-    color: "text-red-600",
-    bg: "bg-red-50",
-    border: "border-red-200",
-  },
+// Status icons (colors from shared StatusBadge)
+const statusIcons: Record<string, typeof Clock> = {
+  pending: Clock,
+  exempt: CheckCircle2,
+  reportable: FileText,
+  in_progress: RefreshCw,
+  completed: CheckCircle2,
+  cancelled: AlertCircle,
 };
 
 export default function ClientRequestDetailPage() {
@@ -189,8 +172,8 @@ export default function ClientRequestDetailPage() {
     );
   }
 
-  const status = statusConfig[request.status] || statusConfig.pending;
-  const StatusIcon = status.icon;
+  // Get receipt ID (prefer receipt_id, fallback to filing_receipt_id for backwards compat)
+  const receiptId = request.receipt_id || request.filing_receipt_id;
 
   return (
     <div className="container max-w-4xl mx-auto py-8 px-4">
@@ -215,18 +198,13 @@ export default function ClientRequestDetailPage() {
             {request.property_address?.zip}
           </p>
         </div>
-        <div className={`p-4 rounded-lg ${status.bg} ${status.border} border`}>
-          <div className="flex items-center gap-2">
-            <StatusIcon className={`h-5 w-5 ${status.color}`} />
-            <span className={`font-semibold ${status.color}`}>
-              {status.label}
-            </span>
-          </div>
+        <div className="p-4 rounded-lg bg-muted border">
+          <StatusBadge type="request" status={request.status} size="md" />
         </div>
       </div>
 
-      {/* Filing Receipt (if completed) */}
-      {request.status === "completed" && request.filing_receipt_id && (
+      {/* Filing Receipt - show whenever present (not gated on status) */}
+      {receiptId && (
         <Card className="mb-6 border-green-200 bg-green-50">
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
@@ -235,8 +213,28 @@ export default function ClientRequestDetailPage() {
                 <h3 className="font-semibold text-green-800">
                   FinCEN Filing Complete
                 </h3>
-                <p className="text-sm text-green-600">
-                  Receipt ID: <span className="font-mono">{request.filing_receipt_id}</span>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-sm text-green-600">Receipt ID:</span>
+                  <ReceiptId value={receiptId} size="md" />
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Filing In Progress (no receipt yet) */}
+      {request.status === "in_progress" && !receiptId && (
+        <Card className="mb-6 border-amber-200 bg-amber-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <RefreshCw className="h-8 w-8 text-amber-600 animate-spin" />
+              <div>
+                <h3 className="font-semibold text-amber-800">
+                  Filing In Progress
+                </h3>
+                <p className="text-sm text-amber-600">
+                  Your report is being processed. Receipt ID will appear once FinCEN accepts the filing.
                 </p>
               </div>
             </div>

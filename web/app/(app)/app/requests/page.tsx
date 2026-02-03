@@ -12,6 +12,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { StatusBadge, REQUEST_STATUS_CONFIG } from "@/components/ui/StatusBadge";
+import { ReceiptId } from "@/components/ui/ReceiptId";
 import {
   Table,
   TableBody,
@@ -104,45 +106,50 @@ interface SubmissionRequest {
   exemption_certificate_id?: string;
 }
 
+// Status icons mapping (colors come from shared StatusBadge)
+const statusIcons = {
+  pending: Clock,
+  exempt: Shield,
+  reportable: FileText,
+  in_progress: RefreshCw,
+  completed: CheckCircle2,
+  cancelled: AlertCircle,
+};
+
+// Legacy statusConfig for help section (keeping icons + descriptions)
 const statusConfig = {
   pending: {
     label: "Pending Review",
-    variant: "secondary" as const,
     icon: Clock,
     description: "Waiting for FinClear staff to begin processing",
     className: "bg-yellow-50 text-yellow-700 border-yellow-200",
   },
   exempt: {
     label: "Exempt",
-    variant: "default" as const,
     icon: Shield,
     description: "No FinCEN report required for this transaction",
     className: "bg-green-50 text-green-700 border-green-200",
   },
   reportable: {
     label: "Reportable",
-    variant: "default" as const,
     icon: FileText,
     description: "FinCEN report required - in staff queue",
     className: "bg-blue-50 text-blue-700 border-blue-200",
   },
   in_progress: {
     label: "In Progress",
-    variant: "default" as const,
     icon: RefreshCw,
     description: "FinClear staff is processing your request",
     className: "bg-blue-50 text-blue-700 border-blue-200",
   },
   completed: {
     label: "Completed",
-    variant: "default" as const,
     icon: CheckCircle2,
     description: "Filing has been submitted to FinCEN",
     className: "bg-green-50 text-green-700 border-green-200",
   },
   cancelled: {
     label: "Cancelled",
-    variant: "destructive" as const,
     icon: AlertCircle,
     description: "This request has been cancelled",
     className: "bg-red-50 text-red-700 border-red-200",
@@ -407,7 +414,6 @@ export default function ClientRequestsPage() {
                     formatPrice={formatPrice}
                     formatDate={formatDate}
                     formatTimeAgo={formatTimeAgo}
-                    statusConfig={statusConfig}
                   />
                 )}
               </CardContent>
@@ -542,7 +548,6 @@ export default function ClientRequestsPage() {
                     formatPrice={formatPrice}
                     formatDate={formatDate}
                     formatTimeAgo={formatTimeAgo}
-                    statusConfig={statusConfig}
                   />
                 )}
               </CardContent>
@@ -604,14 +609,12 @@ function RequestsTable({
   formatPrice,
   formatDate,
   formatTimeAgo,
-  statusConfig,
 }: {
   requests: SubmissionRequest[];
   router: ReturnType<typeof useRouter>;
   formatPrice: (cents: number) => string;
   formatDate: (dateString: string) => string;
   formatTimeAgo: (dateString: string) => string;
-  statusConfig: typeof statusConfig;
 }) {
   return (
     <Table>
@@ -622,6 +625,7 @@ function RequestsTable({
           <TableHead className="text-right">Price</TableHead>
           <TableHead>Closing</TableHead>
           <TableHead>Status</TableHead>
+          <TableHead>Receipt ID</TableHead>
           <TableHead>Party Status</TableHead>
           <TableHead>Submitted</TableHead>
           <TableHead className="w-[50px]"></TableHead>
@@ -629,8 +633,6 @@ function RequestsTable({
       </TableHeader>
       <TableBody>
         {requests.map((request) => {
-          const status = statusConfig[request.status] || statusConfig.pending;
-          const StatusIcon = status.icon;
           
           // Calculate party progress
           const partiesTotal = request.parties_total || (request.parties?.length ?? 0);
@@ -670,13 +672,17 @@ function RequestsTable({
                 {formatDate(request.expected_closing_date)}
               </TableCell>
               <TableCell>
-                <Badge
-                  variant="outline"
-                  className={`flex items-center gap-1 w-fit ${status.className}`}
-                >
-                  <StatusIcon className="h-3 w-3" />
-                  {status.label}
-                </Badge>
+                <StatusBadge type="request" status={request.status} />
+              </TableCell>
+              <TableCell>
+                {/* Receipt ID - shown for completed requests */}
+                {request.status === "completed" && request.receipt_id ? (
+                  <ReceiptId value={request.receipt_id} size="sm" truncate truncateLength={12} />
+                ) : request.status === "in_progress" ? (
+                  <span className="text-xs text-amber-600">Awaiting</span>
+                ) : (
+                  <span className="text-xs text-muted-foreground">—</span>
+                )}
               </TableCell>
               <TableCell>
                 {/* Party Status Column - GAP 1 Fix */}
