@@ -453,6 +453,244 @@ def send_party_invite(
     return send_email(to_email, subject, html_content, text_content)
 
 
+def get_invoice_email_html(
+    company_name: str,
+    invoice_number: str,
+    total_dollars: float,
+    due_date: str,
+    period_start: str,
+    period_end: str,
+    view_link: str,
+) -> str:
+    """Generate HTML for invoice email."""
+    
+    return f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice {invoice_number}</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; background-color: #f4f4f5;">
+    
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f4f4f5;">
+        <tr>
+            <td align="center" style="padding: 40px 20px;">
+                
+                <!-- Main Container -->
+                <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);">
+                    
+                    <!-- Header -->
+                    <tr>
+                        <td style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); padding: 40px 40px 30px; text-align: center;">
+                            <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 600;">
+                                Invoice Ready
+                            </h1>
+                            <p style="color: rgba(255, 255, 255, 0.9); margin: 10px 0 0; font-size: 16px;">
+                                {invoice_number}
+                            </p>
+                        </td>
+                    </tr>
+                    
+                    <!-- Body -->
+                    <tr>
+                        <td style="padding: 40px;">
+                            
+                            <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
+                                Dear {company_name},
+                            </p>
+                            
+                            <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
+                                Your invoice for FinCEN filing services is now available.
+                            </p>
+                            
+                            <!-- Invoice Summary Card -->
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin: 25px 0;">
+                                <tr>
+                                    <td style="background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 20px; border-radius: 0 8px 8px 0;">
+                                        <table width="100%" cellspacing="0" cellpadding="0">
+                                            <tr>
+                                                <td style="padding: 8px 0;">
+                                                    <span style="color: #6b7280; font-size: 14px;">Invoice Number:</span>
+                                                    <span style="color: #1e3a8a; font-size: 14px; font-weight: 600; float: right; font-family: monospace;">{invoice_number}</span>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0;">
+                                                    <span style="color: #6b7280; font-size: 14px;">Billing Period:</span>
+                                                    <span style="color: #1e3a8a; font-size: 14px; font-weight: 500; float: right;">{period_start} - {period_end}</span>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0; border-top: 1px solid #bfdbfe;">
+                                                    <span style="color: #6b7280; font-size: 14px;">Due Date:</span>
+                                                    <span style="color: #1e3a8a; font-size: 14px; font-weight: 600; float: right;">{due_date}</span>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 12px 0; border-top: 2px solid #3b82f6;">
+                                                    <span style="color: #1e3a8a; font-size: 16px; font-weight: 600;">Amount Due:</span>
+                                                    <span style="color: #1e40af; font-size: 24px; font-weight: 700; float: right;">${total_dollars:,.2f}</span>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <!-- CTA Button -->
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin: 30px 0;">
+                                <tr>
+                                    <td align="center">
+                                        <a href="{view_link}" style="display: inline-block; background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: #ffffff; padding: 16px 40px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4);">
+                                            View Invoice →
+                                        </a>
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <!-- Payment Info Box -->
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin: 25px 0;">
+                                <tr>
+                                    <td style="background-color: #f0fdf4; border: 1px solid #86efac; padding: 16px 20px; border-radius: 8px;">
+                                        <p style="margin: 0 0 8px; color: #166534; font-size: 14px; font-weight: 600;">
+                                            Payment Options:
+                                        </p>
+                                        <p style="margin: 0; color: #15803d; font-size: 14px;">
+                                            ACH Transfer • Wire Transfer • Check<br>
+                                            <span style="font-size: 12px; color: #4ade80;">Please reference invoice number with your payment.</span>
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <p style="margin: 25px 0 0; color: #6b7280; font-size: 14px;">
+                                If you have any questions about this invoice, please contact our billing team.
+                            </p>
+                            
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td style="background-color: #1e293b; padding: 25px 40px; text-align: center;">
+                            <p style="margin: 0 0 10px; color: #94a3b8; font-size: 12px;">
+                                Powered by {BRAND_NAME} • {BRAND_TAGLINE}
+                            </p>
+                            <p style="margin: 0; color: #64748b; font-size: 11px;">
+                                Questions? Contact billing@pctitle.com
+                            </p>
+                        </td>
+                    </tr>
+                    
+                </table>
+                
+            </td>
+        </tr>
+    </table>
+    
+</body>
+</html>
+"""
+
+
+def get_invoice_email_text(
+    company_name: str,
+    invoice_number: str,
+    total_dollars: float,
+    due_date: str,
+    period_start: str,
+    period_end: str,
+    view_link: str,
+) -> str:
+    """Generate plain text for invoice email."""
+    
+    return f"""
+INVOICE READY - {invoice_number}
+
+Dear {company_name},
+
+Your invoice for FinCEN filing services is now available.
+
+---
+INVOICE SUMMARY
+---
+Invoice Number: {invoice_number}
+Billing Period: {period_start} - {period_end}
+Due Date: {due_date}
+Amount Due: ${total_dollars:,.2f}
+
+View your invoice online: {view_link}
+
+---
+PAYMENT OPTIONS
+---
+• ACH Transfer
+• Wire Transfer
+• Check
+
+Please reference invoice number {invoice_number} with your payment.
+
+---
+
+Questions? Contact billing@pctitle.com
+
+Powered by {BRAND_NAME} • {BRAND_TAGLINE}
+"""
+
+
+def send_invoice_email(
+    to_email: str,
+    company_name: str,
+    invoice_number: str,
+    total_dollars: float,
+    due_date: str,
+    period_start: str,
+    period_end: str,
+    view_link: str,
+) -> EmailResult:
+    """
+    Send invoice email to company billing contact.
+    
+    Args:
+        to_email: Recipient email address
+        company_name: Company name
+        invoice_number: Invoice number (e.g., INV-2026-02-0001)
+        total_dollars: Total amount in dollars
+        due_date: Formatted due date string
+        period_start: Formatted period start date
+        period_end: Formatted period end date
+        view_link: Link to view invoice online
+    
+    Returns:
+        EmailResult with success status and message_id
+    """
+    subject = f"Invoice {invoice_number} - ${total_dollars:,.2f} Due {due_date}"
+    
+    html_content = get_invoice_email_html(
+        company_name=company_name,
+        invoice_number=invoice_number,
+        total_dollars=total_dollars,
+        due_date=due_date,
+        period_start=period_start,
+        period_end=period_end,
+        view_link=view_link,
+    )
+    
+    text_content = get_invoice_email_text(
+        company_name=company_name,
+        invoice_number=invoice_number,
+        total_dollars=total_dollars,
+        due_date=due_date,
+        period_start=period_start,
+        period_end=period_end,
+        view_link=view_link,
+    )
+    
+    return send_email(to_email, subject, html_content, text_content)
+
+
 def send_party_confirmation(
     to_email: str,
     party_name: str,

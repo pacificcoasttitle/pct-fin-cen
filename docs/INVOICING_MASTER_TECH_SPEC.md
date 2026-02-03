@@ -1072,6 +1072,59 @@ New audit events:
 
 ---
 
+## 14. Phase 2 Enhancements (February 3, 2026)
+
+### 14.1 Company Billing Tiers
+
+New `billing_type` field on Company:
+
+| Tier | Value | Behavior |
+|------|-------|----------|
+| Trusted | `invoice_only` | Invoice sent. Net 30. No card required. |
+| Standard | `hybrid` | Invoice sent. Net 10. Auto-charge after terms. |
+| Subscription | `subscription` | Monthly fee + overages (Future) |
+
+### 14.2 PDF Invoice Generation
+
+New service: `api/app/services/pdf_service.py`
+
+- Professional HTML template with FinClear branding
+- PDFShift API integration for HTML→PDF conversion
+- Graceful fallback to HTML preview when not configured
+
+**Endpoints:**
+- `GET /billing/admin/invoices/{id}/pdf` - Admin download
+- `GET /billing/my/invoices/{id}/pdf` - Client download own invoice
+
+### 14.3 Invoice Email Delivery
+
+New functions in `email_service.py`:
+- `send_invoice_email()` - Complete invoice delivery
+- Professional email template with invoice summary
+
+**Endpoints:**
+- `POST /billing/admin/invoices/{id}/send-email` - Send to billing contact
+
+### 14.4 Frontend Enhancements
+
+**Admin Billing Page:**
+- "Download PDF" button in invoice dropdown
+- "Send Invoice" button in invoice dropdown
+- PDF/Email buttons in invoice detail dialog
+
+**Client Billing Page:**
+- PDF download button on each invoice
+- "Download PDF" in invoice detail dialog
+
+### 14.5 New Environment Variables
+
+```env
+PDFSHIFT_API_KEY=your_api_key
+PDFSHIFT_ENABLED=true
+```
+
+---
+
 ## Summary
 
 **Current State:**
@@ -1083,16 +1136,16 @@ New audit events:
 - ✅ **Per-company pricing configurable**
 - ✅ **Manual billing events (credits/adjustments)**
 - ✅ **Admin UI for billing settings**
+- ✅ **PDF invoice generation (Phase 2)**
+- ✅ **Invoice email delivery (Phase 2)**
+- ✅ **Company billing tiers (Phase 2)**
 
 **Remaining Limitations:**
-- No subscription support
-- No payment processing (Stripe)
-- No auto-invoice generation (cron)
-- No PDF generation
+- No subscription support (Phase 3)
+- No payment processing / Stripe (Phase 3)
+- No auto-invoice generation cron (Phase 3)
 
-**Recommended Next Steps (Phase 2+):**
+**Recommended Next Steps (Phase 3+):**
 1. Implement subscription billing model
-2. Add Stripe integration for payments
-3. Auto-invoice generation cron job
-4. PDF invoice generation
-5. Email invoice delivery for automated payments
+2. Add Stripe integration for hybrid tier auto-charge
+3. Auto-invoice generation cron job (monthly)

@@ -51,6 +51,12 @@ class Settings:
         # Transmitter identification (REQUIRED for FBARX)
         self.TRANSMITTER_TIN: str = os.getenv("TRANSMITTER_TIN", "")  # 9 digits, no hyphens
         self.TRANSMITTER_TCC: str = os.getenv("TRANSMITTER_TCC", "")  # Must start with "P", length 8
+        
+        # ═══════════════════════════════════════════════════════════════════════
+        # PDFShift Configuration (Invoice PDF Generation)
+        # ═══════════════════════════════════════════════════════════════════════
+        self.PDFSHIFT_API_KEY: str = os.getenv("PDFSHIFT_API_KEY", "")
+        self.PDFSHIFT_ENABLED: bool = os.getenv("PDFSHIFT_ENABLED", "false").lower() == "true"
     
     def _parse_allowed_file_types(self) -> List[str]:
         """Parse allowed file types from comma-separated string."""
@@ -92,6 +98,11 @@ class Settings:
     def transmitter_configured(self) -> bool:
         """Check if transmitter identification is configured."""
         return bool(self.TRANSMITTER_TIN and self.TRANSMITTER_TCC)
+    
+    @property
+    def pdfshift_configured(self) -> bool:
+        """Check if PDFShift is properly configured."""
+        return bool(self.PDFSHIFT_ENABLED and self.PDFSHIFT_API_KEY)
     
     def _parse_cors_origins(self) -> List[str]:
         """Parse CORS_ORIGINS from comma-separated string."""

@@ -46,6 +46,7 @@ class Invoice(Base):
 
     # Document
     pdf_url = Column(String(500), nullable=True)
+    sent_to_email = Column(String(255), nullable=True)  # Track where invoice was sent
     notes = Column(Text, nullable=True)
 
     # Audit

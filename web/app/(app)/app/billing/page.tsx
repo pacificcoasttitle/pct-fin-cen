@@ -42,6 +42,8 @@ import {
   AlertCircle,
   Send,
   Eye,
+  Download,
+  Loader2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -107,6 +109,9 @@ export default function ClientBillingPage() {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  
+  // PDF download
+  const [downloadingPdf, setDownloadingPdf] = useState<string | null>(null);
 
   const fetchStats = useCallback(async () => {
     try {
@@ -189,6 +194,48 @@ export default function ClientBillingPage() {
       });
     } catch {
       return "N/A";
+    }
+  };
+
+  const handleDownloadPdf = async (invoiceId: string, invoiceNumber: string) => {
+    setDownloadingPdf(invoiceId);
+    try {
+      const response = await fetch(`${API_BASE_URL}/billing/my/invoices/${invoiceId}/pdf`);
+      if (response.ok) {
+        const contentType = response.headers.get("content-type");
+        if (contentType?.includes("application/pdf")) {
+          // Real PDF - download it
+          const blob = await response.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `${invoiceNumber}.pdf`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          toast({ title: "PDF Downloaded", description: `${invoiceNumber}.pdf` });
+        } else {
+          // HTML fallback - open in new tab for preview
+          const html = await response.text();
+          const newWindow = window.open();
+          if (newWindow) {
+            newWindow.document.write(html);
+            newWindow.document.close();
+          }
+          toast({ 
+            title: "Invoice Preview", 
+            description: "Displaying invoice preview",
+          });
+        }
+      } else {
+        const err = await response.json();
+        toast({ title: "Error", description: err.detail || "Failed to download PDF", variant: "destructive" });
+      }
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to download PDF", variant: "destructive" });
+    } finally {
+      setDownloadingPdf(null);
     }
   };
 
@@ -352,14 +399,28 @@ export default function ClientBillingPage() {
                             {invoice.due_date ? formatDate(invoice.due_date) : "—"}
                           </TableCell>
                           <TableCell className="text-right">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => fetchInvoiceDetail(invoice.id)}
-                            >
-                              <Eye className="h-4 w-4 mr-1" />
-                              View
-                            </Button>
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDownloadPdf(invoice.id, invoice.invoice_number)}
+                                disabled={downloadingPdf === invoice.id}
+                              >
+                                {downloadingPdf === invoice.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Download className="h-4 w-4" />
+                                )}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => fetchInvoiceDetail(invoice.id)}
+                              >
+                                <Eye className="h-4 w-4 mr-1" />
+                                View
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       );
@@ -492,6 +553,22 @@ export default function ClientBillingPage() {
                 <span className="text-xl font-bold">
                   {formatCurrency(selectedInvoice.total_cents)}
                 </span>
+              </div>
+              
+              {/* Download PDF Button */}
+              <div className="flex justify-end pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => handleDownloadPdf(selectedInvoice.id, selectedInvoice.invoice_number)}
+                  disabled={downloadingPdf === selectedInvoice.id}
+                >
+                  {downloadingPdf === selectedInvoice.id ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4 mr-2" />
+                  )}
+                  Download PDF
+                </Button>
               </div>
             </div>
           ) : null}

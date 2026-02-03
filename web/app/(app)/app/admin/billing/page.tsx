@@ -64,6 +64,8 @@ import {
   XCircle,
   Edit,
   Loader2,
+  Mail,
+  Download,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -105,7 +107,7 @@ interface BillingEvent {
   amount_dollars: number;
   quantity: number;
   total_cents: number;
-  total_dollars: float;
+  total_dollars: number;
   status: string;
   invoice_number?: string;
   created_at: string;
@@ -183,6 +185,10 @@ export default function AdminBillingPage() {
   const [editPaymentTerms, setEditPaymentTerms] = useState("");
   const [editBillingNotes, setEditBillingNotes] = useState("");
   const [savingRate, setSavingRate] = useState(false);
+  
+  // Email & PDF actions
+  const [sendingEmail, setSendingEmail] = useState<string | null>(null);
+  const [downloadingPdf, setDownloadingPdf] = useState<string | null>(null);
 
   // Fetch functions
   const fetchStats = useCallback(async () => {
@@ -391,6 +397,72 @@ export default function AdminBillingPage() {
     setEditPaymentTerms(String(rate.payment_terms_days));
     setEditBillingNotes(rate.billing_notes || "");
     setEditRateOpen(true);
+  };
+
+  const handleSendEmail = async (invoiceId: string) => {
+    setSendingEmail(invoiceId);
+    try {
+      const response = await fetch(`${API_BASE_URL}/billing/admin/invoices/${invoiceId}/send-email`, {
+        method: "POST",
+      });
+      if (response.ok) {
+        const data = await response.json();
+        toast({ 
+          title: "Invoice Sent!", 
+          description: data.message,
+        });
+        fetchInvoices();
+      } else {
+        const err = await response.json();
+        toast({ title: "Error", description: err.detail || "Failed to send email", variant: "destructive" });
+      }
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to send email", variant: "destructive" });
+    } finally {
+      setSendingEmail(null);
+    }
+  };
+
+  const handleDownloadPdf = async (invoiceId: string, invoiceNumber: string) => {
+    setDownloadingPdf(invoiceId);
+    try {
+      const response = await fetch(`${API_BASE_URL}/billing/admin/invoices/${invoiceId}/pdf`);
+      if (response.ok) {
+        const contentType = response.headers.get("content-type");
+        if (contentType?.includes("application/pdf")) {
+          // Real PDF - download it
+          const blob = await response.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `${invoiceNumber}.pdf`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          toast({ title: "PDF Downloaded", description: `${invoiceNumber}.pdf` });
+        } else {
+          // HTML fallback - open in new tab for preview
+          const html = await response.text();
+          const newWindow = window.open();
+          if (newWindow) {
+            newWindow.document.write(html);
+            newWindow.document.close();
+          }
+          toast({ 
+            title: "PDF Preview", 
+            description: "PDFShift not configured. Showing HTML preview.",
+          });
+        }
+      } else {
+        const err = await response.json();
+        toast({ title: "Error", description: err.detail || "Failed to generate PDF", variant: "destructive" });
+      }
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to download PDF", variant: "destructive" });
+    } finally {
+      setDownloadingPdf(null);
+    }
   };
 
   // Load data
@@ -631,6 +703,30 @@ export default function AdminBillingPage() {
                                   <Eye className="h-4 w-4 mr-2" />
                                   View Details
                                 </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  onClick={() => handleDownloadPdf(inv.id, inv.invoice_number)}
+                                  disabled={downloadingPdf === inv.id}
+                                >
+                                  {downloadingPdf === inv.id ? (
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                  ) : (
+                                    <Download className="h-4 w-4 mr-2" />
+                                  )}
+                                  Download PDF
+                                </DropdownMenuItem>
+                                {(inv.status === "draft" || inv.status === "sent") && (
+                                  <DropdownMenuItem 
+                                    onClick={() => handleSendEmail(inv.id)}
+                                    disabled={sendingEmail === inv.id}
+                                  >
+                                    {sendingEmail === inv.id ? (
+                                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    ) : (
+                                      <Mail className="h-4 w-4 mr-2" />
+                                    )}
+                                    {inv.status === "draft" ? "Send Invoice" : "Resend Email"}
+                                  </DropdownMenuItem>
+                                )}
                                 {inv.status === "draft" && (
                                   <DropdownMenuItem onClick={() => updateInvoiceStatus(inv.id, "sent")}>
                                     <Send className="h-4 w-4 mr-2" />
@@ -812,11 +908,41 @@ export default function AdminBillingPage() {
               </div>
             </div>
           ) : null}
-          <DialogFooter>
+          <DialogFooter className="flex-wrap gap-2">
+            <div className="flex gap-2 flex-1">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => selectedInvoice && handleDownloadPdf(selectedInvoice.id, selectedInvoice.invoice_number)}
+                disabled={downloadingPdf === selectedInvoice?.id}
+              >
+                {downloadingPdf === selectedInvoice?.id ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4 mr-2" />
+                )}
+                PDF
+              </Button>
+              {(selectedInvoice?.status === "draft" || selectedInvoice?.status === "sent") && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => selectedInvoice && handleSendEmail(selectedInvoice.id)}
+                  disabled={sendingEmail === selectedInvoice?.id}
+                >
+                  {sendingEmail === selectedInvoice?.id ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Mail className="h-4 w-4 mr-2" />
+                  )}
+                  Email
+                </Button>
+              )}
+            </div>
             <Button variant="outline" onClick={() => setDetailOpen(false)}>Close</Button>
             {selectedInvoice?.status === "draft" && (
-              <Button onClick={() => { updateInvoiceStatus(selectedInvoice.id, "sent"); setDetailOpen(false); }}>
-                <Send className="h-4 w-4 mr-2" />Send
+              <Button onClick={() => { selectedInvoice && handleSendEmail(selectedInvoice.id); setDetailOpen(false); }}>
+                <Send className="h-4 w-4 mr-2" />Send Invoice
               </Button>
             )}
             {(selectedInvoice?.status === "sent" || selectedInvoice?.status === "overdue") && (

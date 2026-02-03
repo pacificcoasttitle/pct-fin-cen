@@ -8,13 +8,13 @@
 
 | Category | Count |
 |----------|-------|
-| 🔴 Critical Features | 4 |
+| 🔴 Critical Features | 5 |
 | 🟠 Major Features | 1 |
 | 🎨 UX/Design | 2 |
 | 🔧 Configuration | 3 |
 | 📄 Documentation | 3 |
 
-**Total Sharks Killed (Vol 2): 11 🦈 + 1 Hardening Addendum**
+**Total Sharks Killed (Vol 2): 12 🦈 + 1 Hardening Addendum**
 
 ---
 
@@ -1225,17 +1225,115 @@ Updated `api/app/scripts/fincen_sdtm_ping.py` to auto-load `.env` file for local
 
 ---
 
+### 52. Billing Finalization — PDF Invoices + Email Delivery ✅
+
+**Date:** February 3, 2026
+
+**Problem:** The billing system (Shark #48) had core functionality but lacked:
+- PDF invoice generation (clients couldn't download invoices)
+- Email delivery (invoices had to be sent manually outside the system)
+- Company billing tier classification (`invoice_only` vs `hybrid` vs `subscription`)
+- Frontend actions for email/PDF
+
+**Solution:** Comprehensive billing finalization for March 1, 2026 launch.
+
+#### Database Changes
+
+New migration `20260203_000001_add_billing_type_and_invoice_email.py`:
+
+| Table | Field | Type | Purpose |
+|-------|-------|------|---------|
+| `companies` | `billing_type` | String(50) | `invoice_only`, `hybrid`, `subscription` |
+| `companies` | `stripe_customer_id` | String(255) | For future Stripe integration |
+| `invoices` | `sent_to_email` | String(255) | Track where invoice was sent |
+
+#### PDF Generation Service
+
+**File:** `api/app/services/pdf_service.py` (NEW - ~350 lines)
+
+- Professional HTML invoice template with FinClear branding
+- PDFShift API integration for HTML→PDF conversion
+- Graceful fallback to HTML preview when PDFShift not configured
+- Includes: invoice summary, line items table, payment instructions, totals
+
+#### Invoice Email Templates
+
+**File:** `api/app/services/email_service.py` (UPDATED)
+
+New functions:
+- `get_invoice_email_html()` - Professional invoice notification email
+- `get_invoice_email_text()` - Plain text fallback
+- `send_invoice_email()` - Complete invoice delivery function
+
+Email includes: invoice summary card, amount due, due date, payment options, view link.
+
+#### New API Endpoints
+
+**File:** `api/app/routes/billing.py` (UPDATED)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/billing/admin/invoices/{id}/send-email` | Send invoice to company billing contact |
+| GET | `/billing/admin/invoices/{id}/pdf` | Generate/download invoice PDF |
+| GET | `/billing/my/invoices/{id}/pdf` | Client download own invoice PDF |
+
+#### Frontend Updates
+
+**Admin Billing Page** (`/app/admin/billing`):
+- ✅ "Download PDF" button in invoice dropdown
+- ✅ "Send Invoice" / "Resend Email" button in invoice dropdown
+- ✅ PDF and Email buttons in invoice detail dialog
+- ✅ Fixed TypeScript `float` → `number` bug (line 108)
+
+**Client Billing Page** (`/app/billing`):
+- ✅ PDF download button on each invoice row
+- ✅ "Download PDF" button in invoice detail dialog
+
+#### Configuration
+
+New environment variables:
+```env
+PDFSHIFT_API_KEY=your_pdfshift_api_key
+PDFSHIFT_ENABLED=true
+```
+
+#### Billing Tier Model
+
+| Tier | Name | Behavior |
+|------|------|----------|
+| `invoice_only` | Trusted | Invoice sent. Payment on their terms (Net 30). No card required. |
+| `hybrid` | Standard | Invoice sent with Net 10. If unpaid after terms, auto-charge card on file. |
+| `subscription` | Subscription | Monthly flat fee + per-filing overages. (Phase 2 - NOT in this PR) |
+
+#### Files Created/Modified
+
+| File | Change |
+|------|--------|
+| `api/alembic/versions/20260203_000001_*.py` | NEW - Migration for billing_type, stripe_customer_id, sent_to_email |
+| `api/app/models/company.py` | Added billing_type, stripe_customer_id |
+| `api/app/models/invoice.py` | Added sent_to_email |
+| `api/app/config.py` | Added PDFSHIFT_API_KEY, PDFSHIFT_ENABLED, pdfshift_configured property |
+| `api/app/services/pdf_service.py` | NEW - PDF generation service |
+| `api/app/services/email_service.py` | Added invoice email templates |
+| `api/app/routes/billing.py` | Added send-email and pdf endpoints |
+| `web/app/(app)/app/admin/billing/page.tsx` | Email/PDF buttons, fixed TypeScript bug |
+| `web/app/(app)/app/billing/page.tsx` | PDF download button |
+
+**Status:** ✅ Killed (BILLING SHARK 🦈)
+
+---
+
 ## Summary Update
 
 | Category | Count |
 |----------|-------|
-| 🔴 Critical Features | 4 |
+| 🔴 Critical Features | 5 |
 | 🟠 Major Features | 1 |
 | 🎨 UX/Design | 2 |
 | 🔧 Configuration | 3 |
 | 📄 Documentation | 3 |
 
-**Total Sharks Killed (Vol 2): 11 🦈 + 1 Hardening Addendum**
+**Total Sharks Killed (Vol 2): 12 🦈 + 1 Hardening Addendum**
 
 ---
 
@@ -1243,11 +1341,12 @@ Updated `api/app/scripts/fincen_sdtm_ping.py` to auto-load `.env` file for local
 
 1. **P0:** Verify sandbox credentials with FinCEN (authentication failed in test)
 2. **P0:** Run dry-run against production database once credentials verified
-3. **P1:** Billing Phase 2 - Subscription billing model
-4. **P1:** Entity Enhancements Phase 2 - Backend storage of new fields
-5. **P2:** Add property type validation against SiteX data
-6. **P2:** Stripe integration for payments
-7. ~~**P3:** Admin debug UI for SDTM submissions~~ ✅ Done (backend endpoints)
+3. **P1:** Configure PDFShift API key in Render environment
+4. **P1:** Billing Phase 2 - Subscription billing model (if needed)
+5. **P1:** Entity Enhancements Phase 2 - Backend storage of new fields
+6. **P2:** Add property type validation against SiteX data
+7. **P2:** Stripe integration for hybrid tier auto-charge
+8. ~~**P3:** Admin debug UI for SDTM submissions~~ ✅ Done (backend endpoints)
 
 ---
 

@@ -33,9 +33,11 @@ class Company(Base):
     phone = Column(String(50), nullable=True)
     
     # Billing configuration
+    billing_type = Column(String(50), nullable=False, server_default="invoice_only")  # invoice_only, hybrid, subscription
     filing_fee_cents = Column(Integer, nullable=False, server_default="7500")  # $75.00 default
     payment_terms_days = Column(Integer, nullable=False, server_default="30")  # Net 30 default
     billing_notes = Column(Text, nullable=True)  # Internal notes about billing arrangements
+    stripe_customer_id = Column(String(255), nullable=True)  # For hybrid tier auto-charge
     
     # Status
     status = Column(String(50), nullable=False, server_default="active")  # active, suspended, inactive

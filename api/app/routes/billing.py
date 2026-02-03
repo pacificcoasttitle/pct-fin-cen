@@ -16,12 +16,16 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
+from fastapi.responses import Response
+
 from app.database import get_db
 from app.models.company import Company
 from app.models.user import User
 from app.models.invoice import Invoice
 from app.models.billing_event import BillingEvent
 from app.services.audit import log_event, log_change
+from app.services.email_service import send_invoice_email, SENDGRID_ENABLED, FRONTEND_URL
+from app.services.pdf_service import generate_invoice_pdf
 
 router = APIRouter(prefix="/billing", tags=["billing"])
 
@@ -813,3 +817,253 @@ async def update_company_rate(
         "billing_notes": company.billing_notes,
         "message": "Billing rate updated successfully",
     }
+
+
+# ============================================================================
+# INVOICE EMAIL & PDF ENDPOINTS
+# ============================================================================
+
+@router.post("/admin/invoices/{invoice_id}/send-email")
+async def send_invoice_email_endpoint(
+    invoice_id: str,
+    db: Session = Depends(get_db),
+):
+    """
+    Send invoice email to company billing contact.
+    Updates invoice status to 'sent' and records sent_to_email.
+    """
+    invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    
+    company = db.query(Company).filter(Company.id == invoice.company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    # Determine recipient email
+    to_email = company.billing_email
+    if not to_email:
+        raise HTTPException(
+            status_code=400,
+            detail="Company has no billing email configured. Please add a billing email first."
+        )
+    
+    # Format dates
+    def fmt_date(d):
+        if d:
+            return d.strftime("%B %d, %Y")
+        return "N/A"
+    
+    # Build view link
+    view_link = f"{FRONTEND_URL}/app/billing"
+    
+    # Send email
+    result = send_invoice_email(
+        to_email=to_email,
+        company_name=company.name,
+        invoice_number=invoice.invoice_number,
+        total_dollars=invoice.total_cents / 100.0,
+        due_date=fmt_date(invoice.due_date),
+        period_start=fmt_date(invoice.period_start),
+        period_end=fmt_date(invoice.period_end),
+        view_link=view_link,
+    )
+    
+    if result.success:
+        # Update invoice
+        old_status = invoice.status
+        if invoice.status == "draft":
+            invoice.status = "sent"
+        invoice.sent_at = datetime.utcnow()
+        invoice.sent_to_email = to_email
+        
+        # Audit log
+        log_event(
+            db=db,
+            entity_type="invoice",
+            entity_id=str(invoice.id),
+            event_type="invoice.email_sent",
+            actor_type="admin",
+            details={
+                "invoice_number": invoice.invoice_number,
+                "sent_to": to_email,
+                "message_id": result.message_id,
+                "old_status": old_status,
+                "new_status": invoice.status,
+            },
+            company_id=str(company.id),
+        )
+        
+        db.commit()
+        
+        return {
+            "success": True,
+            "message": f"Invoice emailed to {to_email}",
+            "message_id": result.message_id,
+            "status": invoice.status,
+            "sendgrid_enabled": SENDGRID_ENABLED,
+        }
+    else:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to send email: {result.error}"
+        )
+
+
+@router.get("/admin/invoices/{invoice_id}/pdf")
+async def get_invoice_pdf(
+    invoice_id: str,
+    db: Session = Depends(get_db),
+):
+    """
+    Generate and return invoice PDF.
+    Returns PDF file directly for download.
+    """
+    invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    
+    company = db.query(Company).filter(Company.id == invoice.company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    # Get line items
+    events = db.query(BillingEvent).filter(
+        BillingEvent.invoice_id == invoice.id
+    ).order_by(BillingEvent.created_at).all()
+    
+    line_items = [
+        {
+            "description": e.description or f"Filing Fee - {e.bsa_id or 'N/A'}",
+            "quantity": e.quantity,
+            "amount_cents": e.amount_cents,
+            "total_cents": e.amount_cents * e.quantity,
+        }
+        for e in events
+    ]
+    
+    # Generate PDF
+    result = await generate_invoice_pdf(
+        invoice_number=invoice.invoice_number,
+        company_name=company.name,
+        company_address=company.address or {},
+        billing_email=company.billing_email or "",
+        period_start=invoice.period_start.isoformat() if invoice.period_start else "",
+        period_end=invoice.period_end.isoformat() if invoice.period_end else "",
+        due_date=invoice.due_date.isoformat() if invoice.due_date else "",
+        line_items=line_items,
+        subtotal_cents=invoice.subtotal_cents,
+        tax_cents=invoice.tax_cents,
+        discount_cents=invoice.discount_cents,
+        total_cents=invoice.total_cents,
+        status=invoice.status,
+        payment_terms_days=company.payment_terms_days or 30,
+        notes=invoice.notes,
+    )
+    
+    if result.pdf_bytes:
+        # Return actual PDF
+        return Response(
+            content=result.pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{invoice.invoice_number}.pdf"'
+            }
+        )
+    elif result.html_content:
+        # Return HTML as fallback (for preview when PDFShift not configured)
+        return Response(
+            content=result.html_content,
+            media_type="text/html",
+            headers={
+                "X-PDF-Fallback": "true",
+                "X-PDF-Error": result.error or "PDFShift not configured"
+            }
+        )
+    else:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate invoice: {result.error}"
+        )
+
+
+@router.get("/my/invoices/{invoice_id}/pdf")
+async def get_my_invoice_pdf(
+    invoice_id: str,
+    db: Session = Depends(get_db),
+):
+    """
+    Generate and return invoice PDF for client's own invoice.
+    """
+    user = get_demo_user(db)
+    if not user or not user.company_id:
+        raise HTTPException(status_code=401, detail="No company associated with user")
+    
+    invoice = db.query(Invoice).filter(
+        Invoice.id == invoice_id,
+        Invoice.company_id == user.company_id
+    ).first()
+    
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    
+    company = db.query(Company).filter(Company.id == invoice.company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    # Get line items
+    events = db.query(BillingEvent).filter(
+        BillingEvent.invoice_id == invoice.id
+    ).order_by(BillingEvent.created_at).all()
+    
+    line_items = [
+        {
+            "description": e.description or f"Filing Fee - {e.bsa_id or 'N/A'}",
+            "quantity": e.quantity,
+            "amount_cents": e.amount_cents,
+            "total_cents": e.amount_cents * e.quantity,
+        }
+        for e in events
+    ]
+    
+    # Generate PDF
+    result = await generate_invoice_pdf(
+        invoice_number=invoice.invoice_number,
+        company_name=company.name,
+        company_address=company.address or {},
+        billing_email=company.billing_email or "",
+        period_start=invoice.period_start.isoformat() if invoice.period_start else "",
+        period_end=invoice.period_end.isoformat() if invoice.period_end else "",
+        due_date=invoice.due_date.isoformat() if invoice.due_date else "",
+        line_items=line_items,
+        subtotal_cents=invoice.subtotal_cents,
+        tax_cents=invoice.tax_cents,
+        discount_cents=invoice.discount_cents,
+        total_cents=invoice.total_cents,
+        status=invoice.status,
+        payment_terms_days=company.payment_terms_days or 30,
+        notes=invoice.notes,
+    )
+    
+    if result.pdf_bytes:
+        return Response(
+            content=result.pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{invoice.invoice_number}.pdf"'
+            }
+        )
+    elif result.html_content:
+        return Response(
+            content=result.html_content,
+            media_type="text/html",
+            headers={
+                "X-PDF-Fallback": "true",
+                "X-PDF-Error": result.error or "PDFShift not configured"
+            }
+        )
+    else:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate invoice: {result.error}"
+        )
