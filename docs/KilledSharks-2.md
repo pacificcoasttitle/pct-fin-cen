@@ -8,13 +8,13 @@
 
 | Category | Count |
 |----------|-------|
-| 🔴 Critical Features | 7 |
+| 🔴 Critical Features | 8 |
 | 🟠 Major Features | 1 |
 | 🎨 UX/Design | 2 |
 | 🔧 Configuration | 3 |
 | 📄 Documentation | 3 |
 
-**Total Sharks Killed (Vol 2): 14 🦈 + 1 Hardening Addendum**
+**Total Sharks Killed (Vol 2): 15 🦈 + 1 Hardening Addendum**
 
 ---
 
@@ -1472,17 +1472,67 @@ All client-side features now work correctly:
 
 ---
 
+### 56. Auto-Seed Demo Users on Startup ✅
+
+**Date:** February 3, 2026
+
+**Problem:**
+Database had 1 company but **ZERO users**. The demo auth fix (#55) correctly looked up users in the database, but found nothing because the seed was never run. Login showed "User not found" for all demo accounts.
+
+**Root Cause:**
+- The `POST /demo/reset` endpoint exists and seeds users, but requires `X-DEMO-SECRET` header
+- No one ever called that endpoint after the database was created
+- No auto-seed mechanism existed
+
+**Solution:**
+Added a **lifespan startup hook** that:
+1. Checks if `ENVIRONMENT=staging`
+2. Queries users table count
+3. If count == 0, calls `seed_demo_data()` to create all demo users
+4. Logs the result
+
+**Files Modified:**
+
+| File | Change |
+|------|--------|
+| `api/app/main.py` | Added `lifespan` context manager with `auto_seed_if_empty()` |
+
+**What Gets Created:**
+
+| Email | Name | Role | Company |
+|-------|------|------|---------|
+| `coo@pct.com` | James Richardson | coo | null |
+| `admin@pctfincen.com` | Sarah Mitchell | pct_admin | null |
+| `staff@pctfincen.com` | Michael Chen | pct_staff | null |
+| `admin@demotitle.com` | Jennifer Walsh | client_admin | Pacific Coast Title |
+| `user@demotitle.com` | David Park | client_user | Pacific Coast Title |
+| `admin@acmetitle.com` | Robert Johnson | client_admin | Acme Title & Escrow |
+
+**Verification:**
+After deploy, check `/health` endpoint:
+```json
+{
+  "status": "ok",
+  "users": 6,
+  "environment": "staging"
+}
+```
+
+**Status:** ✅ Killed (AUTO-SEED SHARK 🦈)
+
+---
+
 ## Summary Update
 
 | Category | Count |
 |----------|-------|
-| 🔴 Critical Features | 7 |
+| 🔴 Critical Features | 8 |
 | 🟠 Major Features | 1 |
 | 🎨 UX/Design | 2 |
 | 🔧 Configuration | 3 |
 | 📄 Documentation | 3 |
 
-**Total Sharks Killed (Vol 2): 14 🦈 + 1 Hardening Addendum**
+**Total Sharks Killed (Vol 2): 15 🦈 + 1 Hardening Addendum**
 
 ---
 
@@ -1499,4 +1549,4 @@ All client-side features now work correctly:
 
 ---
 
-*Last updated: February 3, 2026 (Shark #55)*
+*Last updated: February 3, 2026 (Shark #56)*

@@ -1,6 +1,7 @@
 """
 PCT FinCEN API - FastAPI Backend
 """
+from contextlib import asynccontextmanager
 from datetime import datetime
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,15 +9,63 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.database import get_db
+from app.database import get_db, SessionLocal
 from app.routes import reports_router, parties_router, demo_router, admin_router, submission_requests_router, invoices_router, companies_router, users_router, sidebar_router, documents_router, audit_router, property_router, billing_router, auth_router
 
 settings = get_settings()
+
+
+def auto_seed_if_empty():
+    """
+    Auto-seed demo data if the users table is empty.
+    Only runs in staging environment.
+    
+    This ensures demo accounts exist on first deploy without manual intervention.
+    """
+    if settings.ENVIRONMENT != "staging":
+        print(f"⏭️  Auto-seed skipped: ENVIRONMENT={settings.ENVIRONMENT} (not staging)")
+        return
+    
+    db = SessionLocal()
+    try:
+        # Check if users table is empty
+        from app.models.user import User
+        user_count = db.query(User).count()
+        
+        if user_count == 0:
+            print("🌱 Users table is empty — auto-seeding demo data...")
+            from app.services.demo_seed import seed_demo_data
+            result = seed_demo_data(db)
+            print(f"✅ Auto-seed complete: {result.get('requests_created', 0)} requests, users created")
+        else:
+            print(f"✅ Database has {user_count} users — skipping auto-seed")
+    except Exception as e:
+        print(f"⚠️  Auto-seed failed: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Lifespan context manager for startup/shutdown events.
+    """
+    # Startup
+    print(f"🚀 Starting PCT FinCEN API (environment: {settings.ENVIRONMENT})")
+    auto_seed_if_empty()
+    
+    yield
+    
+    # Shutdown
+    print("👋 Shutting down PCT FinCEN API")
+
 
 app = FastAPI(
     title="PCT FinCEN API",
     description="Backend API for Pacific Coast Title FinCEN BOIR Questionnaire",
     version=settings.APP_VERSION,
+    lifespan=lifespan,
 )
 
 # Configure CORS
@@ -58,9 +107,20 @@ async def root():
 
 
 @app.get("/health")
-async def health_check():
+async def health_check(db: Session = Depends(get_db)):
     """Health check endpoint for monitoring and load balancers."""
-    return {"status": "ok"}
+    # Quick check of user count for debugging
+    try:
+        from app.models.user import User
+        user_count = db.query(User).count()
+    except Exception:
+        user_count = -1  # Error querying
+    
+    return {
+        "status": "ok",
+        "users": user_count,
+        "environment": settings.ENVIRONMENT,
+    }
 
 
 @app.get("/version")
