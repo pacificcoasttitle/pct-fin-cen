@@ -22,28 +22,46 @@ def auto_seed_if_empty():
     
     This ensures demo accounts exist on first deploy without manual intervention.
     """
+    import traceback
+    
     if settings.ENVIRONMENT != "staging":
         print(f"⏭️  Auto-seed skipped: ENVIRONMENT={settings.ENVIRONMENT} (not staging)")
         return
+    
+    print("🔍 Checking if auto-seed is needed...")
     
     db = SessionLocal()
     try:
         # Check if users table is empty
         from app.models.user import User
         user_count = db.query(User).count()
+        print(f"   Current user count: {user_count}")
         
         if user_count == 0:
             print("🌱 Users table is empty — auto-seeding demo data...")
             from app.services.demo_seed import seed_demo_data
             result = seed_demo_data(db)
-            print(f"✅ Auto-seed complete: {result.get('requests_created', 0)} requests, users created")
+            
+            # Verify it worked
+            new_count = db.query(User).count()
+            print(f"✅ Auto-seed complete!")
+            print(f"   - Users created: {new_count}")
+            print(f"   - Requests: {result.get('requests_created', 0)}")
+            print(f"   - Reports: {result.get('reports_created', 0)}")
         else:
             print(f"✅ Database has {user_count} users — skipping auto-seed")
     except Exception as e:
-        print(f"⚠️  Auto-seed failed: {e}")
-        db.rollback()
+        print(f"❌ Auto-seed FAILED: {e}")
+        print(f"   Traceback: {traceback.format_exc()}")
+        try:
+            db.rollback()
+        except:
+            pass
     finally:
-        db.close()
+        try:
+            db.close()
+        except:
+            pass
 
 
 @asynccontextmanager

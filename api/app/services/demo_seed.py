@@ -381,12 +381,12 @@ def seed_demo_data(db: Session) -> Dict[str, Any]:
         party_role="transferor",
         entity_type="individual",
         display_name="Margaret Chen",
-        email="mchen@email.com",
         status="submitted",
         submitted_at=datetime.utcnow() - timedelta(hours=12),
         party_data={
             "first_name": "Margaret",
             "last_name": "Chen",
+            "email": "mchen@email.com",
             "date_of_birth": "1968-03-15",
             "ssn_last_four": "6789",
             "citizenship": "us_citizen",
@@ -402,9 +402,8 @@ def seed_demo_data(db: Session) -> Dict[str, Any]:
         party_role="transferee",
         entity_type="entity",
         display_name="Empire State Holdings LLC",
-        email="legal@empireholdings.com",
         status="pending",
-        party_data={},
+        party_data={"email": "legal@empireholdings.com"},
     )
     db.add(party3_buyer)
     db.flush()
@@ -483,12 +482,12 @@ def seed_demo_data(db: Session) -> Dict[str, Any]:
         party_role="transferor",
         entity_type="individual",
         display_name="Carlos Rodriguez",
-        email="crodriguez@email.com",
         status="submitted",
         submitted_at=datetime.utcnow() - timedelta(days=2),
         party_data={
             "first_name": "Carlos",
             "last_name": "Rodriguez",
+            "email": "crodriguez@email.com",
             "certified": True,
         },
     )
@@ -500,12 +499,12 @@ def seed_demo_data(db: Session) -> Dict[str, Any]:
         party_role="transferee",
         entity_type="entity",
         display_name="Sunshine Ventures LLC",
-        email="acquisitions@sunshineventures.com",
         status="submitted",
         submitted_at=datetime.utcnow() - timedelta(days=1),
         party_data={
             "entity_name": "Sunshine Ventures LLC",
             "ein": "87-1234567",
+            "email": "acquisitions@sunshineventures.com",
             "certified": True,
         },
     )
@@ -572,10 +571,9 @@ def seed_demo_data(db: Session) -> Dict[str, Any]:
         party_role="transferor",
         entity_type="individual",
         display_name="Jennifer Walsh",
-        email="jwalsh@email.com",
         status="submitted",
         submitted_at=datetime.utcnow() - timedelta(days=10),
-        party_data={"first_name": "Jennifer", "last_name": "Walsh", "certified": True},
+        party_data={"first_name": "Jennifer", "last_name": "Walsh", "email": "jwalsh@email.com", "certified": True},
     )
     db.add(party5_seller)
     
@@ -584,10 +582,9 @@ def seed_demo_data(db: Session) -> Dict[str, Any]:
         party_role="transferee",
         entity_type="entity",
         display_name="Sunset Entertainment Group",
-        email="legal@sunsetent.com",
         status="submitted",
         submitted_at=datetime.utcnow() - timedelta(days=9),
-        party_data={"entity_name": "Sunset Entertainment Group", "certified": True},
+        party_data={"entity_name": "Sunset Entertainment Group", "email": "legal@sunsetent.com", "certified": True},
     )
     db.add(party5_buyer)
     
