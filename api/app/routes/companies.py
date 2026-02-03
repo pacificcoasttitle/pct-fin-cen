@@ -139,7 +139,7 @@ async def get_my_company(
     """
     # In demo mode, get a demo client user
     # In production, get from auth context
-    demo_user = db.query(User).filter(User.email == "admin@demoescrow.com").first()
+    demo_user = db.query(User).filter(User.email == "admin@demotitle.com").first()
     if not demo_user:
         # Fallback: get any client user
         demo_user = db.query(User).filter(User.role.in_(["client_admin", "client_user"])).first()
@@ -187,7 +187,7 @@ async def update_my_company(
     """
     # In demo mode, get a demo client admin
     demo_user = db.query(User).filter(
-        User.email == "admin@demoescrow.com",
+        User.email == "admin@demotitle.com",
         User.role == "client_admin"
     ).first()
     if not demo_user:
