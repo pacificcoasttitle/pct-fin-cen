@@ -8,13 +8,13 @@
 
 | Category | Count |
 |----------|-------|
-| 🔴 Critical Features | 8 |
+| 🔴 Critical Features | 9 |
 | 🟠 Major Features | 1 |
 | 🎨 UX/Design | 2 |
 | 🔧 Configuration | 3 |
 | 📄 Documentation | 3 |
 
-**Total Sharks Killed (Vol 2): 15 🦈 + 1 Hardening Addendum**
+**Total Sharks Killed (Vol 2): 16 🦈 + 1 Hardening Addendum**
 
 ---
 
@@ -1536,6 +1536,78 @@ After deploy, check `/health` endpoint:
 
 ---
 
+### 57. Party Portal Data Bridge + Auto-Transition ✅
+
+**Date:** February 3, 2026
+
+**Problem:** Party portal collected all required RERX data but stored it in `ReportParty.party_data`. The RERX builder read from `report.wizard_data.collection`. No sync existed between these two locations, meaning portal-submitted data never reached the XML generator.
+
+**Root Cause:**
+- Portal writes to: `ReportParty.party_data` (JSONB)
+- RERX builder reads from: `report.wizard_data.collection` (different JSONB column)
+- No synchronization between these two data stores
+- Additionally, portal uses snake_case (`first_name`), wizard uses camelCase (`firstName`)
+
+**Solution:**
+
+Created `api/app/services/party_data_sync.py` that:
+1. Loads all ReportParty records for a report
+2. Maps portal snake_case fields to wizard camelCase structure
+3. Handles format conversions (SSN hyphens, phone normalization, country codes)
+4. Preserves non-party fields in wizard_data (reportingPerson, propertyAddress)
+5. Sets `determination.buyerType` based on transferee entity_type
+
+**Sync is triggered:**
+- Automatically when a party submits via the portal
+- As a pre-filing safety net before RERX XML generation
+
+**Additional Features Implemented:**
+
+| Feature | Description |
+|---------|-------------|
+| Auto-transition to `ready_to_file` | When all parties have status `submitted`, report automatically transitions to `ready_to_file` |
+| Link resend endpoint | `POST /party/staff/resend-link/{party_id}` — Regenerates or resends portal links |
+| Staff notification template | Email template for notifying staff when parties complete |
+| Audit logging | All syncs and status changes are logged for traceability |
+
+**Files Created:**
+
+| File | Lines | Purpose |
+|------|-------|---------|
+| `api/app/services/party_data_sync.py` | ~450 | Sync function with field mapping logic |
+
+**Files Modified:**
+
+| File | Change |
+|------|--------|
+| `api/app/routes/parties.py` | Added sync on submit, auto-transition, resend endpoint |
+| `api/app/services/filing_lifecycle.py` | Added pre-filing safety net sync |
+| `api/app/services/email_service.py` | Added `send_party_submitted_notification()` |
+
+**Data Flow After Fix:**
+
+```
+Portal Submit
+    │
+    ▼
+party.party_data = {...}  ──► sync_party_data_to_wizard()
+                                        │
+                                        ▼
+                               wizard_data.collection = {
+                                   buyerEntity: { ... },
+                                   sellers: [ ... ],
+                                   paymentSources: [ ... ],
+                                   _portal_synced_at: "2026-02-03T..."
+                               }
+                                        │
+                                        ▼
+                               build_rerx_xml() reads wizard_data ✅
+```
+
+**Status:** ✅ Killed (BRIDGE SHARK 🦈)
+
+---
+
 ## Next Steps
 
 1. **P0:** Verify sandbox credentials with FinCEN (authentication failed in test)
@@ -1549,4 +1621,4 @@ After deploy, check `/health` endpoint:
 
 ---
 
-*Last updated: February 3, 2026 (Shark #56)*
+*Last updated: February 3, 2026 (Shark #57)*

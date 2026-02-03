@@ -497,6 +497,26 @@ def perform_sdtm_submit(
     snapshot["attempt"] = submission.attempts
     
     # ═══════════════════════════════════════════════════════════════════════════
+    # PRE-FILING SAFETY NET: Sync party portal data to wizard_data (Shark #57)
+    # ═══════════════════════════════════════════════════════════════════════════
+    
+    try:
+        from app.services.party_data_sync import sync_party_data_to_wizard
+        sync_result = sync_party_data_to_wizard(db, str(report_id))
+        logger.info(f"SDTM: Pre-filing sync completed: {sync_result}")
+        snapshot["party_sync"] = sync_result
+        
+        if sync_result.get("errors"):
+            logger.warning(f"SDTM: Pre-filing sync warnings: {sync_result['errors']}")
+        
+        # Refresh report to pick up synced wizard_data
+        db.refresh(report)
+    except Exception as e:
+        logger.warning(f"SDTM: Pre-filing sync failed (non-fatal): {e}")
+        snapshot["party_sync_error"] = str(e)
+        # Continue anyway — the wizard_data may already have the data
+    
+    # ═══════════════════════════════════════════════════════════════════════════
     # Build RERX XML (Real Estate Report per Dec 2025 FinCEN spec)
     # ═══════════════════════════════════════════════════════════════════════════
     

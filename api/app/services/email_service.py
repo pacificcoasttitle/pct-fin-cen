@@ -724,3 +724,89 @@ def send_party_confirmation(
     )
     
     return send_email(to_email, subject, html_content, text_content)
+
+
+def send_party_submitted_notification(
+    staff_email: str,
+    party_name: str,
+    party_role: str,
+    property_address: str,
+    report_id: str,
+    all_complete: bool = False,
+) -> EmailResult:
+    """
+    Notify staff when a party submits their portal form.
+    
+    Args:
+        staff_email: Staff member's email address
+        party_name: Name of the party who submitted
+        party_role: Role (transferee/transferor)
+        property_address: Property address for context
+        report_id: Report ID for linking to admin UI
+        all_complete: If true, ALL parties for this report are now submitted
+    
+    Returns:
+        EmailResult with success status and message_id
+    """
+    role_display = "Buyer" if party_role == "transferee" else "Seller"
+    
+    if all_complete:
+        subject = f"✅ All Parties Complete — Ready for Review: {property_address}"
+    else:
+        subject = f"Party Submitted: {party_name} ({role_display})"
+    
+    # HTML email content
+    html_content = f'''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.5; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 30px; border-radius: 12px 12px 0 0;">
+            <h1 style="color: #fff; margin: 0; font-size: 24px;">
+                {"✅ All Parties Complete" if all_complete else "Party Submitted"}
+            </h1>
+        </div>
+        
+        <div style="background: #fff; padding: 30px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px;">
+            <p style="font-size: 16px; margin-bottom: 20px;">
+                <strong>{party_name}</strong> ({role_display}) has submitted their information for:
+            </p>
+            
+            <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                <p style="margin: 0; font-weight: 600;">{property_address}</p>
+            </div>
+            
+            {"<p style='color: #059669; font-weight: 600;'>🎉 All parties have now submitted. This report is ready for review and filing.</p>" if all_complete else ""}
+            
+            <a href="https://fincenclear.com/app/staff/requests/{report_id}" 
+               style="display: inline-block; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #fff; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; margin-top: 10px;">
+                View Report →
+            </a>
+        </div>
+        
+        <div style="text-align: center; padding: 20px; color: #64748b; font-size: 12px;">
+            <p>FinClear Solutions — Automated notification</p>
+        </div>
+    </body>
+    </html>
+    '''
+    
+    # Plain text version
+    text_content = f'''
+Party Submitted: {party_name}
+
+{party_name} ({role_display}) has submitted their information for:
+{property_address}
+
+{"✅ ALL PARTIES COMPLETE — Ready for review and filing." if all_complete else ""}
+
+View the report: https://fincenclear.com/app/staff/requests/{report_id}
+
+---
+FinClear Solutions — Automated notification
+    '''
+    
+    return send_email(staff_email, subject, html_content, text_content)

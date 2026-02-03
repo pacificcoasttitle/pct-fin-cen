@@ -1,17 +1,24 @@
 """
 Party API routes (public-facing for token-based access).
 """
-from datetime import datetime
+import logging
+from datetime import datetime, timedelta
 from typing import Optional
+import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import PartyLink, ReportParty, AuditLog
+from app.models import PartyLink, ReportParty, AuditLog, Report
 from app.schemas.party import PartyResponse, PartySave, PartySubmitResponse, ReportSummary
 from app.services.notifications import log_notification, send_party_confirmation_notification
 from app.services.audit import log_event, ENTITY_PARTY_LINK, EVENT_PARTY_LINK_OPENED
+from app.services.party_data_sync import sync_party_data_to_wizard
+from app.services.email_service import send_party_submitted_notification
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/party", tags=["party"])
 
@@ -252,6 +259,76 @@ def submit_party_data(
             },
         )
     
+    db.flush()  # Flush to ensure party.status is saved before sync
+    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # SYNC PORTAL DATA TO wizard_data FOR RERX BUILDER (Shark #57)
+    # ═══════════════════════════════════════════════════════════════════════════
+    try:
+        sync_result = sync_party_data_to_wizard(db, str(report.id))
+        logger.info(f"[PARTY_SUBMIT] Portal data synced: {sync_result}")
+        
+        # Store sync result in audit log
+        audit_sync = AuditLog(
+            report_id=report.id,
+            actor_type="system",
+            action="party.data_synced",
+            details={
+                "party_id": str(party.id),
+                "sync_result": sync_result,
+            },
+        )
+        db.add(audit_sync)
+    except Exception as e:
+        logger.exception(f"[PARTY_SUBMIT] Sync failed for report {report.id}: {e}")
+        # Don't fail the submission if sync fails — log and continue
+    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # AUTO-TRANSITION TO ready_to_file IF ALL PARTIES SUBMITTED
+    # ═══════════════════════════════════════════════════════════════════════════
+    all_parties = db.query(ReportParty).filter(
+        ReportParty.report_id == report.id
+    ).all()
+    
+    all_submitted = all(p.status in ("submitted", "verified") for p in all_parties)
+    
+    if all_submitted and len(all_parties) > 0:
+        if report.status == "collecting":
+            report.status = "ready_to_file"
+            report.updated_at = datetime.utcnow()
+            logger.info(f"[PARTY_SUBMIT] All {len(all_parties)} parties submitted. "
+                        f"Report {report.id} → ready_to_file")
+            
+            # Audit log the status change
+            audit_status = AuditLog(
+                report_id=report.id,
+                actor_type="system",
+                action="report.status_changed",
+                details={
+                    "old_status": "collecting",
+                    "new_status": "ready_to_file",
+                    "reason": "all_parties_submitted",
+                    "party_count": len(all_parties),
+                },
+            )
+            db.add(audit_status)
+    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # NOTIFY STAFF OF PARTY SUBMISSION
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Note: In production, we would look up the assigned staff member
+    # For now, we skip the notification if no staff email is available
+    # TODO: Add report.assigned_to or fetch staff email from settings
+    try:
+        # Only send "all complete" notifications for now (most important)
+        if all_submitted and len(all_parties) > 0:
+            # Placeholder: In production, get assigned staff email or use a queue email
+            # staff_email = report.assigned_to.email if report.assigned_to else None
+            # For now, log the intent but don't send (no staff email configured)
+            logger.info(f"[PARTY_SUBMIT] Would send 'all parties complete' notification for report {report.id}")
+    except Exception as e:
+        logger.warning(f"[PARTY_SUBMIT] Staff notification failed: {e}")
+    
     db.commit()
     
     return PartySubmitResponse(
@@ -261,3 +338,130 @@ def submit_party_data(
         confirmation_id=confirmation_id,
         message="Thank you! Your information has been submitted successfully.",
     )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# STAFF ENDPOINTS (require authentication in production)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class ResendLinkRequest(BaseModel):
+    allow_resubmission: bool = False  # If true, reset party status to allow resubmission
+
+
+class ResendLinkResponse(BaseModel):
+    party_id: str
+    new_token: Optional[str] = None
+    existing_token: Optional[str] = None
+    link_url: str
+    expires_at: datetime
+    message: str
+
+
+@router.post("/staff/resend-link/{party_id}", response_model=ResendLinkResponse)
+def resend_party_link(
+    party_id: str,
+    request_body: ResendLinkRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """
+    Resend or regenerate a party portal link.
+    
+    - If existing link is still active and not expired: resend same link
+    - If expired or used: generate new token, revoke old link
+    - If allow_resubmission=True: reset party status to allow resubmission
+    
+    Note: In production, this should require staff/admin authentication.
+    """
+    # Find the party
+    party = db.query(ReportParty).filter(ReportParty.id == party_id).first()
+    if not party:
+        raise HTTPException(status_code=404, detail="Party not found")
+    
+    # Find existing link
+    existing_link = db.query(PartyLink).filter(
+        PartyLink.party_id == party.id
+    ).order_by(PartyLink.created_at.desc()).first()
+    
+    report = party.report
+    now = datetime.utcnow()
+    
+    # Determine if we can reuse existing link
+    can_reuse = (
+        existing_link and
+        existing_link.status == "active" and
+        existing_link.expires_at > now
+    )
+    
+    if can_reuse and not request_body.allow_resubmission:
+        # Resend existing link
+        link_url = f"{_get_portal_base_url()}/p/{existing_link.token}"
+        
+        logger.info(f"[RESEND_LINK] Reusing existing link for party {party_id}")
+        
+        return ResendLinkResponse(
+            party_id=str(party.id),
+            existing_token=existing_link.token,
+            link_url=link_url,
+            expires_at=existing_link.expires_at,
+            message="Existing link is still valid. Email can be resent.",
+        )
+    
+    # Generate new link
+    if existing_link:
+        existing_link.status = "revoked"
+        logger.info(f"[RESEND_LINK] Revoked old link for party {party_id}")
+    
+    # Create new token
+    new_token = secrets.token_urlsafe(32)
+    expires_at = now + timedelta(days=7)  # 7 day expiration
+    
+    new_link = PartyLink(
+        party_id=party.id,
+        token=new_token,
+        status="active",
+        expires_at=expires_at,
+    )
+    db.add(new_link)
+    
+    # Reset party status if requested
+    if request_body.allow_resubmission:
+        if party.status == "submitted":
+            party.status = "link_sent"
+            party.updated_at = now
+            logger.info(f"[RESEND_LINK] Reset party {party_id} status to link_sent")
+    
+    # Audit log
+    audit = AuditLog(
+        report_id=report.id if report else None,
+        actor_type="staff",
+        action="party_link.resent",
+        details={
+            "party_id": str(party.id),
+            "old_link_revoked": existing_link is not None,
+            "allow_resubmission": request_body.allow_resubmission,
+            "new_token_prefix": new_token[:8] + "...",
+        },
+        ip_address=get_client_ip(request),
+    )
+    db.add(audit)
+    
+    db.commit()
+    
+    link_url = f"{_get_portal_base_url()}/p/{new_token}"
+    
+    return ResendLinkResponse(
+        party_id=str(party.id),
+        new_token=new_token,
+        link_url=link_url,
+        expires_at=expires_at,
+        message="New link generated. Old link revoked." + 
+                (" Party can resubmit." if request_body.allow_resubmission else ""),
+    )
+
+
+def _get_portal_base_url() -> str:
+    """Get the base URL for the portal. Configure via env in production."""
+    import os
+    return os.getenv("PORTAL_BASE_URL", "https://fincenclear.com")
