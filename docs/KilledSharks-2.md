@@ -1063,6 +1063,69 @@ acked_filename = f"{filename}.ACK"  # CRITICAL: .ACK not .ACKED
 
 ---
 
+## 🔧 Pre-Sandbox Readiness Scripts
+
+**Date:** February 2, 2026
+
+Created utility scripts for pre-submission validation while waiting for FinCEN sandbox access.
+
+### Scripts Created
+
+| Script | Purpose |
+|--------|---------|
+| `api/app/scripts/rerx_dry_run.py` | Generate RERX XML from real report data (no submission) |
+| `api/app/scripts/rerx_validate_xsd.py` | Validate XML against XSD or structural checks |
+
+### Dry Run Script (`rerx_dry_run.py`)
+
+```bash
+# Basic run - finds best available report automatically
+python -m app.scripts.rerx_dry_run --show-data
+
+# Target a specific report
+python -m app.scripts.rerx_dry_run --report-id "UUID" --show-data
+
+# Custom output filename
+python -m app.scripts.rerx_dry_run --output my_test.xml
+```
+
+**Features:**
+- Auto-loads `.env` for local development
+- Finds most suitable report (filed > ready_to_file > collecting)
+- Shows wizard_data summary with `--show-data`
+- Saves XML to file for inspection
+- Clear error messages for preflight failures
+
+### Validation Script (`rerx_validate_xsd.py`)
+
+```bash
+# Structural validation (no XSD required)
+python -m app.scripts.rerx_validate_xsd rerx_dry_run_output.xml --structural-only
+
+# Full XSD validation (if schema downloaded)
+python -m app.scripts.rerx_validate_xsd rerx_dry_run_output.xml --xsd rerx_schema.xsd
+```
+
+**Structural Checks:**
+- Well-formed XML
+- FormTypeCode = RERX
+- Schema location present
+- All required party types (31, 67, 69, 35, 37)
+- Required sections (FilingDateText, ActivityAssociation, AssetsAttribute, ValueTransferActivity)
+- Filing date in valid range (20251201-20261231)
+- TCC value present (TBSATEST for sandbox)
+- Transmitter TIN present and 9 digits
+- SeqNum uniqueness
+- ActivityCount attribute
+
+### Ping Script Update
+
+Updated `api/app/scripts/fincen_sdtm_ping.py` to auto-load `.env` file for local development.
+
+**Status:** ✅ Scripts Created
+
+---
+
 ## Summary Update
 
 | Category | Count |
@@ -1070,21 +1133,22 @@ acked_filename = f"{filename}.ACK"  # CRITICAL: .ACK not .ACKED
 | 🔴 Critical Features | 3 |
 | 🟠 Major Features | 1 |
 | 🎨 UX/Design | 1 |
-| 🔧 Configuration | 2 |
+| 🔧 Configuration | 3 |
 | 📄 Documentation | 3 |
 
-**Total Sharks Killed (Vol 2): 9 🦈 + 1 Hardening Addendum**
+**Total Sharks Killed (Vol 2): 10 🦈 + 1 Hardening Addendum**
 
 ---
 
 ## Next Steps
 
-1. **P0:** Test SDTM integration with FinCEN sandbox
-2. **P1:** Billing Phase 2 - Subscription billing model
-3. **P1:** Entity Enhancements Phase 2 - Backend storage of new fields
-4. **P2:** Add property type validation against SiteX data
-5. **P2:** Stripe integration for payments
-6. ~~**P3:** Admin debug UI for SDTM submissions~~ ✅ Done (backend endpoints)
+1. **P0:** Verify sandbox credentials with FinCEN (authentication failed in test)
+2. **P0:** Run dry-run against production database once credentials verified
+3. **P1:** Billing Phase 2 - Subscription billing model
+4. **P1:** Entity Enhancements Phase 2 - Backend storage of new fields
+5. **P2:** Add property type validation against SiteX data
+6. **P2:** Stripe integration for payments
+7. ~~**P3:** Admin debug UI for SDTM submissions~~ ✅ Done (backend endpoints)
 
 ---
 
