@@ -433,13 +433,13 @@ def perform_sdtm_submit(
         PreflightError: If XML validation fails (handled gracefully)
     """
     from app.services.fincen import (
-        build_fbarx_xml,
+        build_rerx_xml,
         PreflightError,
         SdtmClient,
         gzip_b64_encode,
         sha256_hex,
+        generate_rerx_filename,
     )
-    from app.services.fincen.fbarx_builder import generate_sdtm_filename
     
     submission = get_or_create_submission(db, report_id)
     report = db.query(Report).filter(Report.id == report_id).first()
@@ -497,11 +497,11 @@ def perform_sdtm_submit(
     snapshot["attempt"] = submission.attempts
     
     # ═══════════════════════════════════════════════════════════════════════════
-    # Build FBARX XML
+    # Build RERX XML (Real Estate Report per Dec 2025 FinCEN spec)
     # ═══════════════════════════════════════════════════════════════════════════
     
     try:
-        xml_content, debug_summary = build_fbarx_xml(report, submission, settings)
+        xml_content, debug_summary = build_rerx_xml(report, submission, settings)
     except PreflightError as e:
         logger.warning(f"SDTM: Preflight failed for {report_id}: {e.message}")
         snapshot["preflight_errors"] = e.errors
@@ -528,8 +528,9 @@ def perform_sdtm_submit(
     # ═══════════════════════════════════════════════════════════════════════════
     
     timestamp = datetime.utcnow()
-    filename = generate_sdtm_filename(
-        settings.SDTM_ORGNAME,
+    # RERX filename: RERXST.<timestamp>.<SDTM_USERNAME>.xml per Dec 2025 spec
+    filename = generate_rerx_filename(
+        settings.SDTM_USERNAME,
         str(submission.id),
         timestamp
     )

@@ -950,6 +950,78 @@ All SDTM artifacts are stored in `FilingSubmission.payload_snapshot.artifacts`:
 
 ---
 
+## RERX Payload Swap — Schema Correction
+
+**Date:** February 2, 2026
+
+### Correction Statement
+
+> **FBARX assumption corrected. Outbound schema is RERX (Real Estate Report) per Dec 2025 FinCEN Technical Specifications for Batch XML Filers.**
+
+The original implementation incorrectly assumed FBARX schema. Per the Dec 2025 FinCEN specification, Real Estate Reports must use the **RERX** schema, not FBARX.
+
+---
+
+### Schema Details
+
+| Attribute | Old (FBARX) | New (RERX) |
+|-----------|-------------|------------|
+| **FormTypeCode** | `FBARX` | `RERX` |
+| **schemaLocation** | N/A | `www.fincen.gov/base https://bsaefiling.fincen.gov/resources/EFL_RERXBatchSchema.xsd` |
+| **Filename prefix** | `FBARXST` | `RERXST` |
+| **Filename format** | `FBARXST.<ts>.<orgname>.<suffix>.xml` | `RERXST.<ts>.<SDTM_USERNAME>.xml` |
+| **Sandbox TCC** | Configured | **Must be `TBSATEST`** (per spec) |
+
+---
+
+### RERX Minimum Required Sections Checklist
+
+All RERX Activity elements must contain these in order:
+
+- [x] **FilingDateText** — `YYYYMMDD`, cannot be future, cannot be < 20251201
+- [x] **ActivityAssociation** — with `InitialReportIndicator=Y` for new filings
+- [x] **Party 31** — Reporting Person (exactly one)
+- [x] **Party 67** — Transferee/Buyer (at least one)
+  - Entity: `TransferPartyEntityIndicator=Y`
+  - Trust: `TransferPartyTrustIndicator=Y` + execution date
+  - Associated Persons (68) for BOs/signing individuals
+- [x] **Party 69** — Transferor/Seller (at least one)
+  - Trust sellers need trustee association (Party 70)
+- [x] **Party 35** — Transmitter with:
+  - TIN (PartyIdentificationTypeCode=4)
+  - TCC (PartyIdentificationTypeCode=28) — **TBSATEST for sandbox**
+- [x] **Party 37** — Transmitter Contact
+- [x] **AssetsAttribute** — Property address + optional legal description
+- [x] **ValueTransferActivity** — Payment details + closing date
+  - `TotalConsiderationPaidAmountText` OR `NoConsiderationPaidIndicator=Y`
+  - `ValueTransferActivityDetail` per payment source with FI Party (41)
+
+---
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| `api/app/services/fincen/rerx_builder.py` | **NEW** — RERX XML generator (~700 lines) |
+| `api/app/services/fincen/__init__.py` | Export `build_rerx_xml`, `generate_rerx_filename` |
+| `api/app/services/filing_lifecycle.py` | Import/call `build_rerx_xml`, use `SDTM_USERNAME` for filename |
+| `api/app/services/fincen/fbarx_builder.py` | **DEPRECATED** — No longer used |
+
+---
+
+### Sandbox TCC Requirement
+
+For `FINCEN_ENV=sandbox`:
+- TCC **must** be `TBSATEST` (per FinCEN spec)
+- The builder automatically uses this when `config.FINCEN_ENV == "sandbox"`
+- Production uses `config.TRANSMITTER_TCC`
+
+---
+
+**Status:** ✅ Schema Corrected
+
+---
+
 ## Summary Update
 
 | Category | Count |
