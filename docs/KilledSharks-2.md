@@ -1604,7 +1604,25 @@ party.party_data = {...}  ──► sync_party_data_to_wizard()
                                build_rerx_xml() reads wizard_data ✅
 ```
 
-**Status:** ✅ Killed (BRIDGE SHARK 🦈)
+**End-to-End Validation (February 3, 2026):**
+
+| Step | Test | Result |
+|------|------|--------|
+| 1 | Check existing data | ✅ Found 9 parties, 4 reports |
+| 1B | Create test data | ✅ Entity buyer + 2 BOs + individual seller |
+| 2 | Run sync function | ✅ 2 parties synced, SSN hyphens stripped |
+| 3 | RERX dry run | ✅ XML generated (8991 bytes, 184 lines) |
+| 4 | Structural validation | ✅ **18/18 checks passed** |
+| 5 | Content inspection | ✅ All portal data visible in XML |
+
+**Verified in XML:**
+- Party 67 (Buyer): Entity name + EIN (hyphens stripped)
+- Party 68 (BOs): Margaret Chen + Robert Kim with SSNs (hyphens stripped)
+- Party 69 (Seller): James Wilson
+- Payments: $1,250,000 + $250,000 = $1,500,000
+- All addresses mapped correctly
+
+**Status:** ✅ Killed (BRIDGE SHARK 🦈) — **E2E VALIDATED**
 
 ---
 
