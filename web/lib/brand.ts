@@ -13,7 +13,7 @@ export const BRAND = {
   domain: "fincenclear.com",
   
   // Contact
-  supportEmail: "support@fincenclear.com",
+  supportEmail: "clear@fincenclear.com",
   
   // Logo paths - use these consistently:
   // - logo: Full logo with dark text (for light backgrounds)

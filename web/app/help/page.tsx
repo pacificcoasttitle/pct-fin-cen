@@ -32,14 +32,15 @@ export default function HelpPage() {
             </CardHeader>
             <CardContent>
               <Button variant="outline" asChild className="w-full sm:w-auto">
-                <a href="mailto:support@pctfincen.com">
-                  support@pctfincen.com
+                <a href="mailto:clear@fincenclear.com">
+                  clear@fincenclear.com
                 </a>
               </Button>
             </CardContent>
           </Card>
 
-          <Card className="border-0 shadow-lg shadow-black/5">
+          {/* Phone Support - Hidden until real number available */}
+          {/* <Card className="border-0 shadow-lg shadow-black/5">
             <CardHeader>
               <CardTitle className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-green-100 text-green-600">
@@ -53,12 +54,12 @@ export default function HelpPage() {
             </CardHeader>
             <CardContent>
               <Button variant="outline" asChild className="w-full sm:w-auto">
-                <a href="tel:+15551234567">
-                  (555) 123-4567
+                <a href="tel:+1XXXXXXXXXX">
+                  (XXX) XXX-XXXX
                 </a>
               </Button>
             </CardContent>
-          </Card>
+          </Card> */}
 
           <Card className="border-0 shadow-lg shadow-black/5">
             <CardHeader>

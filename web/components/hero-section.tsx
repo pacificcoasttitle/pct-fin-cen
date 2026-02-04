@@ -6,7 +6,7 @@ import { Play, Check, Shield, Clock, FileCheck } from "lucide-react";
 
 export function HeroSection() {
   return (
-    <section className="relative pt-24 lg:pt-32 pb-16 lg:pb-24 overflow-hidden">
+    <section className="relative pt-32 lg:pt-40 pb-16 lg:pb-24 overflow-hidden">
       {/* Background Pattern */}
       <div className="absolute inset-0 bg-gradient-to-br from-background via-background to-secondary/30" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(30,58,95,0.05),transparent_50%)]" />
@@ -43,8 +43,9 @@ export function HeroSection() {
               <Button 
                 size="lg" 
                 className="bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white font-semibold px-8 h-12 shadow-lg shadow-teal-500/25 hover:shadow-xl hover:shadow-teal-500/30 transition-all duration-300"
+                asChild
               >
-                Start Free Trial
+                <a href="mailto:clear@fincenclear.com">Get Started</a>
               </Button>
               <Button 
                 variant="outline" 
@@ -60,7 +61,7 @@ export function HeroSection() {
             <div className="mt-8 flex flex-col sm:flex-row gap-4 sm:gap-6">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Check className="w-4 h-4 text-[#10B981]" />
-                <span>No credit card required</span>
+                <span>Trusted by title companies across California</span>
               </div>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Check className="w-4 h-4 text-[#10B981]" />

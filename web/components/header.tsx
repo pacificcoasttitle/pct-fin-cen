@@ -44,8 +44,18 @@ export function Header() {
   }, []);
 
   return (
-    <header
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+    <>
+      {/* Top announcement bar */}
+      <div className="fixed top-0 left-0 right-0 z-50 bg-slate-900 text-slate-300 text-xs py-1.5 text-center border-b border-slate-800">
+        <span>Support: </span>
+        <a href="mailto:clear@fincenclear.com" className="text-teal-400 hover:text-teal-300 font-medium">
+          clear@fincenclear.com
+        </a>
+        <span className="mx-2 hidden sm:inline">•</span>
+        <span className="hidden sm:inline">FinCEN compliance deadline: March 1, 2026</span>
+      </div>
+      <header
+      className={`fixed top-7 left-0 right-0 z-40 transition-all duration-300 ${
         isScrolled
           ? "bg-card/95 backdrop-blur-md shadow-sm border-b border-border"
           : "bg-transparent"
@@ -92,8 +102,8 @@ export function Header() {
             <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground" asChild>
               <Link href="/login">Login</Link>
             </Button>
-            <Button size="sm" className="bg-teal-500 hover:bg-teal-600 text-white font-semibold shadow-md shadow-teal-500/20">
-              Start Free Trial
+            <Button size="sm" className="bg-teal-500 hover:bg-teal-600 text-white font-semibold shadow-md shadow-teal-500/20" asChild>
+              <a href="mailto:clear@fincenclear.com">Contact Us</a>
             </Button>
           </div>
 
@@ -121,14 +131,15 @@ export function Header() {
                 <Button variant="outline" className="w-full bg-transparent" asChild>
                   <Link href="/login">Login</Link>
                 </Button>
-                <Button className="w-full bg-teal-500 hover:bg-teal-600 text-white font-semibold">
-                  Start Free Trial
+                <Button className="w-full bg-teal-500 hover:bg-teal-600 text-white font-semibold" asChild>
+                  <a href="mailto:clear@fincenclear.com">Contact Us</a>
                 </Button>
               </nav>
             </SheetContent>
           </Sheet>
         </div>
       </div>
-    </header>
+      </header>
+    </>
   );
 }

@@ -232,7 +232,7 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent className="flex flex-wrap gap-3">
           <Button variant="outline" asChild>
-            <a href="mailto:support@pacificcoasttitle.com">
+            <a href="mailto:clear@fincenclear.com">
               <Mail className="mr-2 h-4 w-4" />
               Email Support
             </a>

@@ -76,7 +76,7 @@ export default function AdminSettingsPage() {
                 <Input
                   id="supportEmail"
                   type="email"
-                  defaultValue="support@pctfincen.com"
+                  defaultValue="clear@fincenclear.com"
                 />
               </div>
               <div className="space-y-2">

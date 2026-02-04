@@ -128,8 +128,8 @@ export function ComparisonSection() {
 
         {/* CTA */}
         <div className="text-center mt-10">
-          <Button size="lg" className="bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white font-semibold px-8 shadow-lg shadow-teal-500/25">
-            Start Your Free Trial
+          <Button size="lg" className="bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white font-semibold px-8 shadow-lg shadow-teal-500/25" asChild>
+            <a href="mailto:clear@fincenclear.com">Contact Us</a>
           </Button>
         </div>
       </div>

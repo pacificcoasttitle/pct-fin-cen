@@ -27,9 +27,12 @@ export function CTASection() {
             <Button
               size="lg"
               className="bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white font-semibold px-10 h-12 shadow-lg shadow-teal-500/30 hover:shadow-xl transition-all duration-300 hover:-translate-y-0.5"
+              asChild
             >
-              Start Your Free Trial
-              <ArrowRight className="ml-2 h-5 w-5" />
+              <a href="mailto:clear@fincenclear.com">
+                Get Started Today
+                <ArrowRight className="ml-2 h-5 w-5" />
+              </a>
             </Button>
             <Button
               size="lg"
@@ -40,9 +43,13 @@ export function CTASection() {
             </Button>
           </div>
 
-          {/* Trust Text */}
+          {/* Contact Info */}
           <p className="mt-8 text-sm text-slate-400">
-            No credit card required • Setup in 5 minutes • Cancel anytime
+            Contact us at{" "}
+            <a href="mailto:clear@fincenclear.com" className="text-teal-400 hover:text-teal-300 font-medium">
+              clear@fincenclear.com
+            </a>
+            {" "}— our team will have you up and running in 24 hours
           </p>
         </div>
       </div>

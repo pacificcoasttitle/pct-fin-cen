@@ -21,7 +21,7 @@ export function PricingSection() {
         "5-year record storage",
         "Email support",
       ],
-      cta: "Start Free Trial",
+      cta: "Contact Us",
       popular: false,
     },
     {
@@ -40,7 +40,7 @@ export function PricingSection() {
         "Filing guarantee (penalty protection)",
         "Clear-to-close notifications",
       ],
-      cta: "Start Free Trial",
+      cta: "Contact Us",
       popular: true,
     },
     {
@@ -59,7 +59,7 @@ export function PricingSection() {
         "Volume discounts",
         "SLA guarantees",
       ],
-      cta: "Contact Sales",
+      cta: "Contact Us",
       popular: false,
     },
   ];
