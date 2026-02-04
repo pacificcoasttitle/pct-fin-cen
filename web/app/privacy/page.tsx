@@ -1,10 +1,11 @@
 import { Metadata } from "next"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
+import Link from "next/link"
 
 export const metadata: Metadata = {
   title: "Privacy Policy | FinClear",
-  description: "Privacy Policy for FinClear - FinCEN Compliance Made Simple",
+  description: "Privacy Policy for FinClear - PCT FinCEN Solutions. How we collect, use, and protect your information.",
 }
 
 export default function PrivacyPage() {
@@ -14,47 +15,182 @@ export default function PrivacyPage() {
       <div className="pt-32 lg:pt-40">
         <div className="max-w-4xl mx-auto px-6 py-16">
           <h1 className="text-3xl font-bold text-foreground mb-2">Privacy Policy</h1>
-          <p className="text-sm text-muted-foreground mb-8">Last updated: February 2026</p>
+          <p className="text-sm text-muted-foreground mb-8">Last Updated: February 2026</p>
+          
           <div className="prose prose-slate dark:prose-invert max-w-none">
-            <p className="text-muted-foreground">
-              Privacy Policy content is being finalized. Please contact{" "}
-              <a href="mailto:clear@fincenclear.com" className="text-primary hover:underline">
-                clear@fincenclear.com
-              </a>{" "}
-              with any questions.
+            <p className="text-muted-foreground leading-relaxed">
+              PCT FinCEN Solutions, a wholly-owned subsidiary of Pacific Coast Title Company (&quot;Company,&quot; &quot;we,&quot; &quot;us,&quot; or &quot;our&quot;), is committed to protecting the privacy of users of the FinClear platform (the &quot;Platform&quot;). This Privacy Policy describes how we collect, use, disclose, and protect your information when you use the Platform. By accessing or using the Platform, you consent to the practices described in this Privacy Policy. Your use of the Platform is also governed by our{" "}
+              <Link href="/terms" className="text-primary hover:underline">Terms of Service</Link>.
+            </p>
+
+            <h2 className="text-xl font-semibold text-foreground mt-10 mb-4">1. Information We Collect</h2>
+            <p className="text-muted-foreground leading-relaxed mb-4">
+              We collect the following categories of information:
             </p>
             
-            <h2 className="text-xl font-semibold text-foreground mt-8 mb-4">1. Information We Collect</h2>
-            <p className="text-muted-foreground mb-4">
-              We collect information you provide directly to us, such as when you create an account, 
-              submit compliance reports, or contact us for support.
+            <h3 className="text-lg font-medium text-foreground mt-6 mb-2">Account Information</h3>
+            <p className="text-muted-foreground leading-relaxed mb-4">
+              Name, email address, phone number, company name, job title, and role designation as provided during the account provisioning process.
             </p>
 
-            <h2 className="text-xl font-semibold text-foreground mt-8 mb-4">2. How We Use Your Information</h2>
-            <p className="text-muted-foreground mb-4">
-              We use the information we collect to provide, maintain, and improve our services, 
-              process transactions, and comply with legal obligations.
+            <h3 className="text-lg font-medium text-foreground mt-6 mb-2">Transaction Data</h3>
+            <p className="text-muted-foreground leading-relaxed mb-4">
+              Information you enter into the Platform related to real estate transactions, including but not limited to: property addresses, purchase prices, closing dates, payment source details, and party identification information (names, addresses, taxpayer identification numbers, dates of birth, and identification documents).
             </p>
 
-            <h2 className="text-xl font-semibold text-foreground mt-8 mb-4">3. Data Security</h2>
-            <p className="text-muted-foreground mb-4">
-              We implement appropriate technical and organizational measures to protect your personal 
-              information. Our platform is SOC 2 certified and CCPA compliant.
+            <h3 className="text-lg font-medium text-foreground mt-6 mb-2">Beneficial Ownership Information</h3>
+            <p className="text-muted-foreground leading-relaxed mb-4">
+              Information about individuals who hold ownership interests in entities involved in transactions, including names, addresses, identification numbers, and ownership percentages, as required for FinCEN reporting.
             </p>
 
-            <h2 className="text-xl font-semibold text-foreground mt-8 mb-4">4. Data Retention</h2>
-            <p className="text-muted-foreground mb-4">
-              We retain compliance records for a minimum of 5 years as required by FinCEN regulations. 
-              Other data is retained only as long as necessary to provide our services.
+            <h3 className="text-lg font-medium text-foreground mt-6 mb-2">Filing Data</h3>
+            <p className="text-muted-foreground leading-relaxed mb-4">
+              Information generated by the Platform in connection with FinCEN filings, including XML data, submission records, receipt identifiers (BSA IDs), filing status, and response data received from FinCEN.
             </p>
 
-            <h2 className="text-xl font-semibold text-foreground mt-8 mb-4">5. Contact Us</h2>
-            <p className="text-muted-foreground mb-4">
-              For privacy-related questions, please contact us at{" "}
-              <a href="mailto:clear@fincenclear.com" className="text-primary hover:underline">
-                clear@fincenclear.com
-              </a>
+            <h3 className="text-lg font-medium text-foreground mt-6 mb-2">Usage Data</h3>
+            <p className="text-muted-foreground leading-relaxed mb-4">
+              Information about how you interact with the Platform, including pages visited, features used, actions taken, timestamps, IP addresses, browser type, device information, and referring URLs.
             </p>
+
+            <h3 className="text-lg font-medium text-foreground mt-6 mb-2">Communication Data</h3>
+            <p className="text-muted-foreground leading-relaxed">
+              Records of communications between you and our support team, including email correspondence sent to{" "}
+              <a href="mailto:clear@fincenclear.com" className="text-primary hover:underline">clear@fincenclear.com</a>.
+            </p>
+
+            <h2 className="text-xl font-semibold text-foreground mt-10 mb-4">2. How We Use Your Information</h2>
+            <p className="text-muted-foreground leading-relaxed">
+              We use the information we collect for the following purposes: (a) To operate, maintain, and provide the Platform&apos;s functionality, including preparing and transmitting FinCEN filings on your behalf. (b) To process your account and manage your relationship with us. (c) To communicate with you about your account, filings, and Platform updates. (d) To provide customer support and respond to your inquiries. (e) To generate invoices and process payments. (f) To comply with our legal obligations, including recordkeeping requirements. (g) To detect, prevent, and address fraud, security issues, and technical problems. (h) To improve and develop the Platform. (i) To enforce our Terms of Service.
+            </p>
+
+            <h2 className="text-xl font-semibold text-foreground mt-10 mb-4">3. FinCEN Filing Data — Special Handling</h2>
+            <p className="text-muted-foreground leading-relaxed mb-4">
+              You acknowledge and understand that the core function of the Platform is to prepare and transmit reports to the Financial Crimes Enforcement Network (FinCEN), a bureau of the United States Department of the Treasury. In connection with this function:
+            </p>
+
+            <h3 className="text-lg font-medium text-foreground mt-6 mb-2">Government Transmission</h3>
+            <p className="text-muted-foreground leading-relaxed mb-4">
+              Transaction data and beneficial ownership information that you enter into the Platform will be compiled into XML reports and transmitted electronically to FinCEN via Secure Direct Transfer Mode (SDTM) or other approved methods. Once transmitted, this data is in the possession of the United States government and is subject to federal law regarding its use, disclosure, and retention.
+            </p>
+
+            <h3 className="text-lg font-medium text-foreground mt-6 mb-2">We Are a Conduit</h3>
+            <p className="text-muted-foreground leading-relaxed mb-4">
+              We act as a technology conduit for the preparation and transmission of your filings. We do not independently use your FinCEN filing data for marketing, advertising, profiling, or any purpose unrelated to the filing service.
+            </p>
+
+            <h3 className="text-lg font-medium text-foreground mt-6 mb-2">Retention of Filing Records</h3>
+            <p className="text-muted-foreground leading-relaxed mb-4">
+              We retain copies of filings, submission metadata, and FinCEN response data (including BSA IDs) for compliance, audit, and support purposes. Filing artifacts are stored in encrypted form within our systems.
+            </p>
+
+            <h3 className="text-lg font-medium text-foreground mt-6 mb-2">Sensitive Data</h3>
+            <p className="text-muted-foreground leading-relaxed">
+              Taxpayer Identification Numbers (TINs), Social Security Numbers (SSNs), Employer Identification Numbers (EINs), passport numbers, and dates of birth are collected solely for FinCEN filing purposes. We implement technical safeguards including encryption at rest and in transit, access controls, and audit logging to protect this information.
+            </p>
+
+            <h2 className="text-xl font-semibold text-foreground mt-10 mb-4">4. Information Sharing and Disclosure</h2>
+            <p className="text-muted-foreground leading-relaxed mb-4">
+              <strong>We do not sell your personal information.</strong> We may share your information in the following circumstances:
+            </p>
+
+            <h3 className="text-lg font-medium text-foreground mt-6 mb-2">Government Agencies</h3>
+            <p className="text-muted-foreground leading-relaxed mb-4">
+              We transmit filing data to FinCEN as directed by you through your use of the Platform. This is the core function of the Platform.
+            </p>
+
+            <h3 className="text-lg font-medium text-foreground mt-6 mb-2">Service Providers</h3>
+            <p className="text-muted-foreground leading-relaxed mb-4">
+              We use third-party service providers to assist in operating the Platform, including cloud hosting (Render), email delivery (SendGrid), and PDF generation (PDFShift). These providers are contractually obligated to protect your information and use it only for the purposes of providing services to us.
+            </p>
+
+            <h3 className="text-lg font-medium text-foreground mt-6 mb-2">Within Our Corporate Family</h3>
+            <p className="text-muted-foreground leading-relaxed mb-4">
+              We may share information with Pacific Coast Title Company, our parent company, for operational, compliance, and administrative purposes.
+            </p>
+
+            <h3 className="text-lg font-medium text-foreground mt-6 mb-2">Legal Requirements</h3>
+            <p className="text-muted-foreground leading-relaxed mb-4">
+              We may disclose information if required by law, regulation, legal process, or governmental request, or if we believe disclosure is necessary to protect our rights, your safety, or the safety of others.
+            </p>
+
+            <h3 className="text-lg font-medium text-foreground mt-6 mb-2">Business Transfers</h3>
+            <p className="text-muted-foreground leading-relaxed mb-4">
+              In the event of a merger, acquisition, or sale of all or a portion of our assets, your information may be transferred as part of that transaction. We will notify you of any such change in ownership or control.
+            </p>
+
+            <h3 className="text-lg font-medium text-foreground mt-6 mb-2">With Your Consent</h3>
+            <p className="text-muted-foreground leading-relaxed">
+              We may share information with third parties when you have given us explicit consent to do so.
+            </p>
+
+            <h2 className="text-xl font-semibold text-foreground mt-10 mb-4">5. Data Security</h2>
+            <p className="text-muted-foreground leading-relaxed">
+              We implement commercially reasonable technical and organizational measures to protect your information, including: encryption of data in transit (TLS/SSL) and at rest, access controls and role-based permissions, secure authentication mechanisms, regular security assessments, audit logging of data access and modifications, and encrypted storage of filing artifacts. However, no method of electronic storage or transmission is 100% secure. While we strive to protect your information, we cannot guarantee its absolute security.
+            </p>
+
+            <h2 className="text-xl font-semibold text-foreground mt-10 mb-4">6. Data Retention</h2>
+            <p className="text-muted-foreground leading-relaxed">
+              We retain your information for as long as your account is active and as needed to provide the Platform&apos;s services. Filing records and associated metadata are retained for a minimum of six (6) years from the date of filing, consistent with FinCEN recordkeeping requirements and applicable regulations. After the retention period, data will be securely deleted or anonymized. You may request deletion of your account and non-filing data by contacting us at{" "}
+              <a href="mailto:clear@fincenclear.com" className="text-primary hover:underline">clear@fincenclear.com</a>,
+              {" "}subject to our legal retention obligations.
+            </p>
+
+            <h2 className="text-xl font-semibold text-foreground mt-10 mb-4">7. Your Rights</h2>
+            <p className="text-muted-foreground leading-relaxed mb-4">
+              Depending on your jurisdiction, you may have the following rights regarding your personal information:
+            </p>
+            <ul className="list-disc list-inside text-muted-foreground space-y-2 mb-4">
+              <li><strong>Access:</strong> Request a copy of the personal information we hold about you.</li>
+              <li><strong>Correction:</strong> Request correction of inaccurate or incomplete information.</li>
+              <li><strong>Deletion:</strong> Request deletion of your personal information, subject to our legal retention obligations (including FinCEN recordkeeping requirements).</li>
+              <li><strong>Restriction:</strong> Request that we restrict processing of your information in certain circumstances.</li>
+              <li><strong>Portability:</strong> Request a copy of your information in a structured, commonly used format.</li>
+            </ul>
+            <p className="text-muted-foreground leading-relaxed mb-4">
+              To exercise any of these rights, please contact us at{" "}
+              <a href="mailto:clear@fincenclear.com" className="text-primary hover:underline">clear@fincenclear.com</a>.
+              {" "}We will respond to your request within 30 days.
+            </p>
+            <p className="text-muted-foreground leading-relaxed">
+              <strong>California Residents (CCPA/CPRA):</strong> California residents have additional rights under the California Consumer Privacy Act, as amended by the California Privacy Rights Act. You have the right to know what personal information we collect, the right to delete your personal information (subject to exceptions), and the right to opt out of the sale of personal information. We do not sell personal information. To submit a request, contact us at{" "}
+              <a href="mailto:clear@fincenclear.com" className="text-primary hover:underline">clear@fincenclear.com</a>.
+            </p>
+
+            <h2 className="text-xl font-semibold text-foreground mt-10 mb-4">8. Cookies and Tracking</h2>
+            <p className="text-muted-foreground leading-relaxed">
+              The Platform uses essential cookies necessary for authentication and session management. We do not use advertising cookies or third-party tracking cookies for marketing purposes. We may use analytics tools to understand Platform usage patterns and improve our services. You may configure your browser to reject cookies, but this may affect Platform functionality.
+            </p>
+
+            <h2 className="text-xl font-semibold text-foreground mt-10 mb-4">9. Children&apos;s Privacy</h2>
+            <p className="text-muted-foreground leading-relaxed">
+              The Platform is not intended for use by individuals under the age of 18. We do not knowingly collect personal information from children. If we become aware that we have collected information from a child under 18, we will take steps to delete that information.
+            </p>
+
+            <h2 className="text-xl font-semibold text-foreground mt-10 mb-4">10. International Users</h2>
+            <p className="text-muted-foreground leading-relaxed">
+              The Platform is operated from the United States. If you access the Platform from outside the United States, your information will be transferred to and processed in the United States. By using the Platform, you consent to this transfer.
+            </p>
+
+            <h2 className="text-xl font-semibold text-foreground mt-10 mb-4">11. Third-Party Links</h2>
+            <p className="text-muted-foreground leading-relaxed">
+              The Platform may contain links to third-party websites or services. We are not responsible for the privacy practices of these third parties. We encourage you to review the privacy policies of any third-party sites you visit.
+            </p>
+
+            <h2 className="text-xl font-semibold text-foreground mt-10 mb-4">12. Changes to This Policy</h2>
+            <p className="text-muted-foreground leading-relaxed">
+              We may update this Privacy Policy from time to time. Material changes will be communicated via email or through a notice on the Platform. Your continued use of the Platform after any changes constitutes your acceptance of the updated Privacy Policy.
+            </p>
+
+            <h2 className="text-xl font-semibold text-foreground mt-10 mb-4">13. Contact Information</h2>
+            <p className="text-muted-foreground leading-relaxed">
+              If you have questions or concerns about this Privacy Policy or our data practices, please contact us at:
+            </p>
+            <div className="mt-4 text-muted-foreground">
+              <p className="font-medium text-foreground">PCT FinCEN Solutions</p>
+              <p>Email: <a href="mailto:clear@fincenclear.com" className="text-primary hover:underline">clear@fincenclear.com</a></p>
+              <p>Website: <a href="https://www.fincenclear.com" className="text-primary hover:underline">www.fincenclear.com</a></p>
+            </div>
           </div>
         </div>
       </div>
