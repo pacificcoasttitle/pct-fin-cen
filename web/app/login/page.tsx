@@ -6,12 +6,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { AlertCircle, Loader2, TrendingUp, ClipboardList, Building2, User, Shield } from "lucide-react"
+import { AlertCircle, Loader2, TrendingUp, ClipboardList, Building2, User, Shield, Landmark } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Image from "next/image"
 import { BRAND } from "@/lib/brand"
 
-// Demo credentials for quick access - 5 roles
+// Demo credentials for quick access - 6 accounts across different roles
 const demoCredentials = [
   { 
     role: "COO / Executive", 
@@ -38,7 +38,7 @@ const demoCredentials = [
     bgColor: "bg-green-500/10 border-green-500/30 hover:border-green-500/50",
   },
   { 
-    role: "Company Admin", 
+    role: "Demo Title Admin", 
     email: "admin@demotitle.com", 
     description: "Submit requests, view reports, billing & team",
     icon: Building2,
@@ -46,12 +46,20 @@ const demoCredentials = [
     bgColor: "bg-orange-500/10 border-orange-500/30 hover:border-orange-500/50",
   },
   { 
-    role: "Company User", 
+    role: "Demo Title User", 
     email: "user@demotitle.com", 
     description: "Submit requests, view status only",
     icon: User,
     color: "from-slate-500 to-slate-400",
     bgColor: "bg-slate-500/10 border-slate-500/30 hover:border-slate-500/50",
+  },
+  { 
+    role: "Acme Title Admin", 
+    email: "admin@acmetitle.com", 
+    description: "Another company - see multi-tenant isolation",
+    icon: Landmark,
+    color: "from-rose-500 to-pink-500",
+    bgColor: "bg-rose-500/10 border-rose-500/30 hover:border-rose-500/50",
   },
 ]
 
@@ -163,7 +171,7 @@ function LoginForm() {
         <CardHeader className="pb-3">
           <CardTitle className="text-white text-lg">Demo Accounts</CardTitle>
           <CardDescription className="text-slate-400">
-            Click to select an account (5 roles)
+            Click to select an account (6 demo users)
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
