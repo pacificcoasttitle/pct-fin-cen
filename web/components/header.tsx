@@ -102,8 +102,17 @@ export function Header() {
             <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground" asChild>
               <Link href="/login">Login</Link>
             </Button>
-            <Button size="sm" className="bg-teal-500 hover:bg-teal-600 text-white font-semibold shadow-md shadow-teal-500/20" asChild>
-              <a href="mailto:clear@fincenclear.com">Contact Us</a>
+            <Button
+              size="sm"
+              className="bg-teal-500 hover:bg-teal-600 text-white font-semibold shadow-md shadow-teal-500/20"
+              asChild
+            >
+              <a
+                href="#get-started"
+                onClick={(e) => handleAnchorClick(e, "#get-started")}
+              >
+                Get Started
+              </a>
             </Button>
           </div>
 
@@ -132,7 +141,12 @@ export function Header() {
                   <Link href="/login">Login</Link>
                 </Button>
                 <Button className="w-full bg-teal-500 hover:bg-teal-600 text-white font-semibold" asChild>
-                  <a href="mailto:clear@fincenclear.com">Contact Us</a>
+                  <a
+                    href="#get-started"
+                    onClick={(e) => handleAnchorClick(e, "#get-started")}
+                  >
+                    Get Started
+                  </a>
                 </Button>
               </nav>
             </SheetContent>

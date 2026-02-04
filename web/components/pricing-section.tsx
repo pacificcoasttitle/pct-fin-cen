@@ -136,8 +136,9 @@ export function PricingSection() {
                     : "bg-secondary hover:bg-secondary/80 text-secondary-foreground"
                 }`}
                 size="lg"
+                asChild
               >
-                {plan.cta}
+                <a href="#get-started">{plan.cta}</a>
               </Button>
             </div>
           ))}

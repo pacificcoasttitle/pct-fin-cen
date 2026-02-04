@@ -19,7 +19,7 @@ export function Footer() {
 
   const companyLinks = [
     { href: "#about", label: "About Us" },
-    { href: "mailto:clear@fincenclear.com", label: "Contact" },
+    { href: "/contact", label: "Contact" },
     { href: "/privacy", label: "Privacy Policy" },
     { href: "/terms", label: "Terms of Service" },
   ];
