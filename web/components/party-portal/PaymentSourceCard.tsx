@@ -47,6 +47,18 @@ export function PaymentSourceCard({
     onChange({ ...data, [field]: value })
   }
 
+  // Format number for display in currency input (with commas, no $ sign)
+  const formatPriceForInput = (value: number | undefined | null): string => {
+    if (!value || value === 0) return ""
+    return value.toLocaleString("en-US", { maximumFractionDigits: 2 })
+  }
+
+  // Parse formatted price string back to number
+  const parsePriceFromInput = (formatted: string): number => {
+    const cleaned = formatted.replace(/[^0-9.]/g, "")
+    return cleaned ? parseFloat(cleaned) : 0
+  }
+
   const formatCurrency = (cents: number) => {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
@@ -143,18 +155,22 @@ export function PaymentSourceCard({
               <div>
                 <Label>Amount *</Label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">$</span>
                   <Input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={data.amount || ""}
-                    onChange={(e) => update("amount", parseFloat(e.target.value) || 0)}
-                    placeholder="0.00"
-                    className="pl-7"
+                    type="text"
+                    inputMode="decimal"
+                    value={formatPriceForInput(data.amount)}
+                    onChange={(e) => update("amount", parsePriceFromInput(e.target.value))}
+                    placeholder="500,000"
+                    className="pl-7 font-medium"
                     disabled={disabled}
                   />
                 </div>
+                {data.amount > 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {formatCurrency(data.amount * 100)}
+                  </p>
+                )}
               </div>
               
               <div>

@@ -109,6 +109,28 @@ import {
   formatCurrency,
 } from "@/lib/rrer-types"
 
+// ============================================================================
+// Currency Input Formatting Helpers
+// ============================================================================
+
+/**
+ * Format number for display in currency input (with commas, no $ sign)
+ * e.g., 1500000 → "1,500,000"
+ */
+function formatPriceForInput(value: number | undefined | null): string {
+  if (!value || value === 0) return ""
+  return value.toLocaleString("en-US", { maximumFractionDigits: 0 })
+}
+
+/**
+ * Parse formatted price string back to number
+ * e.g., "1,500,000" → 1500000
+ */
+function parsePriceFromInput(formatted: string): number {
+  const digits = formatted.replace(/[^0-9]/g, "")
+  return digits ? parseInt(digits, 10) : 0
+}
+
 // Initial states
 const initialDetermination: DeterminationState = {
   isResidential: null,
@@ -1867,16 +1889,26 @@ export function RRERQuestionnaire({
                         <div className="grid gap-2">
                           <Label htmlFor="purchasePrice">Total Purchase Price *</Label>
                           <div className="relative">
-                            <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">$</span>
                             <Input
                               id="purchasePrice"
-                              type="number"
-                              className="pl-9"
-                              value={collection.purchasePrice || ""}
-                              onChange={(e) => setCollection(prev => ({ ...prev, purchasePrice: parseFloat(e.target.value) || 0 }))}
+                              type="text"
+                              inputMode="numeric"
+                              className="pl-7 text-lg font-medium"
+                              placeholder="1,500,000"
+                              value={formatPriceForInput(collection.purchasePrice)}
+                              onChange={(e) => setCollection(prev => ({ 
+                                ...prev, 
+                                purchasePrice: parsePriceFromInput(e.target.value) 
+                              }))}
                               required
                             />
                           </div>
+                          {collection.purchasePrice > 0 && (
+                            <p className="text-xs text-muted-foreground">
+                              {formatCurrency(collection.purchasePrice)}
+                            </p>
+                          )}
                         </div>
                       </div>
 
@@ -3857,21 +3889,26 @@ export function RRERQuestionnaire({
                             <div className="grid gap-2">
                               <Label>Amount *</Label>
                               <div className="relative">
-                                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">$</span>
                                 <Input
-                                  type="number"
-                                  className="pl-9"
-                                  value={source.amount || ""}
+                                  type="text"
+                                  inputMode="numeric"
+                                  className="pl-7 font-medium"
+                                  placeholder="500,000"
+                                  value={formatPriceForInput(source.amount)}
                                   onChange={(e) => {
                                     setCollection(prev => ({
                                       ...prev,
                                       paymentSources: (prev.paymentSources || []).map(s =>
-                                        s.id === source.id ? { ...s, amount: parseFloat(e.target.value) || 0 } : s
+                                        s.id === source.id ? { ...s, amount: parsePriceFromInput(e.target.value) } : s
                                       )
                                     }))
                                   }}
                                 />
                               </div>
+                              {source.amount > 0 && (
+                                <p className="text-xs text-muted-foreground">{formatCurrency(source.amount)}</p>
+                              )}
                             </div>
                           </div>
 
