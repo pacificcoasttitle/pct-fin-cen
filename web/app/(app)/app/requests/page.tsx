@@ -261,9 +261,9 @@ export default function ClientRequestsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">My Requests</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Request History</h1>
           <p className="text-muted-foreground mt-1">
-            Track your FinCEN compliance submissions
+            Legacy requests from the previous submission flow
           </p>
         </div>
         <div className="flex gap-3">
@@ -271,9 +271,9 @@ export default function ClientRequestsPage() {
             <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
             Refresh
           </Button>
-          <Button onClick={() => router.push("/app/requests/new")}>
+          <Button onClick={() => router.push("/app/reports/new")}>
             <Plus className="h-4 w-4 mr-2" />
-            New Request
+            Start New Report
           </Button>
         </div>
       </div>
@@ -362,13 +362,14 @@ export default function ClientRequestsPage() {
         <Card>
           <CardContent className="pt-12 pb-12 text-center">
             <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No requests yet</h3>
+            <h3 className="text-lg font-semibold mb-2">No request history</h3>
             <p className="text-muted-foreground mb-6">
-              Submit your first compliance request to get started.
+              Legacy requests from the old flow will appear here.
+              Start a new report using the client-driven flow.
             </p>
-            <Button onClick={() => router.push("/app/requests/new")}>
+            <Button onClick={() => router.push("/app/reports/new")}>
               <Plus className="h-4 w-4 mr-2" />
-              Submit New Request
+              Start New Report
             </Button>
           </CardContent>
         </Card>

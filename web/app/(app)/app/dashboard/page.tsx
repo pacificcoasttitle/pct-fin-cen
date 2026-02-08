@@ -67,9 +67,9 @@ export default function ClientDashboardPage() {
             <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
           </Button>
           <Button asChild size="lg">
-            <Link href="/app/requests/new">
-              <Send className="mr-2 h-4 w-4" />
-              New Request
+            <Link href="/app/reports/new">
+              <FileText className="mr-2 h-4 w-4" />
+              Start New Report
             </Link>
           </Button>
         </div>
@@ -78,16 +78,16 @@ export default function ClientDashboardPage() {
       {/* Quick Action Card */}
       <Card className="border-primary bg-primary/5">
         <CardHeader>
-          <CardTitle>Need a FinCEN Report?</CardTitle>
+          <CardTitle>Start a FinCEN Report</CardTitle>
           <CardDescription>
-            Submit a request and our team will handle the compliance filing for you.
+            Create a new report and complete the filing wizard. We&apos;ll guide you through the process.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Button asChild>
-            <Link href="/app/requests/new">
-              <Send className="mr-2 h-4 w-4" />
-              Submit New Request
+            <Link href="/app/reports/new">
+              <FileText className="mr-2 h-4 w-4" />
+              Start New Report
             </Link>
           </Button>
         </CardContent>
@@ -154,7 +154,7 @@ export default function ClientDashboardPage() {
             ) : (
               <>
                 <div className="text-2xl font-bold">{stats?.this_month ?? 0}</div>
-                <p className="text-xs text-muted-foreground">Requests submitted</p>
+                <p className="text-xs text-muted-foreground">Reports created</p>
               </>
             )}
           </CardContent>
@@ -237,8 +237,8 @@ export default function ClientDashboardPage() {
       {/* Recent Activity */}
       <Card>
         <CardHeader>
-          <CardTitle>Recent Requests</CardTitle>
-          <CardDescription>Your latest submission requests</CardDescription>
+          <CardTitle>Recent Reports</CardTitle>
+          <CardDescription>Your latest FinCEN reports</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -253,9 +253,9 @@ export default function ClientDashboardPage() {
           ) : recentRequests.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p>No requests yet. Submit your first request!</p>
+              <p>No reports yet. Start your first report!</p>
               <Button asChild className="mt-4">
-                <Link href="/app/requests/new">Submit Request</Link>
+                <Link href="/app/reports/new">Start New Report</Link>
               </Button>
             </div>
           ) : (
@@ -270,7 +270,7 @@ export default function ClientDashboardPage() {
                 return (
                   <Link 
                     key={request.id} 
-                    href={`/app/requests/${request.id}`}
+                    href={`/app/reports/${request.id}`}
                     className="flex items-center justify-between border-b pb-3 last:border-0 hover:bg-muted/50 rounded px-2 -mx-2 py-2 transition-colors"
                   >
                     <div className="flex items-center gap-3">
@@ -310,7 +310,7 @@ export default function ClientDashboardPage() {
               {recentRequests.length > 0 && (
                 <div className="pt-2">
                   <Button variant="outline" asChild className="w-full">
-                    <Link href="/app/requests">View All Requests</Link>
+                    <Link href="/app/reports">View All Reports</Link>
                   </Button>
                 </div>
               )}

@@ -141,14 +141,8 @@ export function middleware(request: NextRequest) {
       if (pathname.startsWith("/app/demo-tools")) {
         return NextResponse.redirect(new URL("/app/dashboard", request.url))
       }
-      // Block wizard routes - clients don't create reports, they submit requests
-      if (pathname.includes("/wizard")) {
-        return NextResponse.redirect(new URL("/app/dashboard", request.url))
-      }
-      // Block direct report creation - redirect to request form
-      if (pathname === "/app/reports/new") {
-        return NextResponse.redirect(new URL("/app/requests/new", request.url))
-      }
+      // CLIENT-DRIVEN FLOW: Clients now create reports directly via wizard
+      // No restrictions on /app/reports/new or wizard routes
     }
 
     // ========== CLIENT USER SPECIFIC RESTRICTIONS ==========

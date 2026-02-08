@@ -14,6 +14,7 @@ import {
   Settings,
   FileImage,
   PlusCircle,
+  Archive,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -305,9 +306,9 @@ function getClientAdminNavigation(counts: BadgeCounts): NavSection[] {
             : undefined,
         },
         {
-          label: "Requests",
+          label: "Request History",
           href: "/app/requests",
-          icon: Inbox,
+          icon: Archive,
         },
         {
           label: "Billing",
@@ -366,9 +367,9 @@ function getClientUserNavigation(counts: BadgeCounts): NavSection[] {
             : undefined,
         },
         {
-          label: "Requests",
+          label: "Request History",
           href: "/app/requests",
-          icon: Inbox,
+          icon: Archive,
         },
       ],
     },
