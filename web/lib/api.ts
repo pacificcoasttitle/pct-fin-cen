@@ -308,6 +308,7 @@ export async function getReportsWithParties(options?: {
 export async function createReport(data?: {
   property_address_text?: string;
   closing_date?: string;
+  wizard_data?: Record<string, unknown>;
 }): Promise<Report> {
   return apiFetch<Report>('/reports', {
     method: 'POST',

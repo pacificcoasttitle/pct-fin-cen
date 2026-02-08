@@ -53,6 +53,7 @@ import {
   Send,
   Eye,
   FileCheck,
+  MapPin,
   Rocket,
   Loader2
 } from "lucide-react"
@@ -1849,7 +1850,12 @@ export function RRERQuestionnaire({
                     <CardContent className="pt-6 space-y-6">
                       <div className="grid gap-4 md:grid-cols-2">
                         <div className="grid gap-2">
-                          <Label htmlFor="closingDate">Expected/Actual Closing Date *</Label>
+                          <Label htmlFor="closingDate" className="flex items-center gap-2">
+                            Expected/Actual Closing Date *
+                            {collection.closingDate && initialData?.collection?.closingDate && (
+                              <Badge variant="secondary" className="text-xs bg-green-100 text-green-700">Pre-filled</Badge>
+                            )}
+                          </Label>
                           <Input
                             id="closingDate"
                             type="date"
@@ -1881,88 +1887,154 @@ export function RRERQuestionnaire({
                           <Home className="h-4 w-4" />
                           Property Address
                         </h4>
-                        <AddressAutocomplete
-                          onSelect={(address: ParsedAddress, property?: PropertyData) => {
-                            setCollection(prev => {
-                              // Parse owner name into first/last for seller auto-fill
-                              let updatedSellers = prev.sellers || [createEmptySeller()];
-                              if (property?.primary_owner?.full_name && updatedSellers.length > 0) {
-                                const ownerName = property.primary_owner.full_name.trim();
-                                const nameParts = ownerName.split(/\s+/);
-                                const firstName = nameParts[0] || "";
-                                const lastName = nameParts.slice(1).join(" ") || "";
-                                
-                                // Only auto-fill if the first seller doesn't have a name yet
-                                const firstSeller = updatedSellers[0];
-                                if (firstSeller.type === "individual" && 
-                                    firstSeller.individual && 
-                                    !firstSeller.individual.firstName && 
-                                    !firstSeller.individual.lastName) {
-                                  updatedSellers = [
-                                    {
-                                      ...firstSeller,
-                                      individual: {
-                                        ...firstSeller.individual,
-                                        firstName,
-                                        lastName,
-                                      },
-                                    },
-                                    ...updatedSellers.slice(1),
-                                  ];
-                                }
-                              }
-                              
-                              return {
-                                ...prev,
-                                propertyAddress: {
-                                  street: address.street,
-                                  unit: "",
-                                  city: address.city,
-                                  state: address.state || "CA",
-                                  zip: address.zip,
-                                  country: "United States",
-                                },
-                                county: address.county || prev.county || "",
-                                apn: property?.apn || prev.apn || "",
-                                sellers: updatedSellers,
-                                siteXData: property ? {
-                                  apn: property.apn,
-                                  ownerName: property.primary_owner?.full_name,
-                                  ownerName2: property.secondary_owner?.full_name,
-                                  propertyType: property.property_type,
-                                  bedrooms: property.bedrooms,
-                                  bathrooms: property.bathrooms,
-                                  sqft: property.square_feet,
-                                  yearBuilt: property.year_built,
-                                  assessedValue: property.assessed_value,
-                                  lookupTimestamp: new Date().toISOString(),
-                                } : undefined,
-                              };
-                            });
-                          }}
-                          fetchPropertyData={true}
-                          showPropertyCard={true}
-                          placeholder="Start typing the property address..."
-                          defaultValue={
-                            collection.propertyAddress?.street
-                              ? `${collection.propertyAddress.street}, ${collection.propertyAddress.city}, ${collection.propertyAddress.state} ${collection.propertyAddress.zip}`
-                              : ""
-                          }
-                          required
-                        />
                         
-                        {/* Manual address fallback (always visible for editing) */}
-                        <div className="mt-4 p-4 bg-muted/50 rounded-lg border">
-                          <p className="text-xs text-muted-foreground mb-3">
-                            Address details (edit if needed):
-                          </p>
-                          <AddressFields
-                            address={collection.propertyAddress || createEmptyAddress()}
-                            onChange={(address) => setCollection(prev => ({ ...prev, propertyAddress: address }))}
-                            prefix="property-"
-                            required
-                          />
-                        </div>
+                        {/* Pre-filled address from entry form - show as confirmation */}
+                        {collection.propertyAddress?.street && !collection._editingAddress ? (
+                          <div className="space-y-3">
+                            <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="flex items-start gap-3">
+                                  <div className="p-2 rounded-full bg-green-100">
+                                    <MapPin className="h-4 w-4 text-green-600" />
+                                  </div>
+                                  <div>
+                                    <p className="font-medium text-green-900">
+                                      {collection.propertyAddress.street}
+                                    </p>
+                                    <p className="text-sm text-green-700">
+                                      {collection.propertyAddress.city}, {collection.propertyAddress.state} {collection.propertyAddress.zip}
+                                    </p>
+                                    {collection.county && (
+                                      <p className="text-xs text-green-600 mt-1">
+                                        County: {collection.county}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setCollection(prev => ({ ...prev, _editingAddress: true }))}
+                                  className="text-green-700 hover:text-green-800 hover:bg-green-100"
+                                >
+                                  Change
+                                </Button>
+                              </div>
+                              
+                              {/* SiteX data preview if available */}
+                              {collection.siteXData?.apn && (
+                                <div className="mt-3 pt-3 border-t border-green-200">
+                                  <p className="text-xs text-green-600">
+                                    APN: {collection.siteXData.apn}
+                                    {collection.siteXData.ownerName && ` • Owner: ${collection.siteXData.ownerName}`}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              ✓ Address confirmed from report entry. Click &quot;Change&quot; to edit.
+                            </p>
+                          </div>
+                        ) : (
+                          <>
+                            {/* Full address entry with autocomplete */}
+                            <AddressAutocomplete
+                              onSelect={(address: ParsedAddress, property?: PropertyData) => {
+                                setCollection(prev => {
+                                  // Parse owner name into first/last for seller auto-fill
+                                  let updatedSellers = prev.sellers || [createEmptySeller()];
+                                  if (property?.primary_owner?.full_name && updatedSellers.length > 0) {
+                                    const ownerName = property.primary_owner.full_name.trim();
+                                    const nameParts = ownerName.split(/\s+/);
+                                    const firstName = nameParts[0] || "";
+                                    const lastName = nameParts.slice(1).join(" ") || "";
+                                    
+                                    // Only auto-fill if the first seller doesn't have a name yet
+                                    const firstSeller = updatedSellers[0];
+                                    if (firstSeller.type === "individual" && 
+                                        firstSeller.individual && 
+                                        !firstSeller.individual.firstName && 
+                                        !firstSeller.individual.lastName) {
+                                      updatedSellers = [
+                                        {
+                                          ...firstSeller,
+                                          individual: {
+                                            ...firstSeller.individual,
+                                            firstName,
+                                            lastName,
+                                          },
+                                        },
+                                        ...updatedSellers.slice(1),
+                                      ];
+                                    }
+                                  }
+                                  
+                                  return {
+                                    ...prev,
+                                    _editingAddress: false, // Close edit mode after selection
+                                    propertyAddress: {
+                                      street: address.street,
+                                      unit: "",
+                                      city: address.city,
+                                      state: address.state || "CA",
+                                      zip: address.zip,
+                                      country: "United States",
+                                    },
+                                    county: address.county || prev.county || "",
+                                    apn: property?.apn || prev.apn || "",
+                                    sellers: updatedSellers,
+                                    siteXData: property ? {
+                                      apn: property.apn,
+                                      ownerName: property.primary_owner?.full_name,
+                                      ownerName2: property.secondary_owner?.full_name,
+                                      propertyType: property.property_type,
+                                      bedrooms: property.bedrooms,
+                                      bathrooms: property.bathrooms,
+                                      sqft: property.square_feet,
+                                      yearBuilt: property.year_built,
+                                      assessedValue: property.assessed_value,
+                                      lookupTimestamp: new Date().toISOString(),
+                                    } : undefined,
+                                  };
+                                });
+                              }}
+                              fetchPropertyData={true}
+                              showPropertyCard={true}
+                              placeholder="Start typing the property address..."
+                              defaultValue={
+                                collection.propertyAddress?.street
+                                  ? `${collection.propertyAddress.street}, ${collection.propertyAddress.city}, ${collection.propertyAddress.state} ${collection.propertyAddress.zip}`
+                                  : ""
+                              }
+                              required
+                            />
+                            
+                            {/* Cancel edit button if editing pre-filled address */}
+                            {collection._editingAddress && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setCollection(prev => ({ ...prev, _editingAddress: false }))}
+                                className="mt-2"
+                              >
+                                Cancel edit
+                              </Button>
+                            )}
+                            
+                            {/* Manual address fallback (always visible for editing) */}
+                            <div className="mt-4 p-4 bg-muted/50 rounded-lg border">
+                              <p className="text-xs text-muted-foreground mb-3">
+                                Address details (edit if needed):
+                              </p>
+                              <AddressFields
+                                address={collection.propertyAddress || createEmptyAddress()}
+                                onChange={(address) => setCollection(prev => ({ ...prev, propertyAddress: address }))}
+                                prefix="property-"
+                                required
+                              />
+                            </div>
+                          </>
+                        )}
                       </div>
 
                       <div className="grid gap-4 md:grid-cols-2">
