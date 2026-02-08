@@ -32,7 +32,7 @@ export function HeroSection() {
             </h1>
             
             <p className="mt-6 text-lg text-muted-foreground leading-relaxed">
-              The most comprehensive compliance platform for title companies. 
+              Complete FinCEN Real Estate Reporting — from determination through filing. 
               Determine reporting requirements in <strong className="text-foreground">2 minutes</strong>. 
               File in <strong className="text-foreground">10 minutes</strong>. 
               Store records for <strong className="text-foreground">5 years</strong>.
@@ -61,7 +61,7 @@ export function HeroSection() {
             <div className="mt-8 flex flex-col sm:flex-row gap-4 sm:gap-6">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Check className="w-4 h-4 text-[#10B981]" />
-                <span>Trusted by title companies across California</span>
+                <span>Built for California title companies</span>
               </div>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Check className="w-4 h-4 text-[#10B981]" />

@@ -1,13 +1,13 @@
 "use client";
 
-import { Building2, FileCheck, Check, BarChart3 } from "lucide-react";
+import { FileCheck, Check, BarChart3, Shield, Database, Send } from "lucide-react";
 
 export function AboutSection() {
   const stats = [
-    { value: "6", label: "Office Locations", icon: Building2 },
-    { value: "1000s", label: "Transactions Processed", icon: FileCheck },
-    { value: "100%", label: "FNF Flowchart Coverage", icon: Check },
     { value: "35", label: "Exemption Types Covered", icon: BarChart3 },
+    { value: "5yr", label: "Record Storage", icon: Database },
+    { value: "Direct", label: "FinCEN Filing", icon: Send },
+    { value: "SOC 2", label: "Certified Security", icon: Shield },
   ];
 
   const expertise = [
@@ -47,8 +47,7 @@ export function AboutSection() {
             </ul>
 
             <p className="mt-6 text-muted-foreground leading-relaxed">
-              {`Our platform is built on the FNF compliance flowchart—the industry standard—ensuring 
-              you're aligned with how the largest title underwriter interprets the regulation.`}
+              {`Our platform implements the complete FinCEN Real Estate Report determination logic—all 23 entity exemptions, 4 trust exemptions, and 8 transaction exemptions—ensuring every filing decision is documented and defensible.`}
             </p>
           </div>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { Shield, Lock, FileText, KeyRound, HardDrive, Server, Quote } from "lucide-react";
+import { Shield, Lock, FileText, KeyRound, HardDrive, Server } from "lucide-react";
 
 export function SecuritySection() {
   const trustBadges = [
@@ -60,18 +60,17 @@ export function SecuritySection() {
           ))}
         </div>
 
-        {/* Testimonial */}
-        <div className="max-w-3xl mx-auto">
-          <div className="bg-card rounded-2xl border border-border p-8 lg:p-10 relative">
-            <Quote className="absolute top-6 left-6 w-10 h-10 text-primary/10" />
-            <blockquote className="text-lg lg:text-xl text-foreground text-center leading-relaxed mb-6">
-              {`"FinClear gave us peace of mind knowing our compliance data is secure and our filings are accurate. The platform handles the complexity so we can focus on our clients."`}
-            </blockquote>
-            <div className="text-center">
-              <p className="font-semibold text-foreground">Sarah Mitchell</p>
-              <p className="text-sm text-muted-foreground">VP of Operations, Golden State Title Company, California</p>
-            </div>
-          </div>
+        {/* CTA */}
+        <div className="max-w-3xl mx-auto text-center">
+          <p className="text-lg text-muted-foreground mb-4">
+            Ready to see how it works?
+          </p>
+          <a
+            href="#get-started"
+            className="inline-flex items-center justify-center px-6 py-3 bg-primary text-primary-foreground font-semibold rounded-lg hover:bg-primary/90 transition-colors"
+          >
+            Schedule a Demo
+          </a>
         </div>
       </div>
     </section>

@@ -16,7 +16,7 @@ export const metadata: Metadata = {
     default: 'FinCEN Clear - FinCEN Compliance Made Simple',
     template: '%s | FinCEN Clear',
   },
-  description: 'The most comprehensive FinCEN Real Estate Reporting compliance platform for title companies. Determine requirements in 2 minutes. File in 10 minutes.',
+  description: 'Complete FinCEN Real Estate Reporting for title companies — from determination through filing. Determine requirements in 2 minutes. File in 10 minutes.',
   keywords: [
     'FinCEN',
     'Real Estate Reporting',
@@ -52,7 +52,7 @@ export const metadata: Metadata = {
     url: siteUrl,
     siteName: 'FinCEN Clear',
     title: 'FinCEN Clear - FinCEN Compliance Made Simple',
-    description: 'The most comprehensive FinCEN Real Estate Reporting compliance platform for title companies.',
+    description: 'Complete FinCEN Real Estate Reporting for title companies — from determination through filing.',
     images: [
       {
         url: '/og-image.png',
@@ -65,7 +65,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'FinCEN Clear - FinCEN Compliance Made Simple',
-    description: 'The most comprehensive FinCEN Real Estate Reporting compliance platform for title companies.',
+    description: 'Complete FinCEN Real Estate Reporting for title companies — from determination through filing.',
     images: ['/og-image.png'],
   },
   robots: {

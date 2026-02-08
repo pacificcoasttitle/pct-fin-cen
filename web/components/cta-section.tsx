@@ -21,7 +21,7 @@ export function CTASection() {
             Ready to Simplify Your FinCEN Compliance?
           </h2>
           <p className="text-lg text-slate-300">
-            Join hundreds of title companies who trust FinClear
+            Get started with FinClear
           </p>
         </div>
 
