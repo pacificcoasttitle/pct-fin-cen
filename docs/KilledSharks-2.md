@@ -14,7 +14,7 @@
 | 🔧 Configuration | 3 |
 | 📄 Documentation | 3 |
 
-**Total Sharks Killed (Vol 2): 17 🦈 + 1 Hardening Addendum**
+**Total Sharks Killed (Vol 2): 18 🦈 + 1 Hardening Addendum**
 
 ---
 
@@ -1730,6 +1730,54 @@ Notifications sent to:         Notifications sent to:
 
 ---
 
+### 59. Triple Shark Kill: Emails + Permissions + Landing Page ✅
+
+**Date:** February 8, 2026
+
+**Problem:** 
+- Email notification events were logged but not sent
+- Client users couldn't access wizard
+- Landing page had FNF references and unverifiable claims
+
+**Investigation Result:**
+All three issues were **already resolved** in previous work:
+
+| Shark | Status | Evidence |
+|-------|--------|----------|
+| **A: Email Wiring** | ✅ Complete | `parties.py` line 64: `send_party_submitted_notification()` wired |
+| | | `filing_lifecycle.py` line 105: `send_filing_accepted_notification()` wired |
+| | | `config.py`: `STAFF_NOTIFICATION_EMAIL` and `ADMIN_NOTIFICATION_EMAIL` configured |
+| **B: Client Permissions** | ✅ Complete | `middleware/permissions.py`: Full RBAC with `CLIENT_USER_PERMISSIONS` |
+| | | `navigation.ts`: Client users have "Start New Report" → `/app/reports/new` |
+| | | `reports.py` route: Clients can create reports with `initiated_by_user_id` |
+| | | `reports/page.tsx`: Full client reports list with actions |
+| **C: Landing Page** | ✅ Complete | `about-section.tsx`: No FNF references, factual stats only |
+| | | `security-section.tsx`: Testimonial replaced with demo CTA |
+| | | Only `web/_imports/` (backup) contains old content |
+
+**Verification Checklist:**
+```bash
+# All return only _imports/ (backup) matches
+grep -rn "FNF" web/ --include="*.tsx"           # ✅ Only in _imports
+grep -rn "most comprehensive" web/              # ✅ Only in _imports  
+grep -rn "hundreds of" web/                     # ✅ Only in _imports
+grep -rn "Sarah Mitchell.*Golden State" web/   # ✅ No matches
+```
+
+**Files Already Complete:**
+- `api/app/routes/parties.py` — Email wiring for party submissions
+- `api/app/services/filing_lifecycle.py` — Filing notification dispatch
+- `api/app/services/email_service.py` — All email templates present
+- `api/app/middleware/permissions.py` — Full RBAC implementation
+- `web/lib/navigation.ts` — Client wizard access configured
+- `web/app/(app)/app/reports/page.tsx` — Client reports list
+- `web/components/about-section.tsx` — Clean, factual content
+- `web/components/security-section.tsx` — Demo CTA (no testimonial)
+
+**Status:** ✅ Already Killed (TRIPLE SHARK 🦈🦈🦈 — verified complete)
+
+---
+
 ## Next Steps
 
 1. **P0:** Verify sandbox credentials with FinCEN (authentication failed in test)
@@ -1743,4 +1791,4 @@ Notifications sent to:         Notifications sent to:
 
 ---
 
-*Last updated: February 8, 2026 (Shark #58)*
+*Last updated: February 8, 2026 (Shark #59 - Triple Shark verified)*
