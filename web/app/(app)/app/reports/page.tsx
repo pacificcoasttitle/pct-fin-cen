@@ -19,7 +19,6 @@ import {
   Loader2,
 } from "lucide-react";
 import { getReportsWithParties, type ReportWithParties } from "@/lib/api";
-import { useSession } from "@/lib/session";
 
 function getStatusBadge(status: string) {
   switch (status) {
@@ -64,7 +63,6 @@ function getPartyBadge(summary: { total: number; submitted: number; all_complete
 
 export default function ClientReportsPage() {
   const router = useRouter();
-  const session = useSession();
   const [reports, setReports] = useState<ReportWithParties[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
