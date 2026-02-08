@@ -1148,6 +1148,65 @@ Staff queue becomes a **review queue** showing all reports across all companies 
 
 ---
 
+## 7. Integration Testing
+
+### Client-Driven Flow Integration Test
+
+A comprehensive integration test script validates the full end-to-end workflow.
+
+**Location:** `api/tests/test_client_driven_flow.py`
+
+**Usage:**
+```bash
+# From api/ directory with DATABASE_URL set
+python -m tests.test_client_driven_flow
+
+# Or with explicit database URL
+DATABASE_URL=postgresql://... python -m tests.test_client_driven_flow
+```
+
+**Test Coverage:**
+
+| Step | Description | Validates |
+|------|-------------|-----------|
+| 1 | Client creates report | `initiated_by_user_id`, `company_id`, `auto_file_enabled`, `notification_config` |
+| 2 | Wizard progress | `wizard_data`, `status`, `determination` |
+| 3 | Party creation | `ReportParty`, `PartyLink` creation |
+| 4 | Party submissions | Party data updates, status transitions |
+| 5 | Auto-transition | `collecting` → `ready_to_file` |
+| 6 | Party data sync | `sync_party_data_to_wizard` function |
+| 7 | Filing trigger | `perform_mock_submit`, `receipt_id` |
+| 8 | Notifications | `NotificationEvent` records |
+| 9 | Audit log | `AuditLog` entries |
+
+**Expected Output:**
+```
+============================================================
+Client-Driven Flow Integration Test
+============================================================
+
+[Step 1] Client creates a report directly
+  [OK] Report created: abc123-...
+  [OK] initiated_by_user_id correctly set
+  [OK] auto_file_enabled is True
+
+[Step 7] Test filing trigger
+  [OK] Filing result: accepted
+  [OK] Receipt ID: RER-DEMO-12345678
+
+============================================================
+Test Results Summary
+============================================================
+  step_1_create_report: PASS
+  step_2_wizard_progress: PASS
+  ...
+  step_9_verify_audit_log: PASS
+
+All 9 tests passed!
+```
+
+---
+
 ## Appendix: Configuration Environment Variables
 
 ```bash
