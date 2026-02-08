@@ -278,21 +278,21 @@ function SectionHeader({
   icon?: React.ComponentType<{ className?: string }>
 }) {
   return (
-    <CardHeader className="relative border-b bg-gradient-to-br from-background via-background to-muted/30 pb-6">
-      {/* Accent bar at top */}
-      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary via-primary/80 to-primary/60" />
+    <CardHeader className="relative border-b bg-gradient-to-br from-slate-50 via-white to-teal-50/30 pb-6">
+      {/* Accent bar at top - teal gradient matching website */}
+      <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-teal-500 via-teal-500 to-teal-400 rounded-t-2xl" />
       
-      <div className="flex items-start gap-4 pt-2">
+      <div className="flex items-start gap-4 pt-3">
         {Icon && (
-          <div className="p-2.5 rounded-xl bg-primary/10 text-primary shrink-0">
+          <div className="p-3 rounded-xl bg-gradient-to-br from-teal-500 to-teal-600 text-white shadow-lg shadow-teal-500/25 shrink-0">
             <Icon className="h-5 w-5" />
           </div>
         )}
         <div className="flex-1">
-          <Badge variant="outline" className="mb-2 bg-background/50 backdrop-blur-sm">{step}</Badge>
-          <CardTitle className="text-xl font-semibold">{title}</CardTitle>
+          <Badge variant="outline" className="mb-2 bg-teal-50 border-teal-200 text-teal-700 font-medium">{step}</Badge>
+          <CardTitle className="text-xl font-semibold text-gray-900">{title}</CardTitle>
           {description && (
-            <CardDescription className="mt-2 text-muted-foreground">{description}</CardDescription>
+            <CardDescription className="mt-2 text-gray-600 leading-relaxed">{description}</CardDescription>
           )}
         </div>
       </div>
@@ -922,32 +922,32 @@ export function RRERQuestionnaire({
 
   return (
     <TooltipProvider>
-      <div className="min-h-screen bg-gradient-to-b from-muted/30 via-background to-background">
-        {/* Header */}
-        <header className="bg-gradient-to-r from-primary via-primary to-primary/95 text-primary-foreground py-5 px-4 md:px-8 print:bg-white print:text-foreground shadow-lg shadow-primary/20">
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50/50">
+        {/* Header - Modern teal gradient matching website */}
+        <header className="bg-gradient-to-r from-teal-600 via-teal-500 to-teal-600 text-white py-5 px-4 md:px-8 print:bg-white print:text-foreground shadow-xl shadow-teal-600/30">
           <div className="max-w-5xl mx-auto flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-white/10 backdrop-blur-sm flex items-center justify-center border border-white/20">
+              <div className="w-12 h-12 rounded-2xl bg-white/15 backdrop-blur-sm flex items-center justify-center border border-white/20 shadow-lg">
                 <Building2 className="w-7 h-7" />
               </div>
               <div>
                 <h1 className="text-lg font-bold tracking-tight">FinClear</h1>
-                <p className="text-sm text-primary-foreground/80">FinCEN RRER Compliance Wizard</p>
+                <p className="text-sm text-teal-100">FinCEN RRER Compliance Wizard</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
               {lastSavedAt && (
-                <div className="hidden md:flex items-center gap-2 text-sm bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-full border border-white/20">
+                <div className="hidden md:flex items-center gap-2 text-sm bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full border border-white/20 shadow-lg">
                   <CheckCircle className="w-4 h-4 text-green-300" />
-                  <span className="text-primary-foreground/90">Saved {new Date(lastSavedAt).toLocaleTimeString()}</span>
+                  <span className="text-white/90">Saved {new Date(lastSavedAt).toLocaleTimeString()}</span>
                 </div>
               )}
             </div>
           </div>
         </header>
 
-        {/* Enhanced Phase Tabs */}
-        <div className="bg-background/95 backdrop-blur-md border-b shadow-sm print:hidden sticky top-0 z-30">
+        {/* Enhanced Phase Tabs - Modern teal theme */}
+        <div className="bg-white/95 backdrop-blur-md border-b border-gray-100 shadow-sm print:hidden sticky top-0 z-30">
           <div className="max-w-5xl mx-auto px-4 md:px-8">
             <div className="flex gap-2 py-3">
               {/* Phase 1: Determination */}
@@ -956,17 +956,17 @@ export function RRERQuestionnaire({
                 className={cn(
                   "flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200",
                   phase === "determination"
-                    ? "bg-primary text-primary-foreground shadow-md shadow-primary/25"
-                    : "hover:bg-muted text-muted-foreground hover:text-foreground"
+                    ? "bg-gradient-to-r from-teal-500 to-teal-600 text-white shadow-lg shadow-teal-500/25"
+                    : "hover:bg-teal-50 text-gray-600 hover:text-teal-700"
                 )}
               >
                 <span className={cn(
                   "w-7 h-7 rounded-full flex items-center justify-center text-sm font-semibold transition-colors",
                   phase === "determination" 
-                    ? "bg-primary-foreground/20" 
+                    ? "bg-white/20" 
                     : determinationResult 
-                      ? "bg-green-100 text-green-700"
-                      : "bg-muted"
+                      ? "bg-teal-100 text-teal-700"
+                      : "bg-gray-100"
                 )}>
                   {determinationResult ? <Check className="w-4 h-4" /> : "1"}
                 </span>
@@ -977,7 +977,7 @@ export function RRERQuestionnaire({
               <div className="flex items-center px-1">
                 <ChevronRight className={cn(
                   "w-4 h-4 transition-colors",
-                  determinationResult?.isReportable ? "text-primary" : "text-muted-foreground/40"
+                  determinationResult?.isReportable ? "text-teal-500" : "text-gray-300"
                 )} />
               </div>
 
@@ -988,19 +988,19 @@ export function RRERQuestionnaire({
                 className={cn(
                   "flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200",
                   phase === "collection"
-                    ? "bg-primary text-primary-foreground shadow-md shadow-primary/25"
+                    ? "bg-gradient-to-r from-teal-500 to-teal-600 text-white shadow-lg shadow-teal-500/25"
                     : determinationResult?.isReportable
-                      ? "hover:bg-muted text-muted-foreground hover:text-foreground"
-                      : "text-muted-foreground/40 cursor-not-allowed"
+                      ? "hover:bg-teal-50 text-gray-600 hover:text-teal-700"
+                      : "text-gray-300 cursor-not-allowed"
                 )}
               >
                 <span className={cn(
                   "w-7 h-7 rounded-full flex items-center justify-center text-sm font-semibold",
                   phase === "collection" 
-                    ? "bg-primary-foreground/20" 
+                    ? "bg-white/20" 
                     : phase === "summary" 
-                      ? "bg-green-100 text-green-700"
-                      : "bg-muted"
+                      ? "bg-teal-100 text-teal-700"
+                      : "bg-gray-100"
                 )}>
                   {phase === "summary" ? <Check className="w-4 h-4" /> : "2"}
                 </span>
@@ -1011,7 +1011,7 @@ export function RRERQuestionnaire({
               <div className="flex items-center px-1">
                 <ChevronRight className={cn(
                   "w-4 h-4 transition-colors",
-                  phase === "summary" ? "text-primary" : "text-muted-foreground/40"
+                  phase === "summary" ? "text-teal-500" : "text-gray-300"
                 )} />
               </div>
 
@@ -1022,15 +1022,15 @@ export function RRERQuestionnaire({
                 className={cn(
                   "flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200",
                   phase === "summary"
-                    ? "bg-primary text-primary-foreground shadow-md shadow-primary/25"
+                    ? "bg-gradient-to-r from-teal-500 to-teal-600 text-white shadow-lg shadow-teal-500/25"
                     : determinationResult?.isReportable
-                      ? "hover:bg-muted text-muted-foreground hover:text-foreground"
-                      : "text-muted-foreground/40 cursor-not-allowed"
+                      ? "hover:bg-teal-50 text-gray-600 hover:text-teal-700"
+                      : "text-gray-300 cursor-not-allowed"
                 )}
               >
                 <span className={cn(
                   "w-7 h-7 rounded-full flex items-center justify-center text-sm font-semibold",
-                  phase === "summary" ? "bg-primary-foreground/20" : "bg-muted"
+                  phase === "summary" ? "bg-white/20" : "bg-gray-100"
                 )}>
                   3
                 </span>
@@ -1120,7 +1120,7 @@ export function RRERQuestionnaire({
 
           {/* PHASE 1: DETERMINATION */}
           {phase === "determination" && (
-            <Card className="mb-6 border-0 shadow-xl shadow-black/5 overflow-hidden">
+            <Card className="mb-6 border-0 rounded-2xl shadow-xl shadow-teal-500/5 ring-1 ring-gray-100 overflow-hidden">
               {/* Property Type */}
               {determinationStep === "property" && (
                 <>
@@ -1717,10 +1717,11 @@ export function RRERQuestionnaire({
                         </ul>
                         <Button 
                           className={cn(
-                            "mt-6 w-full gap-2",
-                            "bg-gradient-to-r from-primary to-primary/90",
-                            "hover:from-primary/90 hover:to-primary/80",
-                            "shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30",
+                            "mt-6 w-full gap-2 h-12",
+                            "bg-gradient-to-r from-teal-500 to-teal-600",
+                            "hover:from-teal-600 hover:to-teal-700",
+                            "shadow-lg shadow-teal-500/25 hover:shadow-xl hover:shadow-teal-500/35",
+                            "text-white font-semibold rounded-xl",
                             "transition-all duration-200"
                           )}
                           size="lg"
@@ -1861,7 +1862,7 @@ export function RRERQuestionnaire({
                 </div>
               </div>
 
-              <Card className="mb-6 border-0 shadow-xl shadow-black/5 overflow-hidden">
+              <Card className="mb-6 border-0 rounded-2xl shadow-xl shadow-teal-500/5 ring-1 ring-gray-100 overflow-hidden">
                 {/* Transaction & Property */}
                 {collectionStep === "transaction-property" && (
                   <>
@@ -2560,7 +2561,7 @@ export function RRERQuestionnaire({
                             <Button 
                               onClick={() => setCollectionStep("review-submissions")}
                               disabled={!canProceedFromMonitor}
-                              className="w-full h-12"
+                              className="w-full h-12 bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white font-semibold rounded-xl shadow-lg shadow-teal-500/25 hover:shadow-xl transition-all"
                             >
                               Continue to Review
                               <ArrowRight className="h-4 w-4 ml-2" />
@@ -4615,7 +4616,7 @@ export function RRERQuestionnaire({
                       {/* Continue to Summary */}
                       {sectionCompletion.certifications && (
                         <Button 
-                          className="w-full" 
+                          className="w-full h-12 bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white font-semibold rounded-xl shadow-lg shadow-teal-500/25 hover:shadow-xl transition-all" 
                           size="lg"
                           onClick={() => setPhase("summary")}
                         >
@@ -4628,26 +4629,36 @@ export function RRERQuestionnaire({
                 )}
 
                 {/* Collection Navigation */}
-                <CardFooter className="border-t bg-gradient-to-r from-muted/30 via-muted/50 to-muted/30 flex items-center justify-between py-5 print:hidden">
+                <CardFooter className="border-t bg-gradient-to-r from-slate-50 via-gray-50 to-slate-50 flex items-center justify-between py-5 print:hidden">
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     onClick={goToPreviousCollectionStep}
                     disabled={collectionSteps.indexOf(collectionStep) === 0}
-                    className="gap-2 hover:bg-background/80"
+                    className="gap-2 h-11 px-6 rounded-xl border-2 font-medium hover:bg-white hover:border-teal-300"
                   >
                     <ChevronLeft className="w-4 h-4" />
                     Back
                   </Button>
                   
                   {/* Step indicator */}
-                  <span className="text-sm text-muted-foreground hidden sm:block">
-                    Section {collectionSteps.indexOf(collectionStep) + 1} of {collectionSteps.length}
-                  </span>
+                  <div className="hidden sm:flex items-center gap-2">
+                    {collectionSteps.map((_, idx) => (
+                      <div
+                        key={idx}
+                        className={cn(
+                          "w-2 h-2 rounded-full transition-all",
+                          idx <= collectionSteps.indexOf(collectionStep) 
+                            ? "bg-teal-500" 
+                            : "bg-gray-200"
+                        )}
+                      />
+                    ))}
+                  </div>
                   
                   <Button
                     onClick={goToNextCollectionStep}
                     disabled={collectionSteps.indexOf(collectionStep) === collectionSteps.length - 1}
-                    className="gap-2 min-w-[130px] shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30"
+                    className="gap-2 min-w-[130px] h-11 rounded-xl bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white font-semibold shadow-lg shadow-teal-500/25 hover:shadow-xl transition-all"
                   >
                     Continue
                     <ChevronRight className="w-4 h-4" />
@@ -4660,7 +4671,7 @@ export function RRERQuestionnaire({
           {/* PHASE 3: SUMMARY */}
           {phase === "summary" && (
             <>
-              <Card className="mb-6 border-0 shadow-xl shadow-black/5 overflow-hidden">
+              <Card className="mb-6 border-0 rounded-2xl shadow-xl shadow-teal-500/5 ring-1 ring-gray-100 overflow-hidden">
                 <SectionHeader 
                   step="Phase 3: Summary"
                   title="Filing Preparation Summary"
@@ -4799,16 +4810,16 @@ export function RRERQuestionnaire({
                     </AlertDescription>
                   </Alert>
                 </CardContent>
-                <CardFooter className="border-t bg-muted/30 gap-2 print:hidden">
-                  <Button variant="outline" onClick={() => setPhase("collection")} className="gap-2">
+                <CardFooter className="border-t bg-gradient-to-r from-slate-50 via-gray-50 to-slate-50 gap-3 print:hidden">
+                  <Button variant="outline" onClick={() => setPhase("collection")} className="gap-2 h-11 rounded-xl border-2 font-medium hover:bg-white hover:border-teal-300">
                     <ArrowLeft className="w-4 h-4" />
                     Back to Collection
                   </Button>
-                  <Button variant="outline" onClick={handlePrint} className="gap-2 bg-transparent">
+                  <Button variant="outline" onClick={handlePrint} className="gap-2 h-11 rounded-xl border-2 font-medium hover:bg-white hover:border-teal-300">
                     <Printer className="w-4 h-4" />
                     Print Summary
                   </Button>
-                  <Button variant="outline" onClick={resetQuestionnaire} className="gap-2 bg-transparent">
+                  <Button variant="outline" onClick={resetQuestionnaire} className="gap-2 h-11 rounded-xl border-2 font-medium hover:bg-white hover:border-teal-300">
                     <RotateCcw className="w-4 h-4" />
                     Start New
                   </Button>

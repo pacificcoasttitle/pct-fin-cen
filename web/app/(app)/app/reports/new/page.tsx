@@ -109,43 +109,53 @@ export default function NewReportPage() {
   const isValid = formData.propertyAddress !== null
 
   return (
-    <div className="container mx-auto py-8 px-4 max-w-2xl">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">
-          Start a New FinCEN Report
-        </h1>
-        <p className="text-gray-600">
-          Enter the property address to begin. You&apos;ll complete the full 
-          report through our guided wizard.
-        </p>
-      </div>
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50/50 py-8 px-4">
+      <div className="max-w-2xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-3 tracking-tight">
+            Start a New FinCEN Report
+          </h1>
+          <p className="text-lg text-gray-600">
+            Enter the property address to begin. You&apos;ll complete the full 
+            report through our guided wizard.
+          </p>
+        </div>
 
-      {/* Info Banner */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8">
-        <div className="flex items-start gap-3">
-          <FileText className="h-5 w-5 text-blue-600 mt-0.5" />
-          <div>
-            <h3 className="font-medium text-blue-900">How it works</h3>
-            <p className="text-sm text-blue-700 mt-1">
-              1. Enter property address below → 2. Complete the wizard → 
-              3. Send party invitations → 4. Auto-filed when all parties submit
-            </p>
+        {/* Info Banner - teal theme */}
+        <div className="bg-gradient-to-r from-teal-50 to-teal-100/50 border border-teal-200 rounded-2xl p-5 mb-8 shadow-sm">
+          <div className="flex items-start gap-4">
+            <div className="p-2 bg-teal-500 rounded-xl shadow-lg shadow-teal-500/25">
+              <FileText className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-teal-900">How it works</h3>
+              <p className="text-sm text-teal-700 mt-1 leading-relaxed">
+                1. Enter property address below → 2. Complete the wizard → 
+                3. Send party invitations → 4. Auto-filed when all parties submit
+              </p>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Form Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Building2 className="h-5 w-5 text-gray-500" />
-            Transaction Details
-          </CardTitle>
-          <CardDescription>
-            Start typing the property address to search — we&apos;ll auto-fill property details.
-          </CardDescription>
-        </CardHeader>
+        {/* Form Card - modern styling */}
+        <Card className="border-0 rounded-2xl shadow-xl shadow-teal-500/5 ring-1 ring-gray-100 overflow-hidden">
+          <CardHeader className="bg-gradient-to-br from-slate-50 via-white to-teal-50/30 border-b pb-6">
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-teal-500 via-teal-500 to-teal-400 rounded-t-2xl" />
+            <div className="flex items-center gap-3 pt-2">
+              <div className="p-2.5 bg-gradient-to-br from-teal-500 to-teal-600 rounded-xl shadow-lg shadow-teal-500/25">
+                <Building2 className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <CardTitle className="text-xl font-semibold text-gray-900">
+                  Transaction Details
+                </CardTitle>
+                <CardDescription className="text-gray-600 mt-1">
+                  Start typing the property address to search — we&apos;ll auto-fill property details.
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Property Address - Google Autocomplete + SiteX */}
@@ -252,19 +262,20 @@ export default function NewReportPage() {
             )}
 
             {/* Submit Button */}
-            <div className="flex gap-4 pt-4">
+            <div className="flex gap-4 pt-6">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => router.push("/app/reports")}
                 disabled={isSubmitting}
+                className="h-12 px-6 rounded-xl border-2 font-medium hover:bg-white hover:border-teal-300"
               >
                 Cancel
               </Button>
               <Button 
                 type="submit" 
                 disabled={!isValid || isSubmitting}
-                className="flex-1"
+                className="flex-1 h-12 rounded-xl bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white font-semibold shadow-lg shadow-teal-500/25 hover:shadow-xl transition-all"
               >
                 {isSubmitting ? (
                   <>
@@ -283,14 +294,15 @@ export default function NewReportPage() {
         </CardContent>
       </Card>
 
-      {/* Footer Info */}
-      <div className="mt-8 text-center text-sm text-gray-500">
-        <p>
-          Need help? Contact support at{" "}
-          <a href="mailto:clear@fincenclear.com" className="text-blue-600 hover:underline">
-            clear@fincenclear.com
-          </a>
-        </p>
+        {/* Footer Info */}
+        <div className="mt-10 text-center">
+          <p className="text-sm text-gray-500">
+            Need help? Contact support at{" "}
+            <a href="mailto:clear@fincenclear.com" className="text-teal-600 hover:text-teal-700 hover:underline font-medium">
+              clear@fincenclear.com
+            </a>
+          </p>
+        </div>
       </div>
     </div>
   )

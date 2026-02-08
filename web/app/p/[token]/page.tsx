@@ -318,25 +318,26 @@ export default function PartyPortalPage() {
       <div className="container mx-auto px-4 py-8 max-w-2xl">
         {/* Context Card */}
         {partyData && (
-          <Card className="mb-6 bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20 shadow-sm">
+          <Card className="mb-6 bg-gradient-to-br from-teal-50/80 to-teal-100/50 border-teal-200 shadow-lg shadow-teal-500/5 rounded-2xl overflow-hidden">
+            <div className="h-1.5 bg-gradient-to-r from-teal-500 via-teal-500 to-teal-400" />
             <CardContent className="pt-6">
               <div className="flex items-start gap-4">
-                <div className="p-3 bg-white rounded-xl shadow-sm">
-                  <Building2 className="h-6 w-6 text-primary" />
+                <div className="p-3 bg-gradient-to-br from-teal-500 to-teal-600 rounded-xl shadow-lg shadow-teal-500/25">
+                  <Building2 className="h-6 w-6 text-white" />
                 </div>
                 <div className="flex-1">
-                  <p className="font-semibold text-lg">
+                  <p className="font-semibold text-lg text-gray-900">
                     {partyData.report_summary.property_address || "Property Address Pending"}
                   </p>
                   <div className="flex flex-wrap items-center gap-2 mt-2">
-                    <Badge variant="secondary" className="font-medium">
+                    <Badge className="font-medium bg-teal-100 text-teal-700 border-teal-200">
                       {getRoleDisplay(partyData.party_role)}
                     </Badge>
-                    <Badge variant="outline">
+                    <Badge variant="outline" className="border-teal-200 text-teal-600">
                       {getTypeDisplay(partyData.entity_type)}
                     </Badge>
                     {partyData.report_summary.closing_date && (
-                      <span className="text-sm text-muted-foreground flex items-center gap-1">
+                      <span className="text-sm text-teal-700 flex items-center gap-1">
                         <Clock className="h-3 w-3" />
                         Closing: {new Date(partyData.report_summary.closing_date).toLocaleDateString()}
                       </span>
@@ -349,13 +350,15 @@ export default function PartyPortalPage() {
         )}
 
         {/* Why We Need This Info */}
-        <Card className="mb-6 bg-blue-50/50 border-blue-100">
+        <Card className="mb-6 bg-gradient-to-r from-slate-50 to-slate-100/50 border-slate-200 rounded-xl">
           <CardContent className="pt-4 pb-4">
             <div className="flex items-start gap-3">
-              <Info className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />
+              <div className="p-2 bg-teal-100 rounded-lg">
+                <Info className="h-4 w-4 text-teal-600" />
+              </div>
               <div>
-                <p className="text-sm text-blue-900 font-medium">Why is this information needed?</p>
-                <p className="text-sm text-blue-700 mt-1">
+                <p className="text-sm text-gray-900 font-medium">Why is this information needed?</p>
+                <p className="text-sm text-gray-600 mt-1 leading-relaxed">
                   Federal regulations require us to collect certain information from all parties 
                   in real estate transactions. Your information is encrypted, secure, and will 
                   only be used for compliance purposes.
@@ -366,14 +369,14 @@ export default function PartyPortalPage() {
         </Card>
 
         {/* Progress */}
-        <div className="mb-6">
+        <div className="mb-6 p-4 bg-white rounded-xl border border-gray-100 shadow-sm">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium">Form Progress</span>
-            <span className="text-sm text-muted-foreground">{progress}%</span>
+            <span className="text-sm font-medium text-gray-900">Form Progress</span>
+            <span className="text-sm font-semibold text-teal-600">{progress}%</span>
           </div>
-          <Progress value={progress} className="h-2" />
+          <Progress value={progress} className="h-2.5 bg-gray-100" />
           {progress < 70 && (
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-xs text-gray-500 mt-2">
               Complete at least 70% and certify to submit
             </p>
           )}
@@ -405,17 +408,17 @@ export default function PartyPortalPage() {
         )}
 
         {/* Actions */}
-        <div className="flex items-center gap-4 mt-8 sticky bottom-4 bg-white/95 backdrop-blur p-4 -mx-4 rounded-xl shadow-lg border">
+        <div className="flex items-center gap-4 mt-8 sticky bottom-4 bg-white/95 backdrop-blur-md p-5 -mx-4 rounded-2xl shadow-xl border border-gray-100">
           <Button 
             variant="outline" 
             onClick={handleSave} 
             disabled={saving || submitted}
-            className="min-w-[140px]"
+            className="min-w-[140px] h-12 rounded-xl border-2 font-medium hover:bg-white hover:border-teal-300"
           >
             {saving ? (
               <Loader2 className="h-4 w-4 animate-spin mr-2" />
             ) : saved ? (
-              <CheckCircle2 className="h-4 w-4 mr-2 text-green-600" />
+              <CheckCircle2 className="h-4 w-4 mr-2 text-teal-600" />
             ) : (
               <Save className="h-4 w-4 mr-2" />
             )}
@@ -424,7 +427,7 @@ export default function PartyPortalPage() {
           <Button 
             onClick={handleSubmit} 
             disabled={submitting || submitted || !canSubmit} 
-            className="flex-1 min-h-[44px]"
+            className="flex-1 h-12 rounded-xl bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white font-semibold shadow-lg shadow-teal-500/25 hover:shadow-xl transition-all"
           >
             {submitting ? (
               <Loader2 className="h-4 w-4 animate-spin mr-2" />
