@@ -8,13 +8,13 @@
 
 | Category | Count |
 |----------|-------|
-| 🔴 Critical Features | 9 |
+| 🔴 Critical Features | 10 |
 | 🟠 Major Features | 1 |
 | 🎨 UX/Design | 2 |
 | 🔧 Configuration | 3 |
 | 📄 Documentation | 3 |
 
-**Total Sharks Killed (Vol 2): 16 🦈 + 1 Hardening Addendum**
+**Total Sharks Killed (Vol 2): 17 🦈 + 1 Hardening Addendum**
 
 ---
 
@@ -1626,6 +1626,110 @@ party.party_data = {...}  ──► sync_party_data_to_wizard()
 
 ---
 
+### 58. Client-Driven Wizard Flow + Notification System Overhaul ✅
+
+**Date:** February 8, 2026
+
+**Problem:** Staff queue was an unnecessary bottleneck. Escrow officers had all the transaction information but had to wait for PCT staff to re-enter it in the wizard. Notifications existed but weren't wired up to send emails at key moments.
+
+**Solution:** Transformed FinClear from staff-mediated to client-driven self-service:
+
+| Change | Before | After |
+|--------|--------|-------|
+| Report Creation | Staff only | Clients create directly |
+| Wizard Access | Staff only | Clients run full wizard |
+| Party Links | Staff sends | Clients send |
+| Filing Trigger | Manual by staff | Auto-file on all parties complete |
+| Staff Role | Data entry | QC/oversight review only |
+
+### Database Schema Updates
+
+```python
+# New columns on Report model
+initiated_by_user_id = Column(UUID, ForeignKey("users.id"))  # Escrow officer
+auto_file_enabled = Column(Boolean, default=True)           # Auto-file toggle
+auto_filed_at = Column(DateTime)                            # When triggered
+notification_config = Column(JSONB)                         # Notification prefs
+```
+
+### Auto-File Flow
+
+```
+Party Submit (last party)
+    │
+    ▼
+All parties complete? ──► Yes ──► Auto-file triggered
+    │                              │
+    │                              ▼
+    │                         Ready check passes?
+    │                              │
+    │                         Yes ──► File to FinCEN
+    │                              │
+    │                         No  ──► Status: needs_review
+    │                              │
+    ▼                              ▼
+Notifications sent to:         Notifications sent to:
+- Escrow officer               - Escrow officer
+- Company admin                - Staff (urgent)
+- Staff                        - Admin (urgent)
+```
+
+### Notification Matrix
+
+| Event | Escrow Officer | Company Admin | Staff | Admin |
+|-------|----------------|---------------|-------|-------|
+| Party submits | ✅ | ✅ | ✅ (all complete) | — |
+| Filing submitted | ✅ | — | — | — |
+| Filing accepted | ✅ | ✅ | ✅ | — |
+| Filing rejected | ✅ | — | ✅ 🚨 | ✅ 🚨 |
+
+### Permission Updates
+
+| Action | client_user | client_admin | staff | admin |
+|--------|-------------|--------------|-------|-------|
+| Create report | ✅ | ✅ | ✅ | ✅ |
+| Run wizard | ✅ Own | ✅ Company | ✅ All | ✅ All |
+| Send party links | ✅ Own | ✅ Company | ✅ All | ✅ All |
+| File to FinCEN | ✅ Own | ✅ Company | ✅ All | ✅ All |
+
+### Frontend Changes
+
+| Component | Change |
+|-----------|--------|
+| Navigation | Added "Start New Report" for clients |
+| `/reports/new` | Enhanced with form for property details |
+| `/reports` | Real-time status with party progress |
+| Staff Queue | Renamed to "Review Queue", added client-driven info |
+
+### Files Created
+
+- `api/alembic/versions/20260208_000001_client_driven_flow.py` — Migration
+- `api/app/middleware/permissions.py` — Role-based access control
+
+### Files Modified
+
+**Backend:**
+- `api/app/models/report.py` — New columns + relationships
+- `api/app/config.py` — Notification + auto-file settings
+- `api/app/routes/reports.py` — Client creation, user context
+- `api/app/routes/parties.py` — Auto-file trigger, notification dispatch
+- `api/app/services/filing_lifecycle.py` — Auto-file function, notification helpers
+- `api/app/services/email_service.py` — Filing status email templates
+
+**Frontend:**
+- `web/lib/navigation.ts` — Client wizard access
+- `web/lib/api.ts` — Reports with parties API
+- `web/app/(app)/app/reports/new/page.tsx` — Client entry form
+- `web/app/(app)/app/reports/page.tsx` — Real-time report list
+- `web/app/(app)/app/staff/queue/page.tsx` — Review queue transformation
+
+**Documentation:**
+- `docs/RRER-WIZARD-TECHNICAL-DOCUMENTATION.md` — Client-driven flow section
+
+**Status:** ✅ Killed (FLOW TRANSFORMATION SHARK 🦈🦈🦈)
+
+---
+
 ## Next Steps
 
 1. **P0:** Verify sandbox credentials with FinCEN (authentication failed in test)
@@ -1639,4 +1743,4 @@ party.party_data = {...}  ──► sync_party_data_to_wizard()
 
 ---
 
-*Last updated: February 3, 2026 (Shark #57)*
+*Last updated: February 8, 2026 (Shark #58)*

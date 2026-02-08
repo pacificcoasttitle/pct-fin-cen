@@ -1,17 +1,23 @@
 """
 Report API routes.
+
+Supports client-driven workflow where escrow officers (client_user) can:
+- Create and manage reports for their company
+- Run the full wizard end-to-end
+- Send party links
+- Trigger filing (manual or auto)
 """
 from datetime import date, datetime, timedelta
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Header
 from sqlalchemy.orm import Session
 from sqlalchemy import case
 
 from app.database import get_db
 from app.config import get_settings
-from app.models import Report, ReportParty, PartyLink, AuditLog
+from app.models import Report, ReportParty, PartyLink, AuditLog, User
 from app.models.billing_event import BillingEvent
 from app.models.submission_request import SubmissionRequest
 from app.models.company import Company
@@ -49,9 +55,34 @@ from app.services.party_validation import (
     get_party_warnings,
     calculate_completion_percentage,
 )
+from app.middleware.permissions import (
+    get_current_user_from_request,
+    require_role,
+    require_report_access,
+    filter_by_company,
+    can_create_report,
+    is_staff,
+    ALL_ROLES,
+    STAFF_ROLES,
+    CLIENT_ROLES,
+)
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 settings = get_settings()
+
+
+def get_user_from_header(
+    db: Session,
+    x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
+) -> Optional[User]:
+    """Extract user from request header (demo mode)."""
+    if not x_user_id:
+        return None
+    try:
+        user_uuid = UUID(x_user_id)
+        return db.query(User).filter(User.id == user_uuid, User.status == "active").first()
+    except (ValueError, TypeError):
+        return None
 
 
 def get_client_ip(request: Request) -> Optional[str]:
@@ -67,12 +98,36 @@ def create_report(
     report_in: ReportCreate,
     request: Request,
     db: Session = Depends(get_db),
+    x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
 ):
-    """Create a new report."""
+    """
+    Create a new report.
+    
+    Client-driven flow: Escrow officers can create reports directly.
+    The user's company_id is automatically associated with the report.
+    """
+    # Get current user (optional - supports both authenticated and anonymous)
+    current_user = get_user_from_header(db, x_user_id)
+    
     # Calculate filing deadline if closing date provided (30 days per FinCEN)
     filing_deadline = None
     if report_in.closing_date:
         filing_deadline = report_in.closing_date + timedelta(days=30)
+    
+    # Determine company_id from user or input
+    company_id = None
+    initiated_by_user_id = None
+    created_by_user_id = None
+    
+    if current_user:
+        company_id = current_user.company_id
+        initiated_by_user_id = current_user.id
+        created_by_user_id = current_user.id
+    
+    # Allow override from input (for staff creating reports for clients)
+    if hasattr(report_in, 'company_id') and report_in.company_id:
+        if current_user and is_staff(current_user):
+            company_id = report_in.company_id
     
     report = Report(
         property_address_text=report_in.property_address_text,
@@ -81,17 +136,35 @@ def create_report(
         wizard_data=report_in.wizard_data or {},
         status="draft",
         wizard_step=1,
+        # Client-driven flow fields
+        company_id=company_id,
+        initiated_by_user_id=initiated_by_user_id,
+        created_by_user_id=created_by_user_id,
+        auto_file_enabled=True,  # Default to auto-file
+        notification_config={
+            "notify_initiator": True,
+            "notify_company_admin": True,
+            "notify_staff": True,
+            "notify_on_party_submit": True,
+            "notify_on_filing_complete": True,
+            "notify_on_filing_error": True,
+        },
     )
     db.add(report)
     db.commit()
     db.refresh(report)
     
     # Audit log
+    actor_type = "client" if current_user and current_user.role in CLIENT_ROLES else "staff" if current_user else "api"
     audit = AuditLog(
         report_id=report.id,
-        actor_type="api",
+        actor_type=actor_type,
+        actor_user_id=current_user.id if current_user else None,
         action="report.created",
-        details={"property_address": report_in.property_address_text},
+        details={
+            "property_address": report_in.property_address_text,
+            "source": "client_direct" if current_user and current_user.role in CLIENT_ROLES else "staff",
+        },
         ip_address=get_client_ip(request),
     )
     db.add(audit)

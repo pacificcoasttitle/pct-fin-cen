@@ -13,6 +13,7 @@ import {
   DollarSign,
   Settings,
   FileImage,
+  PlusCircle,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -274,6 +275,7 @@ function getPCTStaffNavigation(counts: BadgeCounts): NavSection[] {
 
 // ============================================
 // Client Admin - Full Client Access + Billing + Team
+// Client-Driven Flow: Can create reports directly and run full wizard
 // ============================================
 function getClientAdminNavigation(counts: BadgeCounts): NavSection[] {
   return [
@@ -285,9 +287,9 @@ function getClientAdminNavigation(counts: BadgeCounts): NavSection[] {
           icon: LayoutDashboard,
         },
         {
-          label: "New Request",
-          href: "/app/requests/new",
-          icon: Send,
+          label: "Start New Report",
+          href: "/app/reports/new",
+          icon: PlusCircle,
         },
       ],
     },
@@ -295,17 +297,17 @@ function getClientAdminNavigation(counts: BadgeCounts): NavSection[] {
       title: "My Company",
       items: [
         {
-          label: "Requests",
-          href: "/app/requests",
-          icon: Inbox,
+          label: "My Reports",
+          href: "/app/reports",
+          icon: FileText,
           badge: counts.requestsActive > 0
             ? { count: counts.requestsActive, variant: "info" as BadgeVariant }  // BLUE
             : undefined,
         },
         {
-          label: "Reports",
-          href: "/app/reports",
-          icon: FileText,
+          label: "Requests",
+          href: "/app/requests",
+          icon: Inbox,
         },
         {
           label: "Billing",
@@ -334,6 +336,7 @@ function getClientAdminNavigation(counts: BadgeCounts): NavSection[] {
 
 // ============================================
 // Client User - Basic Access (NO Billing, NO Team)
+// Client-Driven Flow: Can create reports directly and run full wizard
 // ============================================
 function getClientUserNavigation(counts: BadgeCounts): NavSection[] {
   return [
@@ -345,27 +348,27 @@ function getClientUserNavigation(counts: BadgeCounts): NavSection[] {
           icon: LayoutDashboard,
         },
         {
-          label: "New Request",
-          href: "/app/requests/new",
-          icon: Send,
+          label: "Start New Report",
+          href: "/app/reports/new",
+          icon: PlusCircle,
         },
       ],
     },
     {
-      title: "My Requests",
+      title: "My Reports",
       items: [
         {
-          label: "All Requests",
-          href: "/app/requests",
-          icon: Inbox,
+          label: "All Reports",
+          href: "/app/reports",
+          icon: FileText,
           badge: counts.requestsActive > 0
             ? { count: counts.requestsActive, variant: "info" as BadgeVariant }  // BLUE
             : undefined,
         },
         {
-          label: "Report Status",
-          href: "/app/reports",
-          icon: FileText,
+          label: "Requests",
+          href: "/app/requests",
+          icon: Inbox,
         },
       ],
     },

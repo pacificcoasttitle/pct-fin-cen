@@ -57,6 +57,20 @@ class Settings:
         # ═══════════════════════════════════════════════════════════════════════
         self.PDFSHIFT_API_KEY: str = os.getenv("PDFSHIFT_API_KEY", "")
         self.PDFSHIFT_ENABLED: bool = os.getenv("PDFSHIFT_ENABLED", "false").lower() == "true"
+        
+        # ═══════════════════════════════════════════════════════════════════════
+        # Notification Configuration
+        # ═══════════════════════════════════════════════════════════════════════
+        self.STAFF_NOTIFICATION_EMAIL: str = os.getenv("STAFF_NOTIFICATION_EMAIL", "staff@fincenclear.com")
+        self.ADMIN_NOTIFICATION_EMAIL: str = os.getenv("ADMIN_NOTIFICATION_EMAIL", "admin@fincenclear.com")
+        self.COO_NOTIFICATION_EMAIL: str = os.getenv("COO_NOTIFICATION_EMAIL", "")  # Optional
+        self.FRONTEND_URL: str = os.getenv("FRONTEND_URL", "https://fincenclear.com")
+        
+        # ═══════════════════════════════════════════════════════════════════════
+        # Auto-File Configuration
+        # ═══════════════════════════════════════════════════════════════════════
+        self.AUTO_FILE_ENABLED: bool = os.getenv("AUTO_FILE_ENABLED", "true").lower() == "true"
+        self.AUTO_FILE_DELAY_SECONDS: int = int(os.getenv("AUTO_FILE_DELAY_SECONDS", "0"))
     
     def _parse_allowed_file_types(self) -> List[str]:
         """Parse allowed file types from comma-separated string."""

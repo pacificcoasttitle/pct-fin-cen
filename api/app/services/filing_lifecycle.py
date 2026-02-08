@@ -2,6 +2,7 @@
 Filing lifecycle service - manages submission states and demo outcomes.
 
 Supports both mock filing (staging/test) and live SDTM filing (production).
+Includes auto-file capability and notification dispatch for client-driven flow.
 """
 import hashlib
 import logging
@@ -11,12 +12,187 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from app.models import Report, FilingSubmission, AuditLog
+from app.models import Report, FilingSubmission, AuditLog, User
 from app.config import get_settings
 from app.services.notifications import log_notification
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# NOTIFICATION DISPATCH HELPERS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _get_property_address(report: Report) -> str:
+    """Get property address from report, with fallback."""
+    return report.property_address_text or "Property Address Unavailable"
+
+
+def _get_company_admin(db: Session, company_id: Optional[UUID]) -> Optional[User]:
+    """Get the company admin user."""
+    if not company_id:
+        return None
+    return db.query(User).filter(
+        User.company_id == company_id,
+        User.role == "client_admin",
+        User.status == "active"
+    ).first()
+
+
+async def send_filing_notifications(
+    db: Session,
+    report: Report,
+    status: str,
+    receipt_id: Optional[str] = None,
+    rejection_code: Optional[str] = None,
+    rejection_message: Optional[str] = None,
+    reason: Optional[str] = None,
+):
+    """
+    Send filing status notifications to all stakeholders.
+    
+    Args:
+        db: Database session
+        report: Report that was filed
+        status: Filing status (submitted, accepted, rejected, needs_review)
+        receipt_id: BSA ID for accepted filings
+        rejection_code: Error code for rejected filings
+        rejection_message: Error message for rejected filings
+        reason: Reason for needs_review status
+    """
+    from app.services.email_service import (
+        send_filing_submitted_notification,
+        send_filing_accepted_notification,
+        send_filing_rejected_notification,
+        send_filing_needs_review_notification,
+        send_party_submitted_notification,
+        FRONTEND_URL,
+    )
+    
+    config = report.notification_config or {}
+    property_address = _get_property_address(report)
+    
+    # Build report URL
+    report_url = f"{FRONTEND_URL}/app/reports/{report.id}"
+    admin_report_url = f"{FRONTEND_URL}/app/admin/reports/{report.id}"
+    
+    try:
+        if status == "submitted":
+            # Notify initiator
+            if config.get("notify_initiator", True) and report.initiated_by:
+                send_filing_submitted_notification(
+                    to_email=report.initiated_by.email,
+                    recipient_name=report.initiated_by.name,
+                    property_address=property_address,
+                    report_url=report_url,
+                )
+            
+            # Log notification
+            log_notification(
+                db, "filing_submitted",
+                report_id=report.id,
+                subject=f"Filing Submitted: {property_address}",
+                body_preview="Your FinCEN filing has been submitted and is awaiting processing.",
+                meta={"status": "submitted"}
+            )
+        
+        elif status == "accepted":
+            filed_at_str = report.filed_at.strftime('%B %d, %Y') if report.filed_at else 'N/A'
+            
+            # Notify initiator
+            if config.get("notify_on_filing_complete", True) and report.initiated_by:
+                send_filing_accepted_notification(
+                    to_email=report.initiated_by.email,
+                    recipient_name=report.initiated_by.name,
+                    property_address=property_address,
+                    bsa_id=receipt_id or "N/A",
+                    filed_at_str=filed_at_str,
+                    report_url=report_url,
+                )
+            
+            # Notify company admin if different from initiator
+            if config.get("notify_company_admin", True):
+                company_admin = _get_company_admin(db, report.company_id)
+                if company_admin and (not report.initiated_by_user_id or company_admin.id != report.initiated_by_user_id):
+                    send_filing_accepted_notification(
+                        to_email=company_admin.email,
+                        recipient_name=company_admin.name,
+                        property_address=property_address,
+                        bsa_id=receipt_id or "N/A",
+                        filed_at_str=filed_at_str,
+                        report_url=report_url,
+                    )
+            
+            # Notify staff
+            if config.get("notify_staff", True) and settings.STAFF_NOTIFICATION_EMAIL:
+                send_filing_accepted_notification(
+                    to_email=settings.STAFF_NOTIFICATION_EMAIL,
+                    recipient_name="Staff",
+                    property_address=property_address,
+                    bsa_id=receipt_id or "N/A",
+                    filed_at_str=filed_at_str,
+                    report_url=admin_report_url,
+                )
+        
+        elif status == "rejected":
+            # Notify initiator (urgent - they need to fix)
+            if config.get("notify_on_filing_error", True) and report.initiated_by:
+                send_filing_rejected_notification(
+                    to_email=report.initiated_by.email,
+                    recipient_name=report.initiated_by.name,
+                    property_address=property_address,
+                    rejection_code=rejection_code or "UNKNOWN",
+                    rejection_message=rejection_message or "Filing was rejected",
+                    report_url=report_url,
+                )
+            
+            # Notify staff immediately
+            if settings.STAFF_NOTIFICATION_EMAIL:
+                send_filing_rejected_notification(
+                    to_email=settings.STAFF_NOTIFICATION_EMAIL,
+                    recipient_name="Staff",
+                    property_address=property_address,
+                    rejection_code=rejection_code or "UNKNOWN",
+                    rejection_message=rejection_message or "Filing was rejected",
+                    report_url=admin_report_url,
+                )
+            
+            # Notify admin
+            if settings.ADMIN_NOTIFICATION_EMAIL:
+                send_filing_rejected_notification(
+                    to_email=settings.ADMIN_NOTIFICATION_EMAIL,
+                    recipient_name="Admin",
+                    property_address=property_address,
+                    rejection_code=rejection_code or "UNKNOWN",
+                    rejection_message=rejection_message or "Filing was rejected",
+                    report_url=admin_report_url,
+                )
+        
+        elif status == "needs_review":
+            # Notify initiator
+            if report.initiated_by:
+                send_filing_needs_review_notification(
+                    to_email=report.initiated_by.email,
+                    recipient_name=report.initiated_by.name,
+                    property_address=property_address,
+                    reason=reason or "Manual review required",
+                    report_url=report_url,
+                )
+            
+            # Notify staff
+            if settings.STAFF_NOTIFICATION_EMAIL:
+                send_filing_needs_review_notification(
+                    to_email=settings.STAFF_NOTIFICATION_EMAIL,
+                    recipient_name="Staff",
+                    property_address=property_address,
+                    reason=reason or "Manual review required",
+                    report_url=admin_report_url,
+                )
+    
+    except Exception as e:
+        logger.error(f"Failed to send filing notification for report {report.id}: {e}")
+        # Don't fail the filing if notifications fail
 
 # Poll backoff schedule (in minutes)
 POLL_BACKOFF_MINUTES = [15, 60, 180, 360, 720, 720, 720]  # 15m, 1h, 3h, 6h, then every 12h
@@ -139,9 +315,13 @@ def mark_accepted(
     report_id: UUID,
     receipt_id: str,
     ip_address: Optional[str] = None,
+    send_notifications: bool = True,
 ) -> Tuple[str, FilingSubmission]:
     """
     Mark submission as accepted with receipt.
+    
+    Args:
+        send_notifications: If True, send email notifications to stakeholders
     """
     submission = get_or_create_submission(db, report_id)
     report = db.query(Report).filter(Report.id == report_id).first()
@@ -173,7 +353,7 @@ def mark_accepted(
     )
     db.add(audit)
     
-    # Notification
+    # Log notification event
     property_address = report.property_address_text if report else "Property"
     log_notification(
         db,
@@ -189,6 +369,29 @@ def mark_accepted(
         },
     )
     
+    # Send email notifications to stakeholders (async)
+    if send_notifications and report:
+        import asyncio
+        try:
+            # Run in background - don't block the filing response
+            asyncio.create_task(send_filing_notifications(
+                db=db,
+                report=report,
+                status="accepted",
+                receipt_id=receipt_id,
+            ))
+        except RuntimeError:
+            # No event loop running (synchronous context) - run directly
+            try:
+                asyncio.run(send_filing_notifications(
+                    db=db,
+                    report=report,
+                    status="accepted",
+                    receipt_id=receipt_id,
+                ))
+            except Exception as e:
+                logger.warning(f"Could not send filing notifications: {e}")
+    
     return "accepted", submission
 
 
@@ -198,9 +401,13 @@ def mark_rejected(
     code: str,
     message: str,
     ip_address: Optional[str] = None,
+    send_notifications: bool = True,
 ) -> Tuple[str, FilingSubmission]:
     """
     Mark submission as rejected with error details.
+    
+    Args:
+        send_notifications: If True, send urgent email notifications to stakeholders
     """
     submission = get_or_create_submission(db, report_id)
     report = db.query(Report).filter(Report.id == report_id).first()
@@ -229,7 +436,7 @@ def mark_rejected(
     )
     db.add(audit)
     
-    # Notification
+    # Log notification event
     property_address = report.property_address_text if report else "Property"
     log_notification(
         db,
@@ -243,6 +450,29 @@ def mark_rejected(
             "status": "rejected",
         },
     )
+    
+    # Send URGENT email notifications to stakeholders
+    if send_notifications and report:
+        import asyncio
+        try:
+            asyncio.create_task(send_filing_notifications(
+                db=db,
+                report=report,
+                status="rejected",
+                rejection_code=code,
+                rejection_message=message,
+            ))
+        except RuntimeError:
+            try:
+                asyncio.run(send_filing_notifications(
+                    db=db,
+                    report=report,
+                    status="rejected",
+                    rejection_code=code,
+                    rejection_message=message,
+                ))
+            except Exception as e:
+                logger.warning(f"Could not send filing rejection notifications: {e}")
     
     return "rejected", submission
 
@@ -320,6 +550,123 @@ def retry_submission(
     submission.rejection_message = None
     
     return True, "Submission queued for retry", submission
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# AUTO-FILE FUNCTIONS (Client-Driven Flow)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+async def trigger_auto_file(
+    db: Session,
+    report: Report,
+    ip_address: str = "auto-file",
+) -> Tuple[str, Optional[FilingSubmission]]:
+    """
+    Automatically file a report to FinCEN when all parties have submitted.
+    
+    This is triggered when:
+    1. All parties for a report have status="submitted"
+    2. report.auto_file_enabled is True
+    3. Global AUTO_FILE_ENABLED is True
+    
+    Returns: (status, submission)
+    - status: "submitted", "accepted", "needs_review", "error"
+    """
+    from app.services.party_data_sync import sync_party_data_to_wizard
+    
+    # Check global setting
+    if not settings.AUTO_FILE_ENABLED:
+        logger.info(f"Auto-file disabled globally, skipping report {report.id}")
+        return ("skipped", None)
+    
+    # Check report-level setting
+    if not report.auto_file_enabled:
+        logger.info(f"Auto-file disabled for report {report.id}")
+        return ("skipped", None)
+    
+    logger.info(f"AUTO-FILE: Starting for report {report.id}")
+    
+    try:
+        # 1. Final sync of party data (safety net)
+        try:
+            sync_result = sync_party_data_to_wizard(db, str(report.id))
+            logger.info(f"AUTO-FILE: Party data sync result: {sync_result}")
+        except Exception as e:
+            logger.warning(f"AUTO-FILE: Party data sync failed (continuing): {e}")
+        
+        # 2. Update report status and auto_filed_at
+        report.status = "ready_to_file"
+        report.auto_filed_at = datetime.utcnow()
+        db.commit()
+        db.refresh(report)
+        
+        # 3. Run ready check
+        from app.routes.reports import perform_ready_check
+        try:
+            ready_result = perform_ready_check(db, report)
+            if not ready_result.get("is_ready", False):
+                blocking_reasons = ready_result.get("blocking", [])
+                reason = f"Auto-file blocked: {', '.join(blocking_reasons)}" if blocking_reasons else "Ready check failed"
+                
+                report.status = "needs_review"
+                db.commit()
+                
+                await send_filing_notifications(
+                    db=db,
+                    report=report,
+                    status="needs_review",
+                    reason=reason,
+                )
+                
+                logger.warning(f"AUTO-FILE: Ready check failed for report {report.id}: {reason}")
+                return ("needs_review", None)
+        except Exception as e:
+            logger.warning(f"AUTO-FILE: Ready check error (continuing): {e}")
+            # Continue anyway - let the filing attempt catch any issues
+        
+        # 4. Attempt filing
+        logger.info(f"AUTO-FILE: Attempting filing for report {report.id}")
+        
+        if settings.ENVIRONMENT == "production" and settings.FINCEN_TRANSPORT == "sdtm":
+            status, submission = perform_sdtm_submit(db, report.id, ip_address=ip_address)
+        else:
+            status, submission = perform_mock_submit(db, report.id, ip_address=ip_address)
+        
+        db.commit()
+        
+        logger.info(f"AUTO-FILE: Filing result for report {report.id}: {status}")
+        
+        # 5. Audit log for auto-file
+        audit = AuditLog(
+            report_id=report.id,
+            actor_type="system",
+            action="auto_file_triggered",
+            details={
+                "result_status": status,
+                "receipt_id": submission.receipt_id if submission else None,
+            },
+            ip_address=ip_address,
+        )
+        db.add(audit)
+        db.commit()
+        
+        return (status, submission)
+        
+    except Exception as e:
+        logger.error(f"AUTO-FILE: Failed for report {report.id}: {e}")
+        
+        # Send error notification
+        try:
+            await send_filing_notifications(
+                db=db,
+                report=report,
+                status="needs_review",
+                reason=f"Auto-file error: {str(e)}",
+            )
+        except Exception as notif_error:
+            logger.error(f"AUTO-FILE: Could not send error notification: {notif_error}")
+        
+        return ("error", None)
 
 
 def set_demo_outcome(

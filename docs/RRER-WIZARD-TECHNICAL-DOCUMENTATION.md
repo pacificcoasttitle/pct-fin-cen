@@ -1084,6 +1084,70 @@ Company
 
 ---
 
+## Client-Driven Flow (v2)
+
+As of February 2026, the wizard supports client-driven operation where escrow officers (client_user, client_admin) run the full workflow end-to-end.
+
+### Who Can Do What
+
+| Action | client_user | client_admin | staff | admin | coo |
+|--------|-------------|--------------|-------|-------|-----|
+| Start new report | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Run wizard | ✅ Own | ✅ Company | ✅ All | ✅ All | ❌ |
+| Send party links | ✅ Own | ✅ Company | ✅ All | ✅ All | ❌ |
+| Trigger filing | ✅ Own | ✅ Company | ✅ All | ✅ All | ❌ |
+| Review all reports | ❌ | ❌ | ✅ | ✅ | ✅ |
+
+### Auto-File Behavior
+
+When the last party submits their portal form:
+
+1. Party data syncs to `wizard_data`
+2. Report status → `ready_to_file`
+3. Ready check runs automatically
+4. If ready: filing submitted to FinCEN
+5. Notifications sent to all stakeholders
+
+Configuration:
+- `AUTO_FILE_ENABLED` (environment) - Global toggle
+- `report.auto_file_enabled` (per-report) - Report-level toggle
+
+### Database Fields
+
+New columns added to `reports` table:
+
+| Column | Type | Purpose |
+|--------|------|---------|
+| `initiated_by_user_id` | UUID (FK) | Who started this report (escrow officer) |
+| `auto_file_enabled` | Boolean | Whether auto-file is enabled |
+| `auto_filed_at` | DateTime | When auto-file was triggered |
+| `notification_config` | JSONB | Notification preferences |
+
+### Notification Matrix
+
+| Event | Escrow Officer | Company Admin | Staff | Admin |
+|-------|----------------|---------------|-------|-------|
+| Party submits | ✅ | ✅ (if different) | ✅ (all complete) | — |
+| All parties complete | ✅ | ✅ | ✅ | — |
+| Filing submitted | ✅ | — | — | — |
+| Filing accepted | ✅ | ✅ | ✅ | — |
+| Filing rejected | ✅ | — | ✅ | ✅ |
+| Needs review | ✅ | — | ✅ | ✅ |
+
+### Staff Role Change
+
+Staff transitions from "data entry" to "QC/oversight":
+
+- **Before**: Staff creates reports from submission requests, enters data, sends party links
+- **After**: Clients create reports directly, staff monitors and handles exceptions
+
+Staff queue becomes a **review queue** showing all reports across all companies with filtering for:
+- Status: Draft, Collecting, Ready to File, Filed, Needs Review
+- Filing Status: Pending, Submitted, Accepted, Rejected
+- Company filter
+
+---
+
 ## Appendix: Configuration Environment Variables
 
 ```bash
@@ -1106,6 +1170,15 @@ FINCEN_SDTM_API_KEY=xxx
 
 # Environment
 ENVIRONMENT=staging  # staging, production
+
+# Notification Recipients
+STAFF_NOTIFICATION_EMAIL=staff@fincenclear.com
+ADMIN_NOTIFICATION_EMAIL=admin@fincenclear.com
+COO_NOTIFICATION_EMAIL=        # Optional
+
+# Auto-File Configuration
+AUTO_FILE_ENABLED=true         # Global toggle
+AUTO_FILE_DELAY_SECONDS=0      # Optional delay before filing
 ```
 
 ---

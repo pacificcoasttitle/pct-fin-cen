@@ -31,6 +31,111 @@ def get_client_ip(request: Request) -> Optional[str]:
     return request.client.host if request.client else None
 
 
+def _send_party_submitted_notifications(
+    db: Session,
+    report: Report,
+    party: ReportParty,
+    all_complete: bool,
+):
+    """
+    Send notifications when a party submits their portal form.
+    
+    Notifies: Escrow officer (initiator), Company Admin, Staff
+    Uses the report's notification_config to determine what to send.
+    """
+    from app.config import get_settings
+    from app.services.email_service import FRONTEND_URL
+    from app.models import User
+    
+    settings = get_settings()
+    config = report.notification_config or {}
+    property_address = report.property_address_text or "Property"
+    party_name = party.display_name or "Party"
+    party_role = party.party_role or "unknown"
+    
+    # Get role display
+    role_display = "Buyer" if party_role == "transferee" else "Seller"
+    
+    # 1. Notify the escrow officer who initiated the report
+    if config.get("notify_initiator", True) and report.initiated_by_user_id:
+        initiator = db.query(User).filter(User.id == report.initiated_by_user_id).first()
+        if initiator and initiator.email:
+            try:
+                send_party_submitted_notification(
+                    staff_email=initiator.email,
+                    party_name=party_name,
+                    party_role=party_role,
+                    property_address=property_address,
+                    report_id=str(report.id),
+                    all_complete=all_complete,
+                )
+                logger.info(f"[PARTY_NOTIFY] Sent to initiator: {initiator.email}")
+            except Exception as e:
+                logger.warning(f"[PARTY_NOTIFY] Failed to notify initiator: {e}")
+    
+    # 2. Notify company admin (if different from initiator)
+    if config.get("notify_company_admin", True) and report.company_id:
+        company_admin = db.query(User).filter(
+            User.company_id == report.company_id,
+            User.role == "client_admin",
+            User.status == "active",
+        ).first()
+        
+        if company_admin and company_admin.email:
+            # Don't double-notify if admin is the initiator
+            if not report.initiated_by_user_id or company_admin.id != report.initiated_by_user_id:
+                try:
+                    send_party_submitted_notification(
+                        staff_email=company_admin.email,
+                        party_name=party_name,
+                        party_role=party_role,
+                        property_address=property_address,
+                        report_id=str(report.id),
+                        all_complete=all_complete,
+                    )
+                    logger.info(f"[PARTY_NOTIFY] Sent to company admin: {company_admin.email}")
+                except Exception as e:
+                    logger.warning(f"[PARTY_NOTIFY] Failed to notify company admin: {e}")
+    
+    # 3. Notify staff (always notify on "all complete")
+    if config.get("notify_staff", True) and settings.STAFF_NOTIFICATION_EMAIL:
+        # Only notify staff on individual submissions if explicitly configured
+        should_notify_staff = all_complete or config.get("notify_on_party_submit", False)
+        
+        if should_notify_staff:
+            try:
+                send_party_submitted_notification(
+                    staff_email=settings.STAFF_NOTIFICATION_EMAIL,
+                    party_name=party_name,
+                    party_role=party_role,
+                    property_address=property_address,
+                    report_id=str(report.id),
+                    all_complete=all_complete,
+                )
+                logger.info(f"[PARTY_NOTIFY] Sent to staff: {settings.STAFF_NOTIFICATION_EMAIL}")
+            except Exception as e:
+                logger.warning(f"[PARTY_NOTIFY] Failed to notify staff: {e}")
+    
+    # 4. Log notification event (for audit trail)
+    log_notification(
+        db,
+        type="party_submitted",
+        report_id=report.id,
+        party_id=party.id,
+        subject=f"Party Submitted: {party_name} ({role_display})" if not all_complete 
+                else f"All Parties Complete: {property_address}",
+        body_preview=f"{party_name} has submitted their information for {property_address}.",
+        meta={
+            "party_name": party_name,
+            "party_role": party_role,
+            "all_complete": all_complete,
+            "notified_initiator": bool(report.initiated_by_user_id),
+            "notified_company_admin": bool(report.company_id),
+            "notified_staff": bool(settings.STAFF_NOTIFICATION_EMAIL),
+        },
+    )
+
+
 def get_valid_link(token: str, db: Session) -> PartyLink:
     """Get and validate a party link by token."""
     link = db.query(PartyLink).filter(PartyLink.token == token).first()
@@ -284,7 +389,7 @@ def submit_party_data(
         # Don't fail the submission if sync fails — log and continue
     
     # ═══════════════════════════════════════════════════════════════════════════
-    # AUTO-TRANSITION TO ready_to_file IF ALL PARTIES SUBMITTED
+    # CHECK IF ALL PARTIES SUBMITTED
     # ═══════════════════════════════════════════════════════════════════════════
     all_parties = db.query(ReportParty).filter(
         ReportParty.report_id == report.id
@@ -292,6 +397,22 @@ def submit_party_data(
     
     all_submitted = all(p.status in ("submitted", "verified") for p in all_parties)
     
+    # ═══════════════════════════════════════════════════════════════════════════
+    # SEND PARTY SUBMISSION NOTIFICATIONS (Client-Driven Flow)
+    # ═══════════════════════════════════════════════════════════════════════════
+    try:
+        _send_party_submitted_notifications(
+            db=db,
+            report=report,
+            party=party,
+            all_complete=all_submitted,
+        )
+    except Exception as e:
+        logger.warning(f"[PARTY_SUBMIT] Notification error (non-fatal): {e}")
+    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # AUTO-TRANSITION TO ready_to_file IF ALL PARTIES SUBMITTED
+    # ═══════════════════════════════════════════════════════════════════════════
     if all_submitted and len(all_parties) > 0:
         if report.status == "collecting":
             report.status = "ready_to_file"
@@ -313,23 +434,38 @@ def submit_party_data(
             )
             db.add(audit_status)
     
-    # ═══════════════════════════════════════════════════════════════════════════
-    # NOTIFY STAFF OF PARTY SUBMISSION
-    # ═══════════════════════════════════════════════════════════════════════════
-    # Note: In production, we would look up the assigned staff member
-    # For now, we skip the notification if no staff email is available
-    # TODO: Add report.assigned_to or fetch staff email from settings
-    try:
-        # Only send "all complete" notifications for now (most important)
-        if all_submitted and len(all_parties) > 0:
-            # Placeholder: In production, get assigned staff email or use a queue email
-            # staff_email = report.assigned_to.email if report.assigned_to else None
-            # For now, log the intent but don't send (no staff email configured)
-            logger.info(f"[PARTY_SUBMIT] Would send 'all parties complete' notification for report {report.id}")
-    except Exception as e:
-        logger.warning(f"[PARTY_SUBMIT] Staff notification failed: {e}")
-    
     db.commit()
+    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # AUTO-FILE IF ALL PARTIES COMPLETE (Client-Driven Flow)
+    # ═══════════════════════════════════════════════════════════════════════════
+    if all_submitted and len(all_parties) > 0 and report.status == "ready_to_file":
+        # Import here to avoid circular imports
+        from app.services.filing_lifecycle import trigger_auto_file
+        from app.config import get_settings
+        settings = get_settings()
+        
+        # Only auto-file if enabled at both global and report level
+        if settings.AUTO_FILE_ENABLED and report.auto_file_enabled:
+            logger.info(f"[PARTY_SUBMIT] Triggering auto-file for report {report.id}")
+            try:
+                import asyncio
+                # Run auto-file in background
+                asyncio.create_task(trigger_auto_file(
+                    db=db,
+                    report=report,
+                    ip_address="party-submission-auto-file",
+                ))
+            except RuntimeError:
+                # No event loop - try synchronous
+                try:
+                    asyncio.run(trigger_auto_file(
+                        db=db,
+                        report=report,
+                        ip_address="party-submission-auto-file",
+                    ))
+                except Exception as e:
+                    logger.warning(f"[PARTY_SUBMIT] Auto-file failed: {e}")
     
     return PartySubmitResponse(
         party_id=party.id,

@@ -96,25 +96,43 @@ interface QueueCounts {
 
 const statusConfig: Record<string, { label: string; color: string; description: string }> = {
   draft: { 
-    label: "Needs Setup", 
+    label: "Draft", 
     color: "bg-slate-500",
-    description: "Wizard in progress, parties not yet invited"
+    description: "Client wizard in progress"
   },
   determination_complete: { 
     label: "Ready for Parties", 
     color: "bg-blue-500",
-    description: "Determination complete, ready to send party links"
+    description: "Determination complete, awaiting party links"
   },
   collecting: { 
     label: "Collecting", 
     color: "bg-amber-500",
-    description: "Waiting for parties to submit information"
+    description: "Waiting for parties to submit"
   },
   ready_to_file: { 
     label: "Ready to File", 
     color: "bg-green-500",
-    description: "All information collected, ready for FinCEN submission"
+    description: "All parties complete, ready for FinCEN"
   },
+  filed: { 
+    label: "Filed", 
+    color: "bg-purple-500",
+    description: "Submitted to FinCEN"
+  },
+  exempt: { 
+    label: "Exempt", 
+    color: "bg-gray-400",
+    description: "No filing required"
+  },
+};
+
+// Filing status config for attention badges
+const filingStatusConfig: Record<string, { label: string; color: string; urgent: boolean }> = {
+  rejected: { label: "Rejected", color: "bg-red-500", urgent: true },
+  needs_review: { label: "Needs Review", color: "bg-yellow-500", urgent: true },
+  filed_mock: { label: "Filed (Demo)", color: "bg-purple-400", urgent: false },
+  filed_live: { label: "Filed (Live)", color: "bg-purple-500", urgent: false },
 };
 
 export default function StaffQueuePage() {
@@ -202,13 +220,27 @@ export default function StaffQueuePage() {
   };
 
   const getActionButton = (report: QueueReport) => {
+    // Prioritize filing status issues
+    if (report.filing_status === "rejected" || report.filing_status === "needs_review") {
+      return (
+        <Button 
+          size="sm" 
+          className="bg-red-600 hover:bg-red-700" 
+          onClick={() => handleAction(report)}
+        >
+          <AlertTriangle className="h-3 w-3 mr-1" />
+          Resolve
+        </Button>
+      );
+    }
+
     switch (report.status) {
       case "draft":
       case "determination_complete":
         return (
-          <Button size="sm" onClick={() => handleAction(report)}>
-            <Play className="h-3 w-3 mr-1" />
-            Continue Setup
+          <Button size="sm" variant="outline" onClick={() => handleAction(report)}>
+            <Eye className="h-3 w-3 mr-1" />
+            Review
           </Button>
         );
       case "collecting":
@@ -221,12 +253,12 @@ export default function StaffQueuePage() {
             {report.all_parties_complete ? (
               <>
                 <CheckCircle className="h-3 w-3 mr-1" />
-                Review
+                Review Complete
               </>
             ) : (
               <>
                 <Eye className="h-3 w-3 mr-1" />
-                View Progress
+                Monitor
               </>
             )}
           </Button>
@@ -240,6 +272,13 @@ export default function StaffQueuePage() {
           >
             <Send className="h-3 w-3 mr-1" />
             Review & File
+          </Button>
+        );
+      case "filed":
+        return (
+          <Button size="sm" variant="ghost" onClick={() => router.push(`/app/reports/${report.id}/review`)}>
+            <Eye className="h-3 w-3 mr-1" />
+            View
           </Button>
         );
       default:
@@ -391,9 +430,9 @@ export default function StaffQueuePage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">My Queue</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Review Queue</h1>
           <p className="text-slate-500">
-            Track and manage your assigned reports
+            Monitor all reports across companies • Clients run wizards, you review
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -411,6 +450,22 @@ export default function StaffQueuePage() {
           </Button>
         </div>
       </div>
+
+      {/* Client-Driven Flow Info */}
+      <Card className="bg-blue-50 border-blue-200">
+        <CardContent className="py-3">
+          <div className="flex items-center gap-3">
+            <FileText className="h-5 w-5 text-blue-600" />
+            <div>
+              <span className="text-blue-900 font-medium">Client-Driven Workflow: </span>
+              <span className="text-blue-700 text-sm">
+                Escrow officers create reports and send party links. When all parties submit, 
+                reports auto-file to FinCEN. Your role: QC review and handle exceptions.
+              </span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Attention Banner - show if any filings need attention */}
       {counts.needs_attention > 0 && (

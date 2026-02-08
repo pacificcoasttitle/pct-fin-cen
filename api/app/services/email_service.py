@@ -810,3 +810,314 @@ FinClear Solutions — Automated notification
     '''
     
     return send_email(staff_email, subject, html_content, text_content)
+
+
+# ============================================================================
+# FILING STATUS NOTIFICATIONS (Client-Driven Flow)
+# ============================================================================
+
+def send_filing_submitted_notification(
+    to_email: str,
+    recipient_name: str,
+    property_address: str,
+    report_url: str,
+) -> EmailResult:
+    """
+    Notify when filing is submitted to FinCEN (pending acceptance).
+    """
+    from datetime import datetime
+    submitted_at = datetime.utcnow()
+    
+    subject = f"Filing Submitted to FinCEN: {property_address}"
+    
+    html_content = f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f4f4f5;">
+        <table width="100%" cellspacing="0" cellpadding="0" style="background-color: #f4f4f5;">
+            <tr>
+                <td align="center" style="padding: 40px 20px;">
+                    <table width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden;">
+                        <tr>
+                            <td style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); padding: 30px; text-align: center;">
+                                <h1 style="color: #ffffff; margin: 0; font-size: 24px;">Filing Submitted to FinCEN</h1>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 30px;">
+                                <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
+                                    Hi {recipient_name},
+                                </p>
+                                <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
+                                    Your FinCEN Real Estate Report has been submitted for processing.
+                                </p>
+                                <div style="background: #f0f9ff; border-left: 4px solid #3b82f6; padding: 16px; margin: 20px 0; border-radius: 0 8px 8px 0;">
+                                    <p style="margin: 0 0 8px; color: #1e3a8a;"><strong>Property:</strong> {property_address}</p>
+                                    <p style="margin: 0 0 8px; color: #1e3a8a;"><strong>Submitted:</strong> {submitted_at.strftime('%B %d, %Y at %I:%M %p')} UTC</p>
+                                    <p style="margin: 0; color: #1e3a8a;"><strong>Status:</strong> Awaiting FinCEN Response</p>
+                                </div>
+                                <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
+                                    You'll receive another email once FinCEN processes your filing (typically within 24-48 hours).
+                                </p>
+                                <table width="100%" cellspacing="0" cellpadding="0" style="margin: 20px 0;">
+                                    <tr>
+                                        <td align="center">
+                                            <a href="{report_url}" style="display: inline-block; background: #2563eb; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600;">
+                                                View Report Status →
+                                            </a>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="background: #1e293b; padding: 20px; text-align: center;">
+                                <p style="margin: 0; color: #94a3b8; font-size: 12px;">
+                                    {BRAND_NAME} — {BRAND_TAGLINE}
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </body>
+    </html>
+    """
+    
+    return send_email(to_email, subject, html_content)
+
+
+def send_filing_accepted_notification(
+    to_email: str,
+    recipient_name: str,
+    property_address: str,
+    bsa_id: str,
+    filed_at_str: str,
+    report_url: str,
+) -> EmailResult:
+    """
+    Notify when filing is accepted by FinCEN with BSA ID.
+    """
+    subject = f"✅ FinCEN Filing Complete: {property_address}"
+    
+    html_content = f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f4f4f5;">
+        <table width="100%" cellspacing="0" cellpadding="0" style="background-color: #f4f4f5;">
+            <tr>
+                <td align="center" style="padding: 40px 20px;">
+                    <table width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden;">
+                        <tr>
+                            <td style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); padding: 30px; text-align: center;">
+                                <h1 style="color: #ffffff; margin: 0; font-size: 24px;">✅ FinCEN Filing Complete</h1>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 30px;">
+                                <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
+                                    Hi {recipient_name},
+                                </p>
+                                <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
+                                    Great news! Your FinCEN Real Estate Report has been accepted.
+                                </p>
+                                <div style="background: #ecfdf5; border-left: 4px solid #10b981; padding: 16px; margin: 20px 0; border-radius: 0 8px 8px 0;">
+                                    <p style="margin: 0 0 8px; color: #065f46;"><strong>Property:</strong> {property_address}</p>
+                                    <p style="margin: 0 0 8px; color: #065f46;"><strong>BSA ID:</strong> <code style="background: #d1fae5; padding: 2px 8px; border-radius: 4px; font-family: monospace;">{bsa_id}</code></p>
+                                    <p style="margin: 0; color: #065f46;"><strong>Filed:</strong> {filed_at_str}</p>
+                                </div>
+                                <p style="margin: 0 0 20px; color: #374151; font-size: 16px; font-weight: 600;">
+                                    ⚠️ Save this BSA ID for your records. This is your official FinCEN receipt number.
+                                </p>
+                                <table width="100%" cellspacing="0" cellpadding="0" style="margin: 20px 0;">
+                                    <tr>
+                                        <td align="center">
+                                            <a href="{report_url}" style="display: inline-block; background: #059669; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600;">
+                                                View Filing Details →
+                                            </a>
+                                        </td>
+                                    </tr>
+                                </table>
+                                <p style="margin: 20px 0 0; color: #6b7280; font-size: 14px;">
+                                    This filing will be stored securely for 5 years per FinCEN requirements.
+                                </p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="background: #1e293b; padding: 20px; text-align: center;">
+                                <p style="margin: 0; color: #94a3b8; font-size: 12px;">
+                                    {BRAND_NAME} — {BRAND_TAGLINE}
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </body>
+    </html>
+    """
+    
+    return send_email(to_email, subject, html_content)
+
+
+def send_filing_rejected_notification(
+    to_email: str,
+    recipient_name: str,
+    property_address: str,
+    rejection_code: str,
+    rejection_message: str,
+    report_url: str,
+) -> EmailResult:
+    """
+    Notify when filing is rejected by FinCEN — URGENT.
+    """
+    subject = f"⚠️ Action Required: FinCEN Filing Rejected — {property_address}"
+    
+    html_content = f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f4f4f5;">
+        <table width="100%" cellspacing="0" cellpadding="0" style="background-color: #f4f4f5;">
+            <tr>
+                <td align="center" style="padding: 40px 20px;">
+                    <table width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden;">
+                        <tr>
+                            <td style="background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%); padding: 30px; text-align: center;">
+                                <h1 style="color: #ffffff; margin: 0; font-size: 24px;">⚠️ Filing Rejected</h1>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 30px;">
+                                <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
+                                    Hi {recipient_name},
+                                </p>
+                                <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
+                                    Your FinCEN Real Estate Report was rejected and requires attention.
+                                </p>
+                                <div style="background: #fef2f2; border-left: 4px solid #ef4444; padding: 16px; margin: 20px 0; border-radius: 0 8px 8px 0;">
+                                    <p style="margin: 0 0 8px; color: #991b1b;"><strong>Property:</strong> {property_address}</p>
+                                    <p style="margin: 0 0 8px; color: #991b1b;"><strong>Error Code:</strong> <code style="background: #fee2e2; padding: 2px 8px; border-radius: 4px;">{rejection_code}</code></p>
+                                    <p style="margin: 0; color: #991b1b;"><strong>Reason:</strong> {rejection_message}</p>
+                                </div>
+                                <p style="margin: 20px 0; color: #374151; font-size: 16px; font-weight: 600;">
+                                    What to do:
+                                </p>
+                                <ol style="margin: 0 0 20px; color: #374151; font-size: 15px; padding-left: 20px;">
+                                    <li style="margin-bottom: 8px;">Review the error details above</li>
+                                    <li style="margin-bottom: 8px;">Correct the information in the report</li>
+                                    <li>Re-submit the filing</li>
+                                </ol>
+                                <table width="100%" cellspacing="0" cellpadding="0" style="margin: 20px 0;">
+                                    <tr>
+                                        <td align="center">
+                                            <a href="{report_url}" style="display: inline-block; background: #dc2626; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600;">
+                                                Fix and Resubmit →
+                                            </a>
+                                        </td>
+                                    </tr>
+                                </table>
+                                <p style="margin: 20px 0 0; color: #6b7280; font-size: 14px;">
+                                    Need help? Contact {BRAND_SUPPORT_EMAIL}
+                                </p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="background: #1e293b; padding: 20px; text-align: center;">
+                                <p style="margin: 0; color: #94a3b8; font-size: 12px;">
+                                    {BRAND_NAME} — {BRAND_TAGLINE}
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </body>
+    </html>
+    """
+    
+    return send_email(to_email, subject, html_content)
+
+
+def send_filing_needs_review_notification(
+    to_email: str,
+    recipient_name: str,
+    property_address: str,
+    reason: str,
+    report_url: str,
+) -> EmailResult:
+    """
+    Notify when filing needs manual review.
+    """
+    subject = f"Review Required: FinCEN Filing — {property_address}"
+    
+    html_content = f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f4f4f5;">
+        <table width="100%" cellspacing="0" cellpadding="0" style="background-color: #f4f4f5;">
+            <tr>
+                <td align="center" style="padding: 40px 20px;">
+                    <table width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden;">
+                        <tr>
+                            <td style="background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%); padding: 30px; text-align: center;">
+                                <h1 style="color: #ffffff; margin: 0; font-size: 24px;">Review Required</h1>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 30px;">
+                                <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
+                                    Hi {recipient_name},
+                                </p>
+                                <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
+                                    Your FinCEN Real Estate Report requires review before it can be filed.
+                                </p>
+                                <div style="background: #fffbeb; border-left: 4px solid #f59e0b; padding: 16px; margin: 20px 0; border-radius: 0 8px 8px 0;">
+                                    <p style="margin: 0 0 8px; color: #92400e;"><strong>Property:</strong> {property_address}</p>
+                                    <p style="margin: 0; color: #92400e;"><strong>Reason:</strong> {reason}</p>
+                                </div>
+                                <table width="100%" cellspacing="0" cellpadding="0" style="margin: 20px 0;">
+                                    <tr>
+                                        <td align="center">
+                                            <a href="{report_url}" style="display: inline-block; background: #d97706; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600;">
+                                                Review Report →
+                                            </a>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="background: #1e293b; padding: 20px; text-align: center;">
+                                <p style="margin: 0; color: #94a3b8; font-size: 12px;">
+                                    {BRAND_NAME} — {BRAND_TAGLINE}
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </body>
+    </html>
+    """
+    
+    return send_email(to_email, subject, html_content)

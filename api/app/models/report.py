@@ -3,7 +3,7 @@ Report model - core entity for FinCEN RRER filings.
 """
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Text, Date, DateTime, Integer, ForeignKey
+from sqlalchemy import Column, String, Text, Date, DateTime, Integer, Boolean, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -16,6 +16,7 @@ class Report(Base):
     A FinCEN RRER report representing a real estate transaction.
     
     Tracks the wizard progress, determination results, and filing status.
+    Supports client-driven flow where escrow officers run the full wizard.
     """
     __tablename__ = "reports"
 
@@ -59,6 +60,39 @@ class Report(Base):
     escrow_number = Column(String(100), nullable=True, index=True)
     created_by_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     
+    # Client-driven flow fields
+    initiated_by_user_id = Column(
+        UUID(as_uuid=True), 
+        ForeignKey("users.id", ondelete="SET NULL"), 
+        nullable=True,
+        index=True,
+        comment="User who initiated this report (escrow officer)"
+    )
+    auto_file_enabled = Column(
+        Boolean, 
+        nullable=False, 
+        default=True,
+        comment="Whether to auto-file when all parties complete"
+    )
+    auto_filed_at = Column(
+        DateTime, 
+        nullable=True,
+        comment="When auto-file was triggered"
+    )
+    notification_config = Column(
+        JSONBType, 
+        nullable=True, 
+        default=lambda: {
+            "notify_initiator": True,
+            "notify_company_admin": True,
+            "notify_staff": True,
+            "notify_on_party_submit": True,
+            "notify_on_filing_complete": True,
+            "notify_on_filing_error": True
+        },
+        comment="Notification preferences for this report"
+    )
+    
     # Timestamps
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -76,7 +110,8 @@ class Report(Base):
         foreign_keys=[submission_request_id],
         backref="reports_created"
     )
-    created_by_user = relationship("User", back_populates="created_reports")
+    created_by_user = relationship("User", foreign_keys=[created_by_user_id], back_populates="created_reports")
+    initiated_by = relationship("User", foreign_keys=[initiated_by_user_id], backref="initiated_reports")
     billing_events = relationship("BillingEvent", back_populates="report")
 
     def __repr__(self):

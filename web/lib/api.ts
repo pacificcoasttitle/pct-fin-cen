@@ -253,6 +253,56 @@ export async function getReports(): Promise<ReportListItem[]> {
 }
 
 /**
+ * Party summary for report list views
+ */
+export interface PartySummary {
+  total: number;
+  submitted: number;
+  pending: number;
+  all_complete: boolean;
+}
+
+/**
+ * Report with party summary for list views
+ */
+export interface ReportWithParties {
+  id: string;
+  status: string;
+  property_address_text: string | null;
+  closing_date: string | null;
+  filing_deadline: string | null;
+  wizard_step: number;
+  filing_status: string | null;
+  receipt_id: string | null;
+  escrow_number: string | null;
+  company_id: string | null;
+  created_at: string;
+  updated_at: string;
+  party_summary: PartySummary | null;
+}
+
+/**
+ * Get reports with party summaries (for queue/dashboard views)
+ */
+export async function getReportsWithParties(options?: {
+  status?: string;
+  statuses?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<{ reports: ReportWithParties[]; total: number }> {
+  const params = new URLSearchParams();
+  if (options?.status) params.set('status', options.status);
+  if (options?.statuses) params.set('statuses', options.statuses);
+  if (options?.limit) params.set('limit', String(options.limit));
+  if (options?.offset) params.set('offset', String(options.offset));
+  
+  const queryString = params.toString();
+  const url = `/reports/queue/with-parties${queryString ? `?${queryString}` : ''}`;
+  
+  return apiFetch<{ reports: ReportWithParties[]; total: number }>(url);
+}
+
+/**
  * Create a new report
  */
 export async function createReport(data?: {
