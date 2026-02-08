@@ -51,7 +51,12 @@ class User(Base):
         foreign_keys="SubmissionRequest.assigned_to_user_id",
         back_populates="assigned_to"
     )
-    created_reports = relationship("Report", back_populates="created_by_user")
+    # Explicit foreign_keys needed due to multiple User FKs on Report
+    created_reports = relationship(
+        "Report",
+        foreign_keys="Report.created_by_user_id",
+        back_populates="created_by_user"
+    )
 
     def __repr__(self):
         return f"<User {self.email} role={self.role}>"
