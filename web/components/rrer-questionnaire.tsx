@@ -382,7 +382,18 @@ export function RRERQuestionnaire({
     ...initialCollection,
     ...initialData?.collection,
   })
-  const [determinationId] = useState(generateDeterminationId)
+  
+  // Use report ID if available, otherwise generate a new one
+  // Format: RRER-{short_id} where short_id is first 8 chars of reportId or generated
+  const [determinationId] = useState(() => {
+    if (reportId) {
+      // Use the report's UUID, formatted nicely
+      const shortId = reportId.replace(/-/g, '').substring(0, 12).toUpperCase()
+      return `RRER-${shortId.substring(0, 6)}-${shortId.substring(6, 12)}`
+    }
+    // Fallback: generate a new one for standalone wizard
+    return generateDeterminationId()
+  })
   const [createdAt] = useState(() => new Date().toISOString())
   const [lastSavedAt, setLastSavedAt] = useState<string | undefined>()
   
