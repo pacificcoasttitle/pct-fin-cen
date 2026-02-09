@@ -144,8 +144,11 @@ def validate_party_data(party_role: str, entity_type: str, data: Dict) -> List[s
         elif data.get("id_type") == "ssn" and not validate_ssn(data.get("id_number", "")):
             errors.append("Invalid SSN format")
         
-        if not data.get("address") or not data["address"].get("street"):
+        address = data.get("address")
+        if not address:
             errors.append("Address is required")
+        elif isinstance(address, dict) and not address.get("street"):
+            errors.append("Address street is required")
     
     # Entity validation
     elif entity_type in ("entity", "llc", "llc_single", "llc_multi",
