@@ -159,6 +159,11 @@ class ReportDetailResponse(BaseModel):
     filed_at: Optional[datetime] = None
     receipt_id: Optional[str] = None
     filing_payload: Optional[Dict[str, Any]] = None
+    # Determination persistence fields (Shark 2)
+    determination_result: Optional[str] = None
+    determination_completed_at: Optional[datetime] = None
+    exemption_certificate_id: Optional[str] = None
+    exemption_reasons: Optional[List[str]] = None
     created_at: datetime
     updated_at: datetime
 

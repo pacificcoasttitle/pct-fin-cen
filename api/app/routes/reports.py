@@ -514,6 +514,11 @@ def get_report(
         filed_at=report.filed_at,
         receipt_id=report.receipt_id,
         filing_payload=report.filing_payload,
+        # Determination persistence fields (Shark 2)
+        determination_result=report.determination_result,
+        determination_completed_at=report.determination_completed_at,
+        exemption_certificate_id=report.exemption_certificate_id,
+        exemption_reasons=report.exemption_reasons,
         created_at=report.created_at,
         updated_at=report.updated_at,
     )
