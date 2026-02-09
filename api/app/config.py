@@ -132,6 +132,7 @@ class Settings:
             "https://fincenclear.com",
             "https://www.fincenclear.com",
             "https://www.fincenclear.com",
+            "https://www.fincenclear.com",
         ]
         
         origins_str = os.getenv("CORS_ORIGINS", "")

@@ -517,40 +517,49 @@ export function RRERQuestionnaire({
 
   // Handler: Send Party Links
   const handleSendPartyLinks = async () => {
-    // Validate we have at least one seller and one buyer
-    if (partySetup.sellers.length === 0) {
-      toast({
-        title: "Missing Seller",
-        description: "Please add at least one seller.",
-        variant: "destructive",
-      })
-      return
-    }
-    
-    if (partySetup.buyers.length === 0) {
-      toast({
-        title: "Missing Buyer", 
-        description: "Please add at least one buyer.",
-        variant: "destructive",
-      })
-      return
-    }
+    console.log("[SendLinks] Handler called", {
+      sellersCount: partySetup.sellers.length,
+      buyersCount: partySetup.buyers.length,
+      hasOnSendPartyLinks: !!onSendPartyLinks,
+    })
 
-    // Validate all parties have name and email
-    const allParties = [...partySetup.sellers, ...partySetup.buyers]
-    const invalidParty = allParties.find(p => !p.name?.trim() || !p.email?.trim())
-    if (invalidParty) {
-      toast({
-        title: "Missing Information",
-        description: "All parties must have a name and email address.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    setSendingLinks(true)
-    
     try {
+      // Validate we have at least one seller and one buyer
+      if (partySetup.sellers.length === 0) {
+        console.log("[SendLinks] Validation failed: no sellers")
+        toast({
+          title: "Missing Seller",
+          description: "Please add at least one seller.",
+          variant: "destructive",
+        })
+        return
+      }
+      
+      if (partySetup.buyers.length === 0) {
+        console.log("[SendLinks] Validation failed: no buyers")
+        toast({
+          title: "Missing Buyer", 
+          description: "Please add at least one buyer.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      // Validate all parties have name and email
+      const allParties = [...partySetup.sellers, ...partySetup.buyers]
+      const invalidParty = allParties.find(p => !p.name?.trim() || !p.email?.trim())
+      if (invalidParty) {
+        console.log("[SendLinks] Validation failed: missing name/email", invalidParty)
+        toast({
+          title: "Missing Information",
+          description: "All parties must have a name and email address.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      setSendingLinks(true)
+
       // Transform to API format
       const parties = [
         ...partySetup.sellers.map(s => ({
@@ -567,14 +576,19 @@ export function RRERQuestionnaire({
         })),
       ]
 
+      console.log("[SendLinks] Calling API with", parties.length, "parties")
+
       // Call the API via prop
       if (onSendPartyLinks) {
         await onSendPartyLinks(parties)
+        console.log("[SendLinks] API call succeeded")
+      } else {
+        console.warn("[SendLinks] onSendPartyLinks prop is undefined — skipping API call")
       }
       
       // Show success
       toast({
-        title: "Links Sent Successfully! 🎉",
+        title: "Links Sent Successfully!",
         description: `Secure links sent to ${parties.length} parties via email.`,
       })
       
@@ -585,9 +599,10 @@ export function RRERQuestionnaire({
       
       // Show confirmation screen instead of auto-advancing
       setShowLinksSentConfirmation(true)
-      
+      console.log("[SendLinks] Confirmation screen activated")
+
     } catch (error) {
-      console.error("Failed to send party links:", error)
+      console.error("[SendLinks] ERROR:", error)
       toast({
         title: "Failed to Send Links",
         description: error instanceof Error ? error.message : "Please try again.",

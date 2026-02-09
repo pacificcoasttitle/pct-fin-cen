@@ -228,6 +228,7 @@ async function apiFetch<T>(
   
   const response = await fetch(url, {
     ...options,
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...options.headers,
@@ -356,6 +357,7 @@ export async function createPartyLinks(reportId: string, parties?: {
   party_role: string;
   entity_type?: string;
   display_name?: string;
+  email?: string;
 }[]): Promise<PartyLinkResponse> {
   return apiFetch<PartyLinkResponse>(`/reports/${reportId}/party-links`, {
     method: 'POST',
