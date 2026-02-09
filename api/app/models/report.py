@@ -43,6 +43,12 @@ class Report(Base):
     # Determination results
     determination = Column(JSONBType, nullable=True, comment="Determination logic results and reasoning")
     
+    # Determination persistence fields (for exempt certificate / Shark 2)
+    determination_result = Column(String(50), nullable=True, comment="exempt or reportable")
+    exemption_certificate_id = Column(String(100), nullable=True, comment="Stable exemption certificate ID")
+    exemption_reasons = Column(JSONBType, nullable=True, comment='e.g. ["buyer_is_individual", "financing_involved"]')
+    determination_completed_at = Column(DateTime, nullable=True, comment="When determination was completed")
+    
     # Filing information
     filing_status = Column(
         String(50),

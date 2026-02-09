@@ -500,9 +500,6 @@ def get_report(
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
     
-    # Extract determination persistence fields from the JSONB determination column
-    det = report.determination or {}
-
     return ReportDetailResponse(
         id=report.id,
         status=report.status,
@@ -517,11 +514,11 @@ def get_report(
         filed_at=report.filed_at,
         receipt_id=report.receipt_id,
         filing_payload=report.filing_payload,
-        # Determination persistence fields (extracted from JSONB)
-        determination_result="exempt" if report.status == "exempt" else det.get("result"),
-        determination_completed_at=det.get("determination_completed_at"),
-        exemption_certificate_id=det.get("certificate_id"),
-        exemption_reasons=det.get("exemption_reasons"),
+        # Determination persistence fields (real DB columns now)
+        determination_result=report.determination_result,
+        determination_completed_at=report.determination_completed_at,
+        exemption_certificate_id=report.exemption_certificate_id,
+        exemption_reasons=report.exemption_reasons,
         created_at=report.created_at,
         updated_at=report.updated_at,
     )
@@ -670,6 +667,8 @@ def determine_report(
     
     if is_reportable:
         report.status = "determination_complete"
+        report.determination_result = "reportable"
+        report.determination_completed_at = datetime.utcnow()
     else:
         report.status = "exempt"
         
@@ -696,6 +695,12 @@ def determine_report(
         determination["exemption_reasons"] = exemption_reasons_list
         determination["determination_completed_at"] = datetime.utcnow().isoformat()
         report.determination = determination
+        
+        # Also persist to dedicated columns for clean querying
+        report.determination_result = "exempt"
+        report.exemption_certificate_id = certificate_id
+        report.exemption_reasons = exemption_reasons_list
+        report.determination_completed_at = datetime.utcnow()
         
         # =================================================================
         # UPDATE: Mark linked SubmissionRequest as "completed" when exempt
