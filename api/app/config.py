@@ -128,8 +128,9 @@ class Settings:
             # Vercel deployments
             "https://pct-fin-cen-6wx3.vercel.app",
             "https://pct-fincen.vercel.app",
-            # Production domain
+            # Production domains
             "https://fincenclear.com",
+            "https://www.fincenclear.com",
             "https://www.fincenclear.com",
         ]
         
