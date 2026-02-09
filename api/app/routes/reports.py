@@ -500,6 +500,9 @@ def get_report(
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
     
+    # Extract determination persistence fields from the JSONB determination column
+    det = report.determination or {}
+
     return ReportDetailResponse(
         id=report.id,
         status=report.status,
@@ -514,11 +517,11 @@ def get_report(
         filed_at=report.filed_at,
         receipt_id=report.receipt_id,
         filing_payload=report.filing_payload,
-        # Determination persistence fields (Shark 2)
-        determination_result=report.determination_result,
-        determination_completed_at=report.determination_completed_at,
-        exemption_certificate_id=report.exemption_certificate_id,
-        exemption_reasons=report.exemption_reasons,
+        # Determination persistence fields (extracted from JSONB)
+        determination_result="exempt" if report.status == "exempt" else det.get("result"),
+        determination_completed_at=det.get("determination_completed_at"),
+        exemption_certificate_id=det.get("certificate_id"),
+        exemption_reasons=det.get("exemption_reasons"),
         created_at=report.created_at,
         updated_at=report.updated_at,
     )
