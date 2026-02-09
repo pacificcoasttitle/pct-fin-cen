@@ -15,6 +15,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { ExemptionCertificate, type ExemptionCertificateData } from "@/components/exemption"
 import { 
   CheckCircle2, 
   AlertTriangle, 
@@ -129,6 +131,65 @@ function formatPriceForInput(value: number | undefined | null): string {
 function parsePriceFromInput(formatted: string): number {
   const digits = formatted.replace(/[^0-9]/g, "")
   return digits ? parseInt(digits, 10) : 0
+}
+
+// ============================================================================
+// Exemption Reason Labels (for certificate display)
+// ============================================================================
+
+const EXEMPTION_REASON_LABELS: Record<string, string> = {
+  // Non-residential exemptions
+  "non_residential_no_intent": "Property is not residential and buyer has no intent to build residential",
+  
+  // Lender AML exemptions  
+  "lender_aml_covers": "Lender's AML program covers reporting requirements",
+  
+  // Individual buyer exemptions (from INDIVIDUAL_EXEMPTIONS)
+  "government_agency": "Transferor is a government agency",
+  "deceased_seller": "Transferor is a decedent's estate",
+  "divorce_transfer": "Transfer pursuant to divorce/separation",
+  "gift_inheritance": "Transfer by gift, bequest, or inheritance",
+  "court_order": "Transfer by court order",
+  "foreclosure": "Foreclosure or deed in lieu of foreclosure",
+  "bankruptcy": "Transfer in bankruptcy proceeding",
+  "quitclaim_related": "Quitclaim to/from related party",
+  
+  // Entity buyer exemptions (from ENTITY_EXEMPTIONS)
+  "securities_issuer": "Securities reporting issuer (public company)",
+  "regulated_insurance": "Regulated insurance company",
+  "bank_credit_union": "Bank, credit union, or depository institution",
+  "money_services": "Registered money services business",
+  "broker_dealer": "SEC-registered broker or dealer",
+  "securities_exchange": "National securities exchange",
+  "clearing_agency": "SEC-registered clearing agency",
+  "investment_company": "SEC-registered investment company",
+  "investment_adviser": "SEC-registered investment adviser",
+  "venture_capital": "Venture capital fund adviser",
+  "pooled_investment": "Pooled investment vehicle",
+  "entity_501c": "Tax-exempt organization under 501(c)",
+  "entity_political": "Political organization under 527",
+  "entity_trust_401a": "Trust described in 401(a)",
+  "entity_government": "State, local, or tribal government",
+  "public_utility": "Public utility providing essential services",
+  "large_operating": "Large operating company (20+ employees, $5M+ revenue)",
+  "subsidiary_exempt": "Subsidiary of exempt entity",
+  "inactive_entity": "Inactive entity meeting criteria",
+  "entity_cta_exempt": "Entity reporting exempt under CTA",
+  "boi_filed": "Entity has filed BOI report with FinCEN",
+  "entity_pooled": "Pooled investment vehicle",
+  
+  // Trust buyer exemptions (from TRUST_EXEMPTIONS)
+  "trust_revocable": "Revocable trust",
+  "trust_501c": "Trust exempt under 501(c)",
+  "trust_charitable": "Charitable remainder trust",
+  "trust_crt": "Charitable lead trust",
+}
+
+/**
+ * Format exemption reason code to human-readable label
+ */
+function formatExemptionReason(code: string): string {
+  return EXEMPTION_REASON_LABELS[code] || code.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
 }
 
 // Initial states
@@ -1691,7 +1752,7 @@ export function RRERQuestionnaire({
                           </p>
                           
                           {determinationResult.exemptionsSelected && determinationResult.exemptionsSelected.length > 0 && (
-                            <div className="bg-white/80 rounded-xl p-5 border border-green-200 max-w-lg w-full">
+                            <div className="bg-white/80 rounded-xl p-5 border border-green-200 max-w-lg w-full mb-6">
                               <p className="text-sm font-semibold text-green-900 mb-2">Exemption Reason:</p>
                               <ul className="text-sm text-green-700 space-y-1">
                                 {determinationResult.exemptionsSelected.map((ex, i) => (
@@ -1703,6 +1764,53 @@ export function RRERQuestionnaire({
                               </ul>
                             </div>
                           )}
+                          
+                          {/* Certificate Dialog Button */}
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button 
+                                className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold h-12 px-8 rounded-xl shadow-lg shadow-green-500/25 hover:shadow-xl transition-all"
+                              >
+                                <Shield className="w-5 h-5 mr-2" />
+                                View & Print Exemption Certificate
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                              <DialogHeader className="sr-only">
+                                <DialogTitle>Exemption Certificate</DialogTitle>
+                              </DialogHeader>
+                              <ExemptionCertificate
+                                data={{
+                                  certificateId: determinationId,
+                                  propertyAddress: {
+                                    street: collection.propertyAddress?.street,
+                                    city: collection.propertyAddress?.city,
+                                    state: collection.propertyAddress?.state,
+                                    zip: collection.propertyAddress?.zip,
+                                  },
+                                  purchasePrice: collection.purchasePrice || 0,
+                                  buyerName: collection.buyerType === "entity" 
+                                    ? (collection.buyerEntity?.entity?.legalName || "Entity Buyer")
+                                    : collection.buyerType === "trust"
+                                    ? (collection.buyerTrust?.trust?.legalName || "Trust Buyer")
+                                    : "Individual Buyer",
+                                  escrowNumber: collection.escrowNumber,
+                                  exemptionReasons: (determinationResult.exemptionsSelected || []).map(ex => ({
+                                    code: ex,
+                                    display: formatExemptionReason(ex),
+                                  })),
+                                  determinationTimestamp: createdAt,
+                                  determinationMethod: "FinClear Wizard",
+                                }}
+                                showActions={true}
+                              />
+                            </DialogContent>
+                          </Dialog>
+                          
+                          <p className="text-sm text-green-600 mt-4 flex items-center gap-2">
+                            <Info className="w-4 h-4" />
+                            Save this certificate for your records. Retain for 5 years.
+                          </p>
                         </div>
                       </div>
                     )}
@@ -1788,12 +1896,52 @@ export function RRERQuestionnaire({
                       </div>
                     </div>
                   </CardContent>
-                  <CardFooter className="border-t bg-muted/30 gap-2 print:hidden">
-                    <Button variant="outline" onClick={handlePrint} className="gap-2 bg-transparent">
+                  <CardFooter className="border-t bg-gradient-to-r from-slate-50 via-gray-50 to-slate-50 gap-3 print:hidden">
+                    {!determinationResult.isReportable && (
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button variant="outline" className="gap-2 h-11 rounded-xl border-2 font-medium hover:bg-white hover:border-green-300">
+                            <Shield className="w-4 h-4 text-green-600" />
+                            View Certificate
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                          <DialogHeader className="sr-only">
+                            <DialogTitle>Exemption Certificate</DialogTitle>
+                          </DialogHeader>
+                          <ExemptionCertificate
+                            data={{
+                              certificateId: determinationId,
+                              propertyAddress: {
+                                street: collection.propertyAddress?.street,
+                                city: collection.propertyAddress?.city,
+                                state: collection.propertyAddress?.state,
+                                zip: collection.propertyAddress?.zip,
+                              },
+                              purchasePrice: collection.purchasePrice || 0,
+                              buyerName: collection.buyerType === "entity" 
+                                ? (collection.buyerEntity?.entity?.legalName || "Entity Buyer")
+                                : collection.buyerType === "trust"
+                                ? (collection.buyerTrust?.trust?.legalName || "Trust Buyer")
+                                : "Individual Buyer",
+                              escrowNumber: collection.escrowNumber,
+                              exemptionReasons: (determinationResult.exemptionsSelected || []).map(ex => ({
+                                code: ex,
+                                display: formatExemptionReason(ex),
+                              })),
+                              determinationTimestamp: createdAt,
+                              determinationMethod: "FinClear Wizard",
+                            }}
+                            showActions={true}
+                          />
+                        </DialogContent>
+                      </Dialog>
+                    )}
+                    <Button variant="outline" onClick={handlePrint} className="gap-2 h-11 rounded-xl border-2 font-medium hover:bg-white hover:border-teal-300">
                       <Printer className="w-4 h-4" />
-                      Print
+                      Print Summary
                     </Button>
-                    <Button variant="outline" onClick={resetQuestionnaire} className="gap-2 bg-transparent">
+                    <Button variant="outline" onClick={resetQuestionnaire} className="gap-2 h-11 rounded-xl border-2 font-medium hover:bg-white hover:border-teal-300">
                       <RotateCcw className="w-4 h-4" />
                       Start Over
                     </Button>
