@@ -1,39 +1,44 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useDemo } from "@/hooks/use-demo";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, Send, Clock, CheckCircle, AlertCircle, RefreshCw, Loader2, Users, Shield, ArrowRight } from "lucide-react";
-import { ReceiptId } from "@/components/ui/ReceiptId";
-import { StatusBadge } from "@/components/ui/StatusBadge";
-import { Progress } from "@/components/ui/progress";
 import Link from "next/link";
-import { getSubmissionStats, getMyRequests, getReportsWithParties, type SubmissionStats, type SubmissionRequest, type ReportWithParties } from "@/lib/api";
-import { formatDistanceToNow } from "date-fns";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Plus,
+  FileText,
+  Clock,
+  CheckCircle,
+  AlertCircle,
+  ArrowRight,
+  Bell,
+  Shield,
+  RefreshCw,
+} from "lucide-react";
+import { useDemo } from "@/hooks/use-demo";
+import {
+  getSubmissionStats,
+  getReportsWithParties,
+  type SubmissionStats,
+  type ReportWithParties,
+} from "@/lib/api";
 
-export default function ClientDashboardPage() {
+export default function DashboardPage() {
   const { user } = useDemo();
-  const isClientAdmin = user?.role === "client_admin";
-
   const [stats, setStats] = useState<SubmissionStats | null>(null);
-  const [recentRequests, setRecentRequests] = useState<SubmissionRequest[]>([]);
-  const [awaitingParties, setAwaitingParties] = useState<ReportWithParties[]>([]);
+  const [recentReports, setRecentReports] = useState<ReportWithParties[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchData = async (showRefresh = false) => {
     if (showRefresh) setRefreshing(true);
     try {
-      const [statsData, requestsData, collectingData] = await Promise.all([
-        getSubmissionStats(),
-        getMyRequests(),
-        getReportsWithParties({ status: "collecting", limit: 10 }).catch(() => ({ reports: [], total: 0 })),
+      const [statsData, reportsData] = await Promise.all([
+        getSubmissionStats().catch(() => null),
+        getReportsWithParties({ limit: 5 }).catch(() => ({ reports: [], total: 0 })),
       ]);
-      setStats(statsData);
-      setRecentRequests(requestsData.slice(0, 5)); // Last 5
-      setAwaitingParties(collectingData.reports || []);
+      if (statsData) setStats(statsData);
+      setRecentReports(reportsData.reports || []);
     } catch (error) {
       console.error("Failed to fetch dashboard data:", error);
     } finally {
@@ -52,346 +57,210 @@ export default function ClientDashboardPage() {
     return () => clearInterval(interval);
   }, []);
 
+  // Derive action items from stats
+  const awaitingCount = stats?.in_progress ?? 0;
+  const readyCount = recentReports.filter((r) => r.status === "ready_to_file").length;
+
+  const actionItems = [
+    awaitingCount > 0 && {
+      message: `${awaitingCount} report${awaitingCount > 1 ? "s" : ""} awaiting party responses`,
+      href: "/app/reports",
+      color: "amber",
+    },
+    readyCount > 0 && {
+      message: `${readyCount} report${readyCount > 1 ? "s" : ""} ready to file`,
+      href: "/app/reports",
+      color: "green",
+    },
+  ].filter(Boolean) as { message: string; href: string; color: string }[];
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "filed":
+        return <CheckCircle className="w-4 h-4 text-green-500" />;
+      case "ready_to_file":
+        return <AlertCircle className="w-4 h-4 text-blue-500" />;
+      case "collecting":
+      case "awaiting_parties":
+        return <Clock className="w-4 h-4 text-amber-500" />;
+      case "exempt":
+        return <Shield className="w-4 h-4 text-purple-500" />;
+      default:
+        return <FileText className="w-4 h-4 text-gray-400" />;
+    }
+  };
+
+  const formatStatus = (report: ReportWithParties) => {
+    switch (report.status) {
+      case "filed":
+        return "Filed";
+      case "ready_to_file":
+        return "Ready to file";
+      case "collecting":
+      case "awaiting_parties":
+        return `Awaiting ${report.party_summary?.submitted || 0}/${report.party_summary?.total || 0} parties`;
+      case "exempt":
+        return "Exempt";
+      case "determination_complete":
+        return "Determination complete";
+      default:
+        return report.status.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="p-6 max-w-4xl mx-auto">
+        <div className="animate-pulse space-y-6">
+          <div className="h-8 bg-gray-200 rounded w-48" />
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-24 bg-gray-200 rounded-xl" />
+            ))}
+          </div>
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-16 bg-gray-200 rounded-xl" />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="p-6 max-w-4xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Welcome back, {user?.name?.split(" ")[0] || "User"}</h1>
-          <p className="text-muted-foreground">{user?.companyName || "Your Company"}</p>
+          <h1 className="text-2xl font-bold text-gray-900">
+            Welcome back{user?.name ? `, ${user.name.split(" ")[0]}` : ""}
+          </h1>
+          <p className="text-gray-500 text-sm mt-1">
+            Here&apos;s what&apos;s happening with your reports
+          </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button 
-            variant="ghost" 
-            size="icon" 
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={() => fetchData(true)}
             disabled={refreshing}
           >
             <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
           </Button>
-          <Button asChild size="lg">
+          <Button asChild className="bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700">
             <Link href="/app/reports/new">
-              <FileText className="mr-2 h-4 w-4" />
-              Start New Report
+              <Plus className="w-4 h-4 mr-2" />
+              New Report
             </Link>
           </Button>
         </div>
       </div>
 
-      {/* Quick Action Card */}
-      <Card className="border-primary bg-primary/5">
-        <CardHeader>
-          <CardTitle>Start a FinCEN Report</CardTitle>
-          <CardDescription>
-            Create a new report and complete the filing wizard. We&apos;ll guide you through the process.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button asChild>
-            <Link href="/app/reports/new">
-              <FileText className="mr-2 h-4 w-4" />
-              Start New Report
-            </Link>
-          </Button>
-        </CardContent>
-      </Card>
+      {/* Action Required Banner */}
+      {actionItems.length > 0 && (
+        <Card className="border-amber-200 bg-amber-50">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Bell className="w-5 h-5 text-amber-600" />
+              <span className="font-semibold text-amber-900">Action Required</span>
+            </div>
+            <ul className="space-y-2">
+              {actionItems.map((item, i) => (
+                <li key={i}>
+                  <Link
+                    href={item.href}
+                    className="text-amber-800 hover:text-amber-900 flex items-center gap-2 group"
+                  >
+                    <span>• {item.message}</span>
+                    <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
 
-      {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Pending</CardTitle>
-            <Clock className="h-4 w-4 text-yellow-600" />
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <Skeleton className="h-8 w-16" />
-            ) : (
-              <>
-                <div className="text-2xl font-bold">{stats?.pending ?? 0}</div>
-                <p className="text-xs text-muted-foreground">Awaiting processing</p>
-              </>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">In Progress</CardTitle>
-            <AlertCircle className="h-4 w-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <Skeleton className="h-8 w-16" />
-            ) : (
-              <>
-                <div className="text-2xl font-bold">{stats?.in_progress ?? 0}</div>
-                <p className="text-xs text-muted-foreground">Being processed</p>
-              </>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Completed</CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <Skeleton className="h-8 w-16" />
-            ) : (
-              <>
-                <div className="text-2xl font-bold">{stats?.completed ?? 0}</div>
-                <p className="text-xs text-muted-foreground">All time</p>
-              </>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">This Month</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <Skeleton className="h-8 w-16" />
-            ) : (
-              <>
-                <div className="text-2xl font-bold">{stats?.this_month ?? 0}</div>
-                <p className="text-xs text-muted-foreground">Reports created</p>
-              </>
-            )}
+      {/* Stats Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Link href="/app/reports">
+          <Card className="hover:shadow-md transition cursor-pointer h-full">
+            <CardContent className="p-4 text-center">
+              <p className="text-3xl font-bold text-gray-900">
+                {(stats?.pending ?? 0) + (stats?.in_progress ?? 0)}
+              </p>
+              <p className="text-sm text-gray-500 mt-1">Active</p>
+            </CardContent>
+          </Card>
+        </Link>
+        <Link href="/app/reports">
+          <Card className="hover:shadow-md transition cursor-pointer border-amber-200 h-full">
+            <CardContent className="p-4 text-center">
+              <p className="text-3xl font-bold text-amber-600">{stats?.in_progress ?? 0}</p>
+              <p className="text-sm text-gray-500 mt-1">Awaiting Parties</p>
+            </CardContent>
+          </Card>
+        </Link>
+        <Link href="/app/reports">
+          <Card className="hover:shadow-md transition cursor-pointer border-green-200 h-full">
+            <CardContent className="p-4 text-center">
+              <p className="text-3xl font-bold text-green-600">{stats?.completed ?? 0}</p>
+              <p className="text-sm text-gray-500 mt-1">Filed</p>
+            </CardContent>
+          </Card>
+        </Link>
+        <Card className="border-purple-200">
+          <CardContent className="p-4 text-center">
+            <p className="text-3xl font-bold text-purple-600">{stats?.exempt ?? 0}</p>
+            <p className="text-sm text-gray-500 mt-1">Exempt</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Awaiting Party Responses (FIX 4) */}
-      {!loading && awaitingParties.length > 0 && (
-        <Card className="border-amber-200 bg-amber-50">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Clock className="w-5 h-5 text-amber-600" />
-              Awaiting Party Responses ({awaitingParties.length})
-            </CardTitle>
-            <CardDescription className="text-amber-700">
-              These reports are waiting for parties to submit their information
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {awaitingParties.map(report => (
-                <Link
-                  key={report.id}
-                  href={`/app/reports/${report.id}/wizard`}
-                  className="block p-3 bg-white rounded-lg border hover:border-amber-400 transition"
-                >
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <p className="font-medium">{report.property_address_text || "Property"}</p>
-                      <p className="text-sm text-gray-500">
-                        {report.party_summary?.submitted || 0}/{report.party_summary?.total || 0} parties submitted
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      {report.party_summary && report.party_summary.total > 0 && (
-                        <Progress 
-                          value={(report.party_summary.submitted / report.party_summary.total) * 100} 
-                          className="w-20 h-2" 
-                        />
-                      )}
-                      <ArrowRight className="w-4 h-4 text-gray-400" />
-                    </div>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Filing Summary Card */}
-      {!loading && (stats?.completed ?? 0) + (stats?.exempt ?? 0) > 0 && (
-        <Card className="border-green-200 bg-green-50/30">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-green-800">
-              <FileText className="h-5 w-5" />
-              Filing Summary
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 md:grid-cols-4">
-              <div className="bg-white rounded-lg p-3 border border-green-200">
-                <div className="flex items-center gap-2 text-green-600 mb-1">
-                  <CheckCircle className="h-4 w-4" />
-                  <span className="text-sm font-medium">Filed</span>
-                </div>
-                <p className="text-2xl font-bold text-green-800">{stats?.completed ?? 0}</p>
-              </div>
-              <div className="bg-white rounded-lg p-3 border border-purple-200">
-                <div className="flex items-center gap-2 text-purple-600 mb-1">
-                  <Shield className="h-4 w-4" />
-                  <span className="text-sm font-medium">Exempt</span>
-                </div>
-                <p className="text-2xl font-bold text-purple-800">{stats?.exempt ?? 0}</p>
-              </div>
-              <div className="bg-white rounded-lg p-3 border border-blue-200">
-                <div className="flex items-center gap-2 text-blue-600 mb-1">
-                  <AlertCircle className="h-4 w-4" />
-                  <span className="text-sm font-medium">In Progress</span>
-                </div>
-                <p className="text-2xl font-bold text-blue-800">{stats?.in_progress ?? 0}</p>
-              </div>
-              <div className="bg-white rounded-lg p-3 border border-yellow-200">
-                <div className="flex items-center gap-2 text-yellow-600 mb-1">
-                  <Clock className="h-4 w-4" />
-                  <span className="text-sm font-medium">Pending</span>
-                </div>
-                <p className="text-2xl font-bold text-yellow-800">{stats?.pending ?? 0}</p>
-              </div>
-            </div>
-            
-            {/* Most Recent Filing */}
-            {recentRequests.filter(r => r.status === "completed" && r.receipt_id).length > 0 && (
-              <div className="mt-4 pt-4 border-t border-green-200">
-                <p className="text-sm font-medium text-green-800 mb-2">Most Recent Filing:</p>
-                {(() => {
-                  const lastFiled = recentRequests.find(r => r.status === "completed" && r.receipt_id);
-                  if (!lastFiled) return null;
-                  return (
-                    <div className="bg-white rounded-lg p-3 border border-green-200 flex items-center justify-between">
-                      <div>
-                        <p className="font-medium">{lastFiled.property_address.street}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {lastFiled.property_address.city}, {lastFiled.property_address.state}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        {lastFiled.receipt_id && (
-                          <ReceiptId value={lastFiled.receipt_id} size="sm" showLabel />
-                        )}
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Filed {formatDistanceToNow(new Date(lastFiled.updated_at), { addSuffix: true })}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
       {/* Recent Activity */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Reports</CardTitle>
-          <CardDescription>Your latest FinCEN reports</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="flex items-center justify-between border-b pb-3">
-                  <Skeleton className="h-4 w-[200px]" />
-                  <Skeleton className="h-4 w-[80px]" />
-                </div>
-              ))}
-            </div>
-          ) : recentRequests.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p>No reports yet. Start your first report!</p>
-              <Button asChild className="mt-4">
-                <Link href="/app/reports/new">Start New Report</Link>
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {recentRequests.map((request) => {
-                // Calculate party progress (GAP 1 Fix)
-                const partiesTotal = request.parties_total || (request.parties?.length ?? 0);
-                const partiesSubmitted = request.parties_submitted || 
-                  (request.parties?.filter((p: { status: string }) => p.status === "submitted").length ?? 0);
-                const partyProgress = partiesTotal > 0 ? (partiesSubmitted / partiesTotal) * 100 : 0;
-                
-                return (
-                  <Link 
-                    key={request.id} 
-                    href={`/app/reports/${request.id}`}
-                    className="flex items-center justify-between border-b pb-3 last:border-0 hover:bg-muted/50 rounded px-2 -mx-2 py-2 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`h-2 w-2 rounded-full ${
-                        request.status === "completed" ? "bg-green-500" :
-                        request.status === "exempt" ? "bg-green-500" :
-                        request.status === "in_progress" ? "bg-blue-500" : "bg-yellow-500"
-                      }`} />
-                      <div>
-                        <span className="text-sm font-medium">{request.property_address.street}</span>
-                        <p className="text-xs text-muted-foreground">
-                          {request.property_address.city}, {request.property_address.state} • {request.buyer_name}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right flex flex-col items-end gap-1">
-                      <span className="text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(request.created_at), { addSuffix: true })}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        {/* Party Status - GAP 1 Fix */}
-                        {partiesTotal > 0 && request.status !== "completed" && request.status !== "exempt" && (
-                          <div className="flex items-center gap-1">
-                            <Users className="h-3 w-3 text-muted-foreground" />
-                            <Progress value={partyProgress} className="w-12 h-1.5" />
-                            <span className={`text-[10px] ${partyProgress === 100 ? "text-green-600" : "text-muted-foreground"}`}>
-                              {partiesSubmitted}/{partiesTotal}
-                            </span>
-                          </div>
-                        )}
-                        <p className="text-xs font-medium capitalize">{request.status.replace(/_/g, " ")}</p>
-                      </div>
-                    </div>
-                  </Link>
-                );
-              })}
-              {recentRequests.length > 0 && (
-                <div className="pt-2">
-                  <Button variant="outline" asChild className="w-full">
-                    <Link href="/app/reports">View All Reports</Link>
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-900">Recent Activity</h2>
+          <Link href="/app/reports" className="text-sm text-teal-600 hover:text-teal-700">
+            View all →
+          </Link>
+        </div>
 
-      {/* Billing Summary - Client Admin Only */}
-      {isClientAdmin && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Billing Summary</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 md:grid-cols-3">
-              <div>
-                <p className="text-sm text-muted-foreground">Current Balance</p>
-                <p className="text-2xl font-bold">$0.00</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Filings This Month</p>
-                <p className="text-lg font-medium">{stats?.this_month ?? 0}</p>
-                <p className="text-xs text-muted-foreground">@ $75/filing</p>
-              </div>
-              <div className="flex items-end">
-                <Button variant="outline" asChild>
-                  <Link href="/app/invoices">View All Invoices</Link>
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+        {recentReports.length > 0 ? (
+          <div className="space-y-2">
+            {recentReports.map((report) => (
+              <Link
+                key={report.id}
+                href={`/app/reports/${report.id}/wizard`}
+                className="flex items-center justify-between p-4 bg-white border rounded-xl hover:border-teal-300 hover:shadow-sm transition"
+              >
+                <div className="flex items-center gap-3">
+                  {getStatusIcon(report.status)}
+                  <div>
+                    <p className="font-medium text-gray-900">
+                      {report.property_address_text || "No address"}
+                    </p>
+                    <p className="text-sm text-gray-500">{formatStatus(report)}</p>
+                  </div>
+                </div>
+                <ArrowRight className="w-4 h-4 text-gray-400" />
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <Card>
+            <CardContent className="p-8 text-center">
+              <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500 mb-4">No reports yet</p>
+              <Button asChild variant="outline">
+                <Link href="/app/reports/new">Create your first report</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+      </div>
     </div>
   );
 }
