@@ -113,7 +113,7 @@ export function Footer() {
           </p>
           <div className="flex items-center gap-2 text-sm text-slate-500">
             <Shield className="h-4 w-4 text-teal-400" />
-            <span>SOC 2 Certified • CCPA Compliant</span>
+            <span>Enterprise Security • CCPA Compliant</span>
           </div>
         </div>
       </div>

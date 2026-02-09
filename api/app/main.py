@@ -189,6 +189,31 @@ async def seed_now(db: Session = Depends(get_db)):
         }
 
 
+@app.post("/cron/check-deadlines")
+async def check_deadlines_endpoint(db: Session = Depends(get_db)):
+    """
+    Trigger filing deadline checks.
+    
+    Sends email reminders for reports with deadlines approaching in 7, 3, or 1 day(s).
+    Should be called daily by a cron job or scheduler.
+    """
+    try:
+        from app.scripts.check_filing_deadlines import check_deadlines
+        count = check_deadlines(db)
+        return {
+            "success": True,
+            "reminders_sent": count,
+            "checked_at": datetime.utcnow().isoformat(),
+        }
+    except Exception as e:
+        import traceback
+        return {
+            "success": False,
+            "error": str(e),
+            "traceback": traceback.format_exc(),
+        }
+
+
 @app.get("/version")
 async def version():
     """Version endpoint returning build/version information."""

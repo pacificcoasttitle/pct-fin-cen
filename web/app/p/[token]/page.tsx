@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import { useParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -40,6 +40,12 @@ export default function PartyPortalPage() {
   const [submitted, setSubmitted] = useState(false)
   const [submittedAt, setSubmittedAt] = useState<string | null>(null)
   const [confirmationId, setConfirmationId] = useState<string | null>(null)
+  
+  // Autosave state
+  const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle")
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const initialDataRef = useRef<string>("")
 
   // Calculate form completion based on role/type
   const calculateProgress = useCallback(() => {
@@ -139,7 +145,58 @@ export default function PartyPortalPage() {
     if (submitted) return
     setFormData(newData)
     setSaved(false)
+    setHasUnsavedChanges(true)
   }
+
+  // Debounced autosave — saves 2 seconds after last change
+  useEffect(() => {
+    if (!hasUnsavedChanges || submitted || !partyData) return
+    
+    const dataStr = JSON.stringify(formData)
+    if (dataStr === initialDataRef.current) return
+    
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current)
+    }
+    
+    autoSaveTimerRef.current = setTimeout(async () => {
+      try {
+        setAutoSaveStatus("saving")
+        await saveParty(token, formData)
+        setAutoSaveStatus("saved")
+        setHasUnsavedChanges(false)
+        initialDataRef.current = dataStr
+        setTimeout(() => setAutoSaveStatus("idle"), 2000)
+      } catch {
+        setAutoSaveStatus("error")
+      }
+    }, 2000)
+    
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current)
+      }
+    }
+  }, [formData, hasUnsavedChanges, submitted, token, partyData])
+
+  // Warn before leaving with unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges && !submitted) {
+        e.preventDefault()
+        e.returnValue = ""
+      }
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload)
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload)
+  }, [hasUnsavedChanges, submitted])
+
+  // Track initial data for comparison
+  useEffect(() => {
+    if (partyData?.party_data) {
+      initialDataRef.current = JSON.stringify(partyData.party_data)
+    }
+  }, [partyData])
 
   // Save progress
   const handleSave = async () => {
@@ -349,6 +406,30 @@ export default function PartyPortalPage() {
           </Card>
         )}
 
+        {/* Corrections Banner */}
+        {partyData?.status === "corrections_requested" && (
+          <Card className="mb-6 border-red-200 bg-red-50 rounded-xl">
+            <CardContent className="pt-4 pb-4">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-red-100 rounded-lg">
+                  <AlertTriangle className="h-4 w-4 text-red-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-red-900 font-semibold">Corrections Requested</p>
+                  {partyData.party_data?.correction_message && (
+                    <p className="text-sm text-red-700 mt-1 leading-relaxed">
+                      {String(partyData.party_data.correction_message)}
+                    </p>
+                  )}
+                  <p className="text-xs text-red-600 mt-2">
+                    Please review and update your information below, then submit again.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Why We Need This Info */}
         <Card className="mb-6 bg-gradient-to-r from-slate-50 to-slate-100/50 border-slate-200 rounded-xl">
           <CardContent className="pt-4 pb-4">
@@ -372,7 +453,27 @@ export default function PartyPortalPage() {
         <div className="mb-6 p-4 bg-white rounded-xl border border-gray-100 shadow-sm">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium text-gray-900">Form Progress</span>
-            <span className="text-sm font-semibold text-teal-600">{progress}%</span>
+            <div className="flex items-center gap-3">
+              {autoSaveStatus === "saving" && (
+                <span className="flex items-center gap-1 text-xs text-gray-500">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Saving...
+                </span>
+              )}
+              {autoSaveStatus === "saved" && (
+                <span className="flex items-center gap-1 text-xs text-teal-600">
+                  <CheckCircle2 className="w-3 h-3" />
+                  Saved
+                </span>
+              )}
+              {autoSaveStatus === "error" && (
+                <span className="flex items-center gap-1 text-xs text-red-500">
+                  <AlertTriangle className="w-3 h-3" />
+                  Save failed
+                </span>
+              )}
+              <span className="text-sm font-semibold text-teal-600">{progress}%</span>
+            </div>
           </div>
           <Progress value={progress} className="h-2.5 bg-gray-100" />
           {progress < 70 && (

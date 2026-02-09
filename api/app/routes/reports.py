@@ -657,10 +657,37 @@ def determine_report(
     
     # Update report
     report.determination = determination
+    certificate_id = None
+    exemption_reasons_list = None
+    
     if is_reportable:
         report.status = "determination_complete"
     else:
         report.status = "exempt"
+        
+        # Generate & persist exemption certificate data
+        from app.services.early_determination import generate_exemption_certificate_id
+        certificate_id = generate_exemption_certificate_id()
+        exemption_reasons_list = []
+        
+        # Extract exemption reasons from determination details
+        if determination.get("exemption_reason"):
+            exemption_reasons_list.append(determination["exemption_reason"])
+        
+        # Also extract from wizard_data if available (frontend-computed reasons)
+        wd = report.wizard_data or {}
+        for key in ("individualExemptions", "entityExemptions", "trustExemptions"):
+            det_data = wd.get("determination", {})
+            if isinstance(det_data, dict):
+                exs = det_data.get(key, [])
+                if isinstance(exs, list):
+                    exemption_reasons_list.extend([e for e in exs if e and e != "none"])
+        
+        # Store in determination JSONB for persistence
+        determination["certificate_id"] = certificate_id
+        determination["exemption_reasons"] = exemption_reasons_list
+        determination["determination_completed_at"] = datetime.utcnow().isoformat()
+        report.determination = determination
         
         # =================================================================
         # UPDATE: Mark linked SubmissionRequest as "completed" when exempt
@@ -683,6 +710,8 @@ def determine_report(
         details={
             "is_reportable": is_reportable,
             "result": determination.get("final_result"),
+            "certificate_id": certificate_id,
+            "exemption_reasons": exemption_reasons_list,
         },
         ip_address=get_client_ip(request),
     )
@@ -696,6 +725,8 @@ def determine_report(
         status=report.status,
         determination=determination,
         reasoning=reasoning,
+        certificate_id=certificate_id,
+        exemption_reasons=exemption_reasons_list,
     )
 
 

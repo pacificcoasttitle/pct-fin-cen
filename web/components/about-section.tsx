@@ -7,7 +7,7 @@ export function AboutSection() {
     { value: "35", label: "Exemption Types Covered", icon: BarChart3 },
     { value: "5yr", label: "Record Storage", icon: Database },
     { value: "Direct", label: "FinCEN Filing", icon: Send },
-    { value: "SOC 2", label: "Certified Security", icon: Shield },
+    { value: "256-bit", label: "Encryption", icon: Shield },
   ];
 
   const expertise = [

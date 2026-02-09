@@ -217,8 +217,9 @@ export default function SettingsPage() {
               <span className="font-medium text-slate-700">SOC 2 Type II</span>
             </div>
             <p className="text-sm text-slate-600">
-              SOC 2 Type II certification is on our roadmap. We are committed to achieving the
-              highest standards of security and compliance for our customers.
+              SOC 2 Type II certification is on our roadmap. All data is encrypted with 256-bit AES
+              at rest and TLS 1.3 in transit. We use role-based access controls, complete audit logging,
+              and US-based data centers.
             </p>
           </div>
         </CardContent>

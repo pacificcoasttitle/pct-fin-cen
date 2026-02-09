@@ -147,7 +147,7 @@ export function PricingSection() {
         {/* Footer Notes */}
         <div className="text-center mt-10 space-y-3">
           <p className="text-sm text-muted-foreground">
-            All plans include: <span className="text-foreground">SOC 2 security</span> •{" "}
+            All plans include: <span className="text-foreground">Enterprise security</span> •{" "}
             <span className="text-foreground">5-year storage</span> •{" "}
             <span className="text-foreground">Unlimited users</span>
           </p>

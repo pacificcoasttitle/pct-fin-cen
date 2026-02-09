@@ -41,6 +41,8 @@ export interface DeterminationResult {
   required_sections: string[];
   required_certifications: string[];
   path_trace: string[];
+  certificate_id?: string;
+  exemption_reasons?: string[];
 }
 
 export interface PartyLink {

@@ -179,3 +179,5 @@ class DeterminationResponse(BaseModel):
     status: str
     determination: Dict[str, Any]
     reasoning: List[str]
+    certificate_id: Optional[str] = None
+    exemption_reasons: Optional[List[str]] = None

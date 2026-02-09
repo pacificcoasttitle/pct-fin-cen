@@ -60,9 +60,9 @@ interface ExtendedSubmissionRequest extends SubmissionRequest {
 function transformApiResponse(apiData: ApiSubmissionRequest): ExtendedSubmissionRequest {
   return {
     id: apiData.id,
-    companyId: "", // Not provided by API yet
-    companyName: "Client Company", // Placeholder until API provides this
-    requestedBy: "Client User", // Placeholder
+    companyId: apiData.company_id || "",
+    companyName: apiData.company_name || "Unknown Company",
+    requestedBy: apiData.requested_by_name || apiData.requested_by_email || "Unknown",
     escrowNumber: apiData.escrow_number || "",
     fileNumber: "",
     propertyAddress: apiData.property_address || { street: "", city: "", state: "", zip: "" },
@@ -76,8 +76,9 @@ function transformApiResponse(apiData: ApiSubmissionRequest): ExtendedSubmission
     notes: apiData.notes || null,
     priority: "normal" as const, // Default priority
     status: mapApiStatus(apiData.status),
-    assignedTo: null,
+    assignedTo: apiData.assigned_to_name ? { name: apiData.assigned_to_name, id: apiData.assigned_to_id || "" } : null,
     submittedAt: apiData.created_at,
+    completedAt: apiData.completed_at || undefined,
     reportId: apiData.report_id || null,
     // Early determination fields
     determinationResult: apiData.determination_result,
@@ -118,6 +119,14 @@ interface ApiSubmissionRequest {
   report_id: string | null
   created_at: string
   updated_at: string
+  completed_at: string | null
+  // Company and user info (real data from backend)
+  company_id: string | null
+  company_name: string | null
+  requested_by_name: string | null
+  requested_by_email: string | null
+  assigned_to_name: string | null
+  assigned_to_id: string | null
   // Early determination fields
   determination_result: string | null
   exemption_reasons: string[] | null
@@ -190,7 +199,7 @@ export default function AdminRequestsPage() {
     return () => clearInterval(interval)
   }, [fetchRequests])
 
-  // Calculate stats
+  // Calculate stats from real data
   const stats = useMemo(() => {
     const pending = requests.filter(r => r.status === "pending" || r.status === "reportable").length
     const inProgress = requests.filter(r => r.status === "in_progress").length
@@ -199,12 +208,25 @@ export default function AdminRequestsPage() {
     const completedToday = requests.filter(
       r => r.status === "completed" && r.completedAt && new Date(r.completedAt).toDateString() === today
     ).length
+    
+    // Calculate average processing hours from completed requests
+    const completedRequests = requests.filter(r => r.status === "completed" && r.completedAt && r.submittedAt)
+    let avgProcessingHours = 0
+    if (completedRequests.length > 0) {
+      const totalHours = completedRequests.reduce((sum, r) => {
+        const submitted = new Date(r.submittedAt).getTime()
+        const completed = new Date(r.completedAt!).getTime()
+        return sum + (completed - submitted) / (1000 * 60 * 60)
+      }, 0)
+      avgProcessingHours = Math.round((totalHours / completedRequests.length) * 10) / 10
+    }
+    
     return {
       pending,
       inProgress,
       completedToday,
       exempt,
-      avgProcessingHours: 4.2, // TODO: Calculate from actual data
+      avgProcessingHours,
     }
   }, [requests])
 

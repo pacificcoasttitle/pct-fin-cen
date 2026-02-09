@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useCallback, useEffect } from "react"
+import { useState, useMemo, useCallback, useEffect, useRef } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
@@ -419,6 +419,7 @@ export interface RRERQuestionnaireProps {
   }>) => Promise<void>
   onReadyCheck?: () => Promise<{ ready: boolean; errors?: string[] }>
   onFileReport?: () => Promise<{ success: boolean; receipt_id?: string; error?: string }>
+  onDetermine?: () => Promise<void>
 }
 
 export function RRERQuestionnaire({ 
@@ -431,6 +432,7 @@ export function RRERQuestionnaire({
   onSendPartyLinks,
   onReadyCheck,
   onFileReport,
+  onDetermine,
 }: RRERQuestionnaireProps = {}) {
   const [phase, setPhase] = useState<Phase>(initialData?.phase || "determination")
   const [determinationStep, setDeterminationStep] = useState<DeterminationStepId>(initialData?.determinationStep || "property")
@@ -457,6 +459,7 @@ export function RRERQuestionnaire({
   })
   const [createdAt] = useState(() => new Date().toISOString())
   const [lastSavedAt, setLastSavedAt] = useState<string | undefined>()
+  const [resendingPartyId, setResendingPartyId] = useState<string | null>(null)
   
   // NEW: Party Setup State for restructured wizard flow
   // Initialize from initialParties if available (from client submission)
@@ -825,6 +828,23 @@ export function RRERQuestionnaire({
     
     return steps
   }, [determination, determinationResult])
+
+  // Auto-persist determination to backend when result is reached
+  const determinationPersistedRef = useRef(false)
+  useEffect(() => {
+    if (
+      determinationResult && 
+      determinationStep === "determination-result" && 
+      onDetermine && 
+      !determinationPersistedRef.current
+    ) {
+      determinationPersistedRef.current = true
+      onDetermine().catch((err) => {
+        console.error("Failed to persist determination:", err)
+        determinationPersistedRef.current = false // Allow retry
+      })
+    }
+  }, [determinationResult, determinationStep, onDetermine])
 
   // Collection steps - NEW RESTRUCTURED FLOW
   // Phase 2 now focuses on party setup and monitoring, not data entry
@@ -2676,7 +2696,7 @@ export function RRERQuestionnaire({
                                   </div>
                                   
                                   {/* Actions for pending parties */}
-                                  {party.status === "pending" && party.link && (
+                                  {party.status !== "submitted" && party.link && (
                                     <div className="mt-3 pt-3 border-t flex gap-2">
                                       <Button 
                                         size="sm" 
@@ -2697,6 +2717,37 @@ export function RRERQuestionnaire({
                                         <ExternalLink className="h-3 w-3 mr-1" />
                                         Open
                                       </Button>
+                                      {reportId && (
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          disabled={resendingPartyId === party.id}
+                                          onClick={async () => {
+                                            try {
+                                              setResendingPartyId(party.id)
+                                              const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000"
+                                              const res = await fetch(`${apiBase}/party/reports/${reportId}/parties/${party.id}/resend-link`, {
+                                                method: "POST",
+                                                headers: { "Content-Type": "application/json" },
+                                              })
+                                              if (!res.ok) throw new Error("Failed to resend")
+                                              const data = await res.json()
+                                              toast({ title: "Link Resent", description: `Sent to ${data.sent_to || party.email}` })
+                                            } catch {
+                                              toast({ title: "Error", description: "Failed to resend link", variant: "destructive" })
+                                            } finally {
+                                              setResendingPartyId(null)
+                                            }
+                                          }}
+                                        >
+                                          {resendingPartyId === party.id ? (
+                                            <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                                          ) : (
+                                            <RefreshCw className="h-3 w-3 mr-1" />
+                                          )}
+                                          Resend
+                                        </Button>
+                                      )}
                                     </div>
                                   )}
                                 </CardContent>

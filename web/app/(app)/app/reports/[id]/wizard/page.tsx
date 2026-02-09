@@ -421,6 +421,7 @@ export default function WizardPage() {
             setCheckingReady(false)
           }
         }}
+        onDetermine={handleDetermine}
         onFileReport={async () => {
           setFiling(true)
           try {

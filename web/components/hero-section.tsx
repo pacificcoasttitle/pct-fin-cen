@@ -65,7 +65,7 @@ export function HeroSection() {
               </div>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Check className="w-4 h-4 text-[#10B981]" />
-                <span>SOC 2 Certified</span>
+                <span>Enterprise Security</span>
               </div>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Check className="w-4 h-4 text-[#10B981]" />
@@ -137,7 +137,7 @@ export function HeroSection() {
               
               <div className="absolute -bottom-4 -left-4 bg-card rounded-xl shadow-lg border border-border p-3 flex items-center gap-2">
                 <Shield className="w-5 h-5 text-[#10B981]" />
-                <span className="text-sm font-semibold text-foreground">SOC 2</span>
+                <span className="text-sm font-semibold text-foreground">256-bit</span>
               </div>
               
               <div className="absolute top-1/2 -right-8 bg-[#10B981] rounded-full shadow-lg p-3 hidden lg:flex">

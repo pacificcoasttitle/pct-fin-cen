@@ -4,7 +4,7 @@ import { Shield, Lock, FileText, KeyRound, HardDrive, Server } from "lucide-reac
 
 export function SecuritySection() {
   const trustBadges = [
-    { label: "SOC 2 Type II", sublabel: "Certified" },
+    { label: "256-bit AES", sublabel: "Enterprise Security" },
     { label: "256-bit", sublabel: "Encryption" },
     { label: "CCPA", sublabel: "Compliant" },
     { label: "99.9%", sublabel: "Uptime SLA" },

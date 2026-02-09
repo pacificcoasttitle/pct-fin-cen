@@ -85,23 +85,32 @@ class SubmissionRequestResponse(BaseModel):
     """Schema for submission request response with determination info."""
     id: str
     status: str
-    property_address: Optional[dict]
-    purchase_price_cents: Optional[int]
-    expected_closing_date: Optional[str]
-    escrow_number: Optional[str]
-    financing_type: Optional[str]
-    property_type: Optional[str]
-    buyer_name: Optional[str]
-    buyer_email: Optional[str]
-    buyer_type: Optional[str]
-    entity_subtype: Optional[str]
-    seller_name: Optional[str]
-    seller_email: Optional[str]
-    seller_type: Optional[str]
-    notes: Optional[str]
+    property_address: Optional[dict] = None
+    purchase_price_cents: Optional[int] = None
+    expected_closing_date: Optional[str] = None
+    escrow_number: Optional[str] = None
+    financing_type: Optional[str] = None
+    property_type: Optional[str] = None
+    buyer_name: Optional[str] = None
+    buyer_email: Optional[str] = None
+    buyer_type: Optional[str] = None
+    entity_subtype: Optional[str] = None
+    seller_name: Optional[str] = None
+    seller_email: Optional[str] = None
+    seller_type: Optional[str] = None
+    notes: Optional[str] = None
     report_id: Optional[str] = None
     created_at: str
     updated_at: str
+    completed_at: Optional[str] = None
+    
+    # Company and user info (real data)
+    company_id: Optional[str] = None
+    company_name: Optional[str] = None
+    requested_by_name: Optional[str] = None
+    requested_by_email: Optional[str] = None
+    assigned_to_name: Optional[str] = None
+    assigned_to_id: Optional[str] = None
     
     # Determination fields
     determination_result: Optional[str] = None  # "exempt", "reportable", "needs_review"
@@ -149,6 +158,34 @@ def submission_to_response(submission: SubmissionRequest, include_report_info: b
     if submission.exemption_reasons:
         exemption_reasons_display = get_all_exemption_reasons_display(submission.exemption_reasons)
     
+    # Extract company and user info from relationships (if loaded)
+    company_name = None
+    company_id_str = str(submission.company_id) if submission.company_id else None
+    requested_by_name = None
+    requested_by_email = None
+    assigned_to_name = None
+    assigned_to_id = None
+    
+    try:
+        if submission.company:
+            company_name = submission.company.name
+    except Exception:
+        pass
+    
+    try:
+        if submission.requested_by:
+            requested_by_name = submission.requested_by.name or submission.requested_by.email
+            requested_by_email = submission.requested_by.email
+    except Exception:
+        pass
+    
+    try:
+        if submission.assigned_to:
+            assigned_to_name = submission.assigned_to.name or submission.assigned_to.email
+            assigned_to_id = str(submission.assigned_to_user_id)
+    except Exception:
+        pass
+
     response = {
         "id": str(submission.id),
         "status": submission.status,
@@ -169,6 +206,15 @@ def submission_to_response(submission: SubmissionRequest, include_report_info: b
         "report_id": str(submission.report_id) if submission.report_id else None,
         "created_at": submission.created_at.isoformat() if submission.created_at else None,
         "updated_at": submission.updated_at.isoformat() if submission.updated_at else None,
+        "completed_at": submission.completed_at.isoformat() if submission.completed_at else None,
+        
+        # Company and user info (real data, not placeholders)
+        "company_id": company_id_str,
+        "company_name": company_name,
+        "requested_by_name": requested_by_name,
+        "requested_by_email": requested_by_email,
+        "assigned_to_name": assigned_to_name,
+        "assigned_to_id": assigned_to_id,
         
         # Determination fields
         "determination_result": submission.determination_result,
@@ -336,7 +382,10 @@ def list_submission_requests(
     Returns report_status and receipt_id for richer status display.
     """
     query = db.query(SubmissionRequest).options(
-        joinedload(SubmissionRequest.report)  # Eagerly load report for status info
+        joinedload(SubmissionRequest.report),       # Eagerly load report for status info
+        joinedload(SubmissionRequest.company),       # Eagerly load company for name
+        joinedload(SubmissionRequest.requested_by),  # Eagerly load requesting user
+        joinedload(SubmissionRequest.assigned_to),   # Eagerly load assigned user
     )
     
     if status:

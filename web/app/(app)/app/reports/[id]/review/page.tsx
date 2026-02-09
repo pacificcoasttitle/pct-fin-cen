@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { RequestCorrectionsDialog } from "@/components/RequestCorrectionsDialog";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
@@ -810,17 +811,21 @@ export default function ReviewPage() {
         </Button>
         
         <div className="flex gap-3">
-          <Button 
-            variant="outline" 
-            disabled={!data.summary.all_complete}
-            onClick={() => {
-              // TODO: Implement request corrections flow
-              alert("Request Corrections feature coming soon")
-            }}
-          >
-            <Send className="h-4 w-4 mr-2" />
-            Request Corrections
-          </Button>
+          {/* Per-party corrections — only show for submitted parties */}
+          {data.parties.filter(p => p.status === "submitted").length > 0 && (
+            <div className="flex gap-2 flex-wrap">
+              {data.parties
+                .filter(p => p.status === "submitted")
+                .map(p => (
+                  <RequestCorrectionsDialog
+                    key={p.id}
+                    partyId={p.id}
+                    partyName={p.display_name || "Party"}
+                    onSuccess={() => fetchData()}
+                  />
+                ))}
+            </div>
+          )}
           
           <Button 
             disabled={!data.summary.all_complete || !reviewCertified}

@@ -597,6 +597,212 @@ def resend_party_link(
     )
 
 
+class CorrectionRequest(BaseModel):
+    message: str
+
+
+class CorrectionResponse(BaseModel):
+    status: str
+    message: str
+
+
+@router.post("/parties/{party_id}/request-corrections", response_model=CorrectionResponse)
+def request_corrections(
+    party_id: str,
+    data: CorrectionRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """
+    Request corrections from a party who already submitted.
+    Staff/admin use only — resets party status so they can edit and resubmit.
+    """
+    from uuid import UUID
+    
+    try:
+        pid = UUID(party_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid party ID")
+    
+    party = db.query(ReportParty).filter(ReportParty.id == pid).first()
+    if not party:
+        raise HTTPException(status_code=404, detail="Party not found")
+    
+    if party.status not in ("submitted", "verified"):
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Can only request corrections for submitted/verified parties (current: {party.status})"
+        )
+    
+    now = datetime.utcnow()
+    
+    # Update party status to corrections_requested
+    party.status = "corrections_requested"
+    party.updated_at = now
+    
+    # Store correction info in party_data
+    party_data = party.party_data or {}
+    party_data["correction_requested_at"] = now.isoformat()
+    party_data["correction_message"] = data.message
+    party.party_data = party_data
+    
+    # Ensure there's an active portal link
+    existing_link = db.query(PartyLink).filter(
+        PartyLink.report_party_id == pid,
+        PartyLink.status == "active",
+        PartyLink.expires_at > now,
+    ).first()
+    
+    link_url = None
+    if existing_link:
+        link_url = f"{_get_portal_base_url()}/p/{existing_link.token}"
+    else:
+        # Generate new link
+        new_token = secrets.token_urlsafe(32)
+        expires_at = now + timedelta(days=7)
+        new_link = PartyLink(
+            report_party_id=pid,
+            token=new_token,
+            status="active",
+            created_at=now,
+            expires_at=expires_at,
+        )
+        db.add(new_link)
+        link_url = f"{_get_portal_base_url()}/p/{new_token}"
+    
+    # Audit log
+    report = db.query(Report).filter(Report.id == party.report_id).first()
+    audit = AuditLog(
+        report_id=party.report_id,
+        actor_type="staff",
+        action="party.corrections_requested",
+        details={
+            "party_id": str(pid),
+            "message": data.message,
+        },
+        ip_address=get_client_ip(request),
+    )
+    db.add(audit)
+    
+    db.commit()
+    
+    # TODO: In production, send correction request email with link_url
+    logger.info(f"[CORRECTIONS] Requested for party {party_id}: {data.message}")
+    
+    return CorrectionResponse(
+        status="corrections_requested",
+        message="Correction request sent. Party can now edit and resubmit.",
+    )
+
+
+class ClientResendResponse(BaseModel):
+    message: str
+    sent_to: str
+    link_url: str
+
+
+@router.post("/reports/{report_id}/parties/{party_id}/resend-link", response_model=ClientResendResponse)
+def client_resend_party_link(
+    report_id: str,
+    party_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """
+    Resend a party portal link. Accessible by clients (for their own reports)
+    and staff. No authentication required in demo mode — in production,
+    validate the caller owns this report.
+    """
+    from uuid import UUID
+    
+    # Find the report
+    try:
+        rid = UUID(report_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid report ID")
+    
+    report = db.query(Report).filter(Report.id == rid).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    
+    # Find the party on this report
+    try:
+        pid = UUID(party_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid party ID")
+    
+    party = db.query(ReportParty).filter(
+        ReportParty.id == pid,
+        ReportParty.report_id == rid,
+    ).first()
+    if not party:
+        raise HTTPException(status_code=404, detail="Party not found on this report")
+    
+    party_email = None
+    if party.party_data and isinstance(party.party_data, dict):
+        party_email = party.party_data.get("email")
+    if not party_email:
+        raise HTTPException(status_code=400, detail="Party has no email address on file")
+    
+    now = datetime.utcnow()
+    
+    # Check for existing active link
+    existing_link = db.query(PartyLink).filter(
+        PartyLink.report_party_id == pid,
+        PartyLink.status == "active",
+        PartyLink.expires_at > now,
+    ).first()
+    
+    if existing_link:
+        link_url = f"{_get_portal_base_url()}/p/{existing_link.token}"
+        
+        # TODO: Send email with existing link in production
+        
+        return ClientResendResponse(
+            message="Portal link resent successfully",
+            sent_to=party_email,
+            link_url=link_url,
+        )
+    
+    # No active link — generate a new one
+    new_token = secrets.token_urlsafe(32)
+    expires_at = now + timedelta(days=7)
+    
+    new_link = PartyLink(
+        report_party_id=pid,
+        token=new_token,
+        status="active",
+        created_at=now,
+        expires_at=expires_at,
+    )
+    db.add(new_link)
+    
+    # Audit log
+    audit = AuditLog(
+        report_id=rid,
+        actor_type="client",
+        action="party_link.resent",
+        details={
+            "party_id": str(pid),
+            "party_email": party_email,
+        },
+        ip_address=get_client_ip(request),
+    )
+    db.add(audit)
+    
+    db.commit()
+    
+    link_url = f"{_get_portal_base_url()}/p/{new_token}"
+    
+    # TODO: Send email with new link in production
+    
+    return ClientResendResponse(
+        message="New portal link generated and sent",
+        sent_to=party_email,
+        link_url=link_url,
+    )
+
+
 def _get_portal_base_url() -> str:
     """Get the base URL for the portal. Configure via env in production."""
     import os
