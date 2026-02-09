@@ -61,6 +61,8 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { AddressAutocomplete } from "@/components/AddressAutocomplete"
+import { LinksSentConfirmation } from "@/components/wizard/LinksSentConfirmation"
+import { useDemo } from "@/hooks/use-demo"
 import type { ParsedAddress, PropertyData } from "@/lib/property-types"
 import {
   type DeterminationState,
@@ -434,6 +436,8 @@ export function RRERQuestionnaire({
   onFileReport,
   onDetermine,
 }: RRERQuestionnaireProps = {}) {
+  const { user: demoUser } = useDemo()
+  const [showLinksSentConfirmation, setShowLinksSentConfirmation] = useState(false)
   const [phase, setPhase] = useState<Phase>(initialData?.phase || "determination")
   const [determinationStep, setDeterminationStep] = useState<DeterminationStepId>(initialData?.determinationStep || "property")
   const [collectionStep, setCollectionStep] = useState<CollectionStepId>(initialData?.collectionStep || "transaction-property")
@@ -579,8 +583,8 @@ export function RRERQuestionnaire({
         await onRefreshPartyStatus()
       }
       
-      // Move to monitor-progress step
-      setCollectionStep("monitor-progress")
+      // Show confirmation screen instead of auto-advancing
+      setShowLinksSentConfirmation(true)
       
     } catch (error) {
       console.error("Failed to send party links:", error)
@@ -684,6 +688,28 @@ export function RRERQuestionnaire({
     }
   }
   
+  // Pre-fill reporting person with logged-in user info (FIX 3)
+  const reportingPersonPreFilled = useRef(false)
+  useEffect(() => {
+    if (demoUser && !reportingPersonPreFilled.current) {
+      // Only pre-fill if the fields are currently empty (don't overwrite saved data)
+      const rp = collection.reportingPerson
+      if (!rp?.companyName && !rp?.contactName && !rp?.email) {
+        reportingPersonPreFilled.current = true
+        setCollection(prev => ({
+          ...prev,
+          reportingPerson: {
+            ...createEmptyReportingPerson(),
+            ...prev.reportingPerson,
+            companyName: prev.reportingPerson?.companyName || demoUser.companyName || "",
+            contactName: prev.reportingPerson?.contactName || demoUser.name || "",
+            email: prev.reportingPerson?.email || demoUser.email || "",
+          }
+        }))
+      }
+    }
+  }, [demoUser, collection.reportingPerson])
+
   // Check if can proceed from monitor step
   const canProceedFromMonitor = partyStatus?.summary.all_complete === true
 
@@ -2333,7 +2359,25 @@ export function RRERQuestionnaire({
                 )}
 
                 {/* NEW: Party Setup Step */}
-                {collectionStep === "party-setup" && (
+                {/* Links Sent Confirmation - shows after successful send */}
+                {collectionStep === "party-setup" && showLinksSentConfirmation && (
+                  <LinksSentConfirmation
+                    sellers={partySetup.sellers}
+                    buyers={partySetup.buyers}
+                    propertyAddress={
+                      collection.propertyAddress
+                        ? `${collection.propertyAddress.street || ""}, ${collection.propertyAddress.city || ""}`
+                        : "Property"
+                    }
+                    onViewStatus={() => {
+                      setShowLinksSentConfirmation(false)
+                      setCollectionStep("monitor-progress")
+                    }}
+                  />
+                )}
+
+                {/* Normal party-setup content - only show if NOT showing confirmation */}
+                {collectionStep === "party-setup" && !showLinksSentConfirmation && (
                   <>
                     <SectionHeader 
                       step="Section 2B: Party Setup"

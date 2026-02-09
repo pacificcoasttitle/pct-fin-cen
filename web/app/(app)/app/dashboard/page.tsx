@@ -5,12 +5,12 @@ import { useDemo } from "@/hooks/use-demo";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, Send, Clock, CheckCircle, AlertCircle, RefreshCw, Loader2, Users, Shield } from "lucide-react";
+import { FileText, Send, Clock, CheckCircle, AlertCircle, RefreshCw, Loader2, Users, Shield, ArrowRight } from "lucide-react";
 import { ReceiptId } from "@/components/ui/ReceiptId";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Progress } from "@/components/ui/progress";
 import Link from "next/link";
-import { getSubmissionStats, getMyRequests, type SubmissionStats, type SubmissionRequest } from "@/lib/api";
+import { getSubmissionStats, getMyRequests, getReportsWithParties, type SubmissionStats, type SubmissionRequest, type ReportWithParties } from "@/lib/api";
 import { formatDistanceToNow } from "date-fns";
 
 export default function ClientDashboardPage() {
@@ -19,18 +19,21 @@ export default function ClientDashboardPage() {
 
   const [stats, setStats] = useState<SubmissionStats | null>(null);
   const [recentRequests, setRecentRequests] = useState<SubmissionRequest[]>([]);
+  const [awaitingParties, setAwaitingParties] = useState<ReportWithParties[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchData = async (showRefresh = false) => {
     if (showRefresh) setRefreshing(true);
     try {
-      const [statsData, requestsData] = await Promise.all([
+      const [statsData, requestsData, collectingData] = await Promise.all([
         getSubmissionStats(),
         getMyRequests(),
+        getReportsWithParties({ status: "collecting", limit: 10 }).catch(() => ({ reports: [], total: 0 })),
       ]);
       setStats(statsData);
       setRecentRequests(requestsData.slice(0, 5)); // Last 5
+      setAwaitingParties(collectingData.reports || []);
     } catch (error) {
       console.error("Failed to fetch dashboard data:", error);
     } finally {
@@ -160,6 +163,50 @@ export default function ClientDashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Awaiting Party Responses (FIX 4) */}
+      {!loading && awaitingParties.length > 0 && (
+        <Card className="border-amber-200 bg-amber-50">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Clock className="w-5 h-5 text-amber-600" />
+              Awaiting Party Responses ({awaitingParties.length})
+            </CardTitle>
+            <CardDescription className="text-amber-700">
+              These reports are waiting for parties to submit their information
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {awaitingParties.map(report => (
+                <Link
+                  key={report.id}
+                  href={`/app/reports/${report.id}/wizard`}
+                  className="block p-3 bg-white rounded-lg border hover:border-amber-400 transition"
+                >
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="font-medium">{report.property_address_text || "Property"}</p>
+                      <p className="text-sm text-gray-500">
+                        {report.party_summary?.submitted || 0}/{report.party_summary?.total || 0} parties submitted
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {report.party_summary && report.party_summary.total > 0 && (
+                        <Progress 
+                          value={(report.party_summary.submitted / report.party_summary.total) * 100} 
+                          className="w-20 h-2" 
+                        />
+                      )}
+                      <ArrowRight className="w-4 h-4 text-gray-400" />
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Filing Summary Card */}
       {!loading && (stats?.completed ?? 0) + (stats?.exempt ?? 0) > 0 && (
