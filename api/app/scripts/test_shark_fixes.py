@@ -54,11 +54,16 @@ def log_result(shark_id: str, test_id: str, passed: bool, message: str):
     print(f"  {test_id} | {status} | {message}")
 
 
+_SESSION = requests.Session()
+_SESSION.headers.update({"Connection": "close"})
+
+
 def api(method: str, endpoint: str, **kwargs) -> Optional[requests.Response]:
     """Make an API request to the backend."""
     url = f"{BASE_URL}{endpoint}"
     try:
-        return requests.request(method, url, timeout=60, **kwargs)
+        resp = _SESSION.request(method, url, timeout=60, **kwargs)
+        return resp
     except requests.exceptions.RequestException as e:
         print(f"  ⚠ Request error ({method} {endpoint}): {type(e).__name__}: {e}")
         return None
@@ -495,13 +500,20 @@ def main():
         print_summary()
         sys.exit(1)
 
-    # Run all shark tests
+    # Run all shark tests (with brief pauses to avoid connection pooling issues)
+    import time
     test_shark_1_soc2_claim()
+    time.sleep(1)
     test_shark_2_exempt_determination()
+    time.sleep(1)
     test_shark_3_party_portal_autosave()
+    time.sleep(1)
     test_shark_4_client_resend_links()
+    time.sleep(1)
     test_shark_5_request_corrections()
+    time.sleep(1)
     test_shark_6_deadline_reminders()
+    time.sleep(1)
     test_shark_7_admin_stats()
 
     # Summary
