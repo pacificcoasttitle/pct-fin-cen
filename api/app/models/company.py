@@ -49,6 +49,7 @@ class Company(Base):
 
     # Relationships
     users = relationship("User", back_populates="company")
+    branches = relationship("Branch", back_populates="company", cascade="all, delete-orphan")
     submission_requests = relationship("SubmissionRequest", back_populates="company")
     reports = relationship("Report", back_populates="company")
     billing_events = relationship("BillingEvent", back_populates="company")

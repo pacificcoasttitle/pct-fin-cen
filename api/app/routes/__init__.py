@@ -16,6 +16,7 @@ from app.routes.property import router as property_router
 from app.routes.billing import router as billing_router
 from app.routes.auth import router as auth_router
 from app.routes.inquiries import router as inquiries_router
+from app.routes.branches import router as branches_router
 
 __all__ = [
     "reports_router",
@@ -33,4 +34,5 @@ __all__ = [
     "billing_router",
     "auth_router",
     "inquiries_router",
+    "branches_router",
 ]

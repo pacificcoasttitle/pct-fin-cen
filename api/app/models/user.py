@@ -35,12 +35,16 @@ class User(Base):
     last_login_at = Column(DateTime, nullable=True)
     settings = Column(JSONBType, nullable=True, server_default="{}")
     
+    # Branch association
+    branch_id = Column(UUID(as_uuid=True), ForeignKey("branches.id", ondelete="SET NULL"), nullable=True)
+    
     # Timestamps
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow, server_default=text("NOW()"))
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, server_default=text("NOW()"), onupdate=datetime.utcnow)
 
     # Relationships
     company = relationship("Company", back_populates="users")
+    branch = relationship("Branch", back_populates="users")
     submission_requests = relationship(
         "SubmissionRequest",
         foreign_keys="SubmissionRequest.requested_by_user_id",

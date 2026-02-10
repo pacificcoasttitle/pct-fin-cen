@@ -56,6 +56,7 @@ class UserInviteRequest(BaseModel):
     name: str
     role: str
     company_id: str  # Required - which company to invite to
+    branch_id: Optional[str] = None  # Optional - assign to a branch on invite
 
 
 # ============================================================================
@@ -417,6 +418,7 @@ async def invite_user(
         name=request.name,
         role=request.role,
         company_id=request.company_id,
+        branch_id=request.branch_id if request.branch_id else None,
         status="active",  # Demo mode - would be "invited" in production
         settings={},
         created_at=datetime.utcnow(),
@@ -439,6 +441,7 @@ async def invite_user(
             "role": user.role,
             "company_id": user.company_id,
             "company_name": company.name,
+            "branch_id": request.branch_id,
         },
     )
     

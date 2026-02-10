@@ -13,6 +13,7 @@ from app.models.user import User
 from app.models.submission_request import SubmissionRequest
 from app.models.billing_event import BillingEvent
 from app.models.invoice import Invoice
+from app.models.branch import Branch
 
 __all__ = [
     "Report",
@@ -27,4 +28,5 @@ __all__ = [
     "SubmissionRequest",
     "BillingEvent",
     "Invoice",
+    "Branch",
 ]

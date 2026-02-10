@@ -41,7 +41,7 @@ import {
 import { useDemo } from "@/hooks/use-demo";
 import { useToast } from "@/components/ui/use-toast";
 import { getSessionCompanyId } from "@/lib/session";
-import { Users, UserPlus, MoreHorizontal, RefreshCw, Ban, CheckCircle, Shield, UserCog } from "lucide-react";
+import { Users, UserPlus, MoreHorizontal, RefreshCw, Ban, CheckCircle, Shield, UserCog, Building } from "lucide-react";
 import { format } from "date-fns";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -81,10 +81,29 @@ export default function TeamSettingsPage() {
     name: "",
     email: "",
     role: "client_user",
+    branch_id: "",
   });
+
+  // Branches for dropdown
+  const [branches, setBranches] = useState<{ id: string; name: string }[]>([]);
 
   // Get company_id using shared session utility
   const getCompanyId = () => getSessionCompanyId();
+
+  // Fetch branches for dropdown
+  const fetchBranches = async () => {
+    const companyId = getCompanyId();
+    if (!companyId) return;
+    try {
+      const response = await fetch(`${API_BASE_URL}/branches?company_id=${companyId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setBranches(data.map((b: { id: string; name: string }) => ({ id: b.id, name: b.name })));
+      }
+    } catch (error) {
+      console.error("Failed to fetch branches:", error);
+    }
+  };
 
   // Fetch team members
   const fetchTeam = async (showRefresh = false) => {
@@ -153,7 +172,7 @@ export default function TeamSettingsPage() {
           description: "Team member invited successfully",
         });
         setInviteOpen(false);
-        setNewMember({ name: "", email: "", role: "client_user" });
+        setNewMember({ name: "", email: "", role: "client_user", branch_id: "" });
         fetchTeam();
       } else {
         const error = await response.json();
@@ -254,6 +273,7 @@ export default function TeamSettingsPage() {
 
   useEffect(() => {
     fetchTeam();
+    fetchBranches();
   }, []);
 
   const activeCount = team.filter((m) => m.status === "active").length;
@@ -343,6 +363,26 @@ export default function TeamSettingsPage() {
                     </SelectContent>
                   </Select>
                 </div>
+                {branches.length > 0 && (
+                  <div>
+                    <Label className="flex items-center gap-1.5">
+                      <Building className="h-3.5 w-3.5" />
+                      Branch (Optional)
+                    </Label>
+                    <select
+                      value={newMember.branch_id}
+                      onChange={(e) => setNewMember({ ...newMember, branch_id: e.target.value })}
+                      className="w-full h-10 px-3 py-2 border border-input rounded-md bg-background text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    >
+                      <option value="">No branch assignment</option>
+                      {branches.map((branch) => (
+                        <option key={branch.id} value={branch.id}>
+                          {branch.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setInviteOpen(false)}>
