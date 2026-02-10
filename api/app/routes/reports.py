@@ -38,8 +38,9 @@ from app.schemas.report import (
 )
 from app.schemas.party import PartyLinkCreate, PartyLinkResponse, PartyLinkItem, PartyInput
 from app.schemas.common import ReadyCheckResponse, FileResponse, MissingItem
-from app.services.determination import determine_reportability
 from app.services.filing import MockFilingProvider
+import logging
+logger = logging.getLogger(__name__)
 from app.services.notifications import log_notification, send_party_invite_notification
 from app.services.audit import log_event
 from app.services.email_service import FRONTEND_URL
@@ -651,7 +652,13 @@ def determine_report(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    """Run determination logic on report's wizard data."""
+    """
+    Update report status based on frontend's determination result.
+    
+    The frontend wizard computes determination using wizard_data.determination.*
+    We read from those same fields rather than the legacy step1/step2/step3/step4
+    structure that the old determine_reportability() expected.
+    """
     report = db.query(Report).filter(Report.id == report_id).first()
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
@@ -660,10 +667,19 @@ def determine_report(
         raise HTTPException(status_code=400, detail="Cannot modify filed report")
     
     wizard_data = report.wizard_data or {}
-    is_reportable, determination, reasoning = determine_reportability(wizard_data)
+    determination_data = wizard_data.get("determination", {})
     
-    # Update report
-    report.determination = determination
+    # Use frontend-aligned determination logic (same field names the wizard writes)
+    is_exempt, exemption_reason = _check_frontend_determination(determination_data)
+    is_reportable = not is_exempt
+    
+    # Build determination details for storage
+    determination = {
+        "checks_performed": [],
+        "final_result": "exempt" if is_exempt else "reportable",
+        "method": "frontend_wizard",
+    }
+    reasoning = []
     certificate_id = None
     exemption_reasons_list = None
     
@@ -671,24 +687,26 @@ def determine_report(
         report.status = "determination_complete"
         report.determination_result = "reportable"
         report.determination_completed_at = datetime.utcnow()
+        reasoning.append("No exemptions apply. Transaction IS REPORTABLE.")
+        logger.info(f"Report {report_id} determined REPORTABLE")
     else:
         report.status = "exempt"
+        reasoning.append(f"Transaction is EXEMPT: {exemption_reason}")
+        logger.info(f"Report {report_id} determined EXEMPT: {exemption_reason}")
         
         # Generate & persist exemption certificate data
         from app.services.early_determination import generate_exemption_certificate_id
         certificate_id = generate_exemption_certificate_id()
         exemption_reasons_list = []
         
-        # Extract exemption reasons from determination details
-        if determination.get("exemption_reason"):
-            exemption_reasons_list.append(determination["exemption_reason"])
+        # Store the reason from our check
+        if exemption_reason:
+            determination["exemption_reason"] = exemption_reason
         
-        # Also extract from wizard_data if available (frontend-computed reasons)
-        wd = report.wizard_data or {}
+        # Extract detailed exemption reasons from wizard_data
         for key in ("individualExemptions", "entityExemptions", "trustExemptions"):
-            det_data = wd.get("determination", {})
-            if isinstance(det_data, dict):
-                exs = det_data.get(key, [])
+            if isinstance(determination_data, dict):
+                exs = determination_data.get(key, [])
                 if isinstance(exs, list):
                     exemption_reasons_list.extend([e for e in exs if e and e != "none"])
         
@@ -696,17 +714,14 @@ def determine_report(
         determination["certificate_id"] = certificate_id
         determination["exemption_reasons"] = exemption_reasons_list
         determination["determination_completed_at"] = datetime.utcnow().isoformat()
-        report.determination = determination
         
-        # Also persist to dedicated columns for clean querying
+        # Persist to dedicated columns for clean querying
         report.determination_result = "exempt"
         report.exemption_certificate_id = certificate_id
         report.exemption_reasons = exemption_reasons_list
         report.determination_completed_at = datetime.utcnow()
         
-        # =================================================================
-        # UPDATE: Mark linked SubmissionRequest as "completed" when exempt
-        # =================================================================
+        # Mark linked SubmissionRequest as "completed" when exempt
         if report.submission_request_id:
             submission_request = db.query(SubmissionRequest).filter(
                 SubmissionRequest.id == report.submission_request_id
@@ -715,6 +730,7 @@ def determine_report(
                 submission_request.status = "completed"
                 submission_request.updated_at = datetime.utcnow()
     
+    report.determination = determination
     report.updated_at = datetime.utcnow()
     
     # Audit log
@@ -742,6 +758,69 @@ def determine_report(
         reasoning=reasoning,
         certificate_id=certificate_id,
         exemption_reasons=exemption_reasons_list,
+    )
+
+
+def _check_frontend_determination(determination: dict) -> tuple:
+    """
+    Check if the frontend's determination indicates exemption.
+    
+    Returns (is_exempt: bool, reason: str | None)
+    
+    This mirrors the frontend's determinationResult useMemo logic exactly:
+    - isResidential="no" + hasIntentToBuild="no" → EXEMPT
+    - lenderHasAml="yes" → EXEMPT
+    - buyerType="individual" + individualExemptions has real items → EXEMPT
+    - buyerType="entity" + entityExemptions has real items → EXEMPT
+    - buyerType="trust" + trustExemptions has real items → EXEMPT
+    - Any *Exemptions includes "none" → REPORTABLE
+    - Otherwise → incomplete (error)
+    """
+    
+    # Check 1: Non-residential with no intent to build
+    is_residential = determination.get("isResidential")
+    has_intent_to_build = determination.get("hasIntentToBuild")
+    
+    if is_residential == "no" and has_intent_to_build == "no":
+        return True, "Non-residential property with no intent to build residential"
+    
+    # Check 2: Lender has AML program
+    lender_has_aml = determination.get("lenderHasAml")
+    if lender_has_aml == "yes":
+        return True, "Lender has AML program - reporting handled by lender"
+    
+    # Check 3: Buyer type exemptions
+    buyer_type = determination.get("buyerType")
+    
+    if buyer_type == "individual":
+        exemptions = determination.get("individualExemptions", [])
+        real_exemptions = [e for e in exemptions if e and e != "none"]
+        if real_exemptions:
+            return True, f"Individual buyer exemption: {', '.join(real_exemptions)}"
+        if "none" in exemptions:
+            return False, None  # REPORTABLE
+    
+    elif buyer_type == "entity":
+        exemptions = determination.get("entityExemptions", [])
+        real_exemptions = [e for e in exemptions if e and e != "none"]
+        if real_exemptions:
+            return True, f"Entity buyer exemption: {', '.join(real_exemptions)}"
+        if "none" in exemptions:
+            return False, None  # REPORTABLE
+    
+    elif buyer_type == "trust":
+        exemptions = determination.get("trustExemptions", [])
+        real_exemptions = [e for e in exemptions if e and e != "none"]
+        if real_exemptions:
+            return True, f"Trust buyer exemption: {', '.join(real_exemptions)}"
+        if "none" in exemptions:
+            return False, None  # REPORTABLE
+    
+    # If we get here, determination is incomplete — don't guess
+    logger.warning(f"Incomplete determination data: {determination}")
+    raise HTTPException(
+        status_code=400,
+        detail="Determination incomplete. Please complete all determination steps in the wizard."
     )
 
 
