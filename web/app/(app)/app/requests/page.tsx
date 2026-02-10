@@ -60,19 +60,25 @@ function getPartyProgress(summary: { total: number; submitted: number; all_compl
   if (!summary || summary.total === 0) {
     return <span className="text-sm text-gray-400">—</span>;
   }
-  if (summary.all_complete) {
-    return (
-      <span className="inline-flex items-center gap-1 text-sm text-green-600 font-medium">
-        <CheckCircle className="h-3.5 w-3.5" />
-        {summary.submitted}/{summary.total}
-      </span>
-    );
-  }
+  const pct = Math.round((summary.submitted / summary.total) * 100);
+  const isComplete = summary.all_complete;
   return (
-    <span className="inline-flex items-center gap-1 text-sm text-amber-600 font-medium">
-      <Clock className="h-3.5 w-3.5" />
-      {summary.submitted}/{summary.total}
-    </span>
+    <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5">
+        <Users className="w-4 h-4 text-gray-400" />
+        <span className={`text-sm font-medium ${isComplete ? "text-green-600" : "text-amber-600"}`}>
+          {summary.submitted}/{summary.total}
+        </span>
+      </div>
+      {/* Progress bar */}
+      <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all ${isComplete ? "bg-green-500" : "bg-amber-500"}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      {isComplete && <CheckCircle className="w-4 h-4 text-green-500" />}
+    </div>
   );
 }
 
@@ -229,6 +235,28 @@ export default function UnifiedRequestsPage() {
           onClick={(e) => { e.stopPropagation(); router.push(`/app/reports/${id}/wizard?step=file`); }}
         >
           <Send className="mr-1 h-3 w-3" /> File Now
+        </Button>
+      );
+    }
+    if (status === "filed") {
+      return (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={(e) => { e.stopPropagation(); router.push(`/app/reports/${id}/wizard`); }}
+        >
+          <CheckCircle className="mr-1 h-3 w-3" /> View
+        </Button>
+      );
+    }
+    if (status === "exempt") {
+      return (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={(e) => { e.stopPropagation(); router.push(`/app/reports/${id}/wizard`); }}
+        >
+          <Shield className="mr-1 h-3 w-3" /> View Certificate
         </Button>
       );
     }
@@ -434,6 +462,8 @@ function RequestTable({
                 <td className="px-4 py-3 text-sm">
                   {report.receipt_id ? (
                     <span className="font-mono text-xs text-green-700">BSA: {report.receipt_id}</span>
+                  ) : report.status === "exempt" ? (
+                    <span className="text-xs text-purple-600">Exempt — no filing required</span>
                   ) : report.filing_status ? (
                     <span className="text-xs text-gray-500">{report.filing_status}</span>
                   ) : (

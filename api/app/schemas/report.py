@@ -102,6 +102,7 @@ class ReportWithPartySummary(BaseModel):
     wizard_step: int
     determination: Optional[Dict[str, Any]] = None
     filing_status: Optional[str] = None
+    receipt_id: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     submission_request_id: Optional[UUID] = None

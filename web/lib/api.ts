@@ -283,6 +283,7 @@ export interface ReportWithParties {
   receipt_id: string | null;
   escrow_number: string | null;
   company_id: string | null;
+  determination: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
   party_summary: PartySummary | null;
@@ -306,7 +307,32 @@ export async function getReportsWithParties(options?: {
   const queryString = params.toString();
   const url = `/reports/queue/with-parties${queryString ? `?${queryString}` : ''}`;
   
-  return apiFetch<{ reports: ReportWithParties[]; total: number }>(url);
+  // The API returns flat party fields; map them into a nested party_summary object
+  const raw = await apiFetch<{ reports: Array<Record<string, unknown>>; total: number }>(url);
+  
+  const reports: ReportWithParties[] = (raw.reports || []).map((r) => ({
+    id: String(r.id ?? ''),
+    status: String(r.status ?? ''),
+    property_address_text: (r.property_address_text as string) ?? null,
+    closing_date: (r.closing_date as string) ?? null,
+    filing_deadline: (r.filing_deadline as string) ?? null,
+    wizard_step: Number(r.wizard_step ?? 0),
+    filing_status: (r.filing_status as string) ?? null,
+    receipt_id: (r.receipt_id as string) ?? null,
+    escrow_number: (r.escrow_number as string) ?? null,
+    company_id: (r.company_id as string) ?? null,
+    determination: (r.determination as Record<string, unknown>) ?? null,
+    created_at: String(r.created_at ?? ''),
+    updated_at: String(r.updated_at ?? ''),
+    party_summary: {
+      total: Number(r.parties_total ?? 0),
+      submitted: Number(r.parties_submitted ?? 0),
+      pending: Number(r.parties_pending ?? 0),
+      all_complete: Boolean(r.all_parties_complete ?? false),
+    },
+  }));
+  
+  return { reports, total: raw.total };
 }
 
 /**

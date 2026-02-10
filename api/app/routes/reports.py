@@ -297,6 +297,7 @@ def list_reports_with_parties(
             wizard_step=report.wizard_step,
             determination=report.determination,
             filing_status=report.filing_status,
+            receipt_id=report.receipt_id,
             created_at=report.created_at,
             updated_at=report.updated_at,
             submission_request_id=report.submission_request_id,
