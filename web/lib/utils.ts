@@ -39,6 +39,18 @@ export function formatCentsToUSD(cents: number | null | undefined): string {
 }
 
 /**
+ * Format a number as USD currency (e.g. 350000 → "$350,000")
+ */
+export function formatCurrency(amount: number | null | undefined): string {
+  if (amount === null || amount === undefined) return "$0";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+/**
  * Format a date relative to now (e.g., "2 hours ago")
  */
 export function formatTimeAgo(dateString: string | Date | null | undefined): string {

@@ -617,6 +617,24 @@ export async function setFilingOutcome(
 }
 
 // ============================================
+// CERTIFICATION API
+// ============================================
+
+/**
+ * Certify a report before filing with FinCEN
+ */
+export async function certifyReport(reportId: string, certification: {
+  certified_by_name: string;
+  certified_by_email: string;
+  certification_checkboxes: Record<string, boolean>;
+}): Promise<{ success: boolean; certified_at: string; message: string }> {
+  return apiFetch(`/reports/${reportId}/certify`, {
+    method: 'POST',
+    body: JSON.stringify(certification),
+  });
+}
+
+// ============================================
 // SUBMISSION REQUESTS API
 // ============================================
 

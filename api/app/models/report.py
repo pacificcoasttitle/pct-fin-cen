@@ -9,6 +9,7 @@ from sqlalchemy.orm import relationship
 
 from app.database import Base
 from app.db_types import JSONBType
+from sqlalchemy.dialects.postgresql import JSONB
 
 
 class Report(Base):
@@ -98,6 +99,11 @@ class Report(Base):
         },
         comment="Notification preferences for this report"
     )
+    
+    # Certification fields (escrow officer review & certify before filing)
+    certification_data = Column(JSONBType, nullable=True, comment="Stores all checkbox states, IP, user agent, etc.")
+    certified_at = Column(DateTime, nullable=True, comment="When the report was certified")
+    certified_by_user_id = Column(String(36), nullable=True, comment="User ID who certified the report")
     
     # Timestamps
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)

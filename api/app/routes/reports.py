@@ -8,10 +8,11 @@ Supports client-driven workflow where escrow officers (client_user) can:
 - Trigger filing (manual or auto)
 """
 from datetime import date, datetime, timedelta
-from typing import Optional
+from typing import Optional, Dict
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Header
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import case
 
@@ -900,6 +901,87 @@ def create_party_links(
     )
 
 
+class CertificationRequest(BaseModel):
+    certified_by_name: str
+    certified_by_email: str
+    certification_checkboxes: Dict[str, bool]
+
+
+@router.post("/{report_id}/certify")
+def certify_report(
+    report_id: UUID,
+    certification: CertificationRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
+):
+    """Certify request data before filing."""
+    
+    report = db.query(Report).filter(Report.id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Request not found")
+    
+    # Verify access (if user header provided)
+    current_user = get_user_from_header(db, x_user_id)
+    if current_user and current_user.role in CLIENT_ROLES:
+        if report.company_id and report.company_id != current_user.company_id:
+            raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Verify all checkboxes are checked
+    required_checkboxes = [
+        "reviewed_transaction",
+        "reviewed_parties",
+        "reviewed_payment",
+        "accuracy_confirmed",
+    ]
+    for checkbox in required_checkboxes:
+        if not certification.certification_checkboxes.get(checkbox):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Required certification checkbox not checked: {checkbox}"
+            )
+    
+    # Get client IP
+    client_ip = get_client_ip(request)
+    
+    # Store certification
+    report.certification_data = {
+        "certified_by_name": certification.certified_by_name,
+        "certified_by_email": certification.certified_by_email,
+        "certified_at": datetime.utcnow().isoformat(),
+        "certification_checkboxes": certification.certification_checkboxes,
+        "ip_address": client_ip,
+        "user_agent": request.headers.get("User-Agent"),
+    }
+    report.certified_at = datetime.utcnow()
+    report.certified_by_user_id = str(current_user.id) if current_user else None
+    report.updated_at = datetime.utcnow()
+    
+    db.commit()
+    
+    # Log audit event
+    audit = AuditLog(
+        report_id=report.id,
+        actor_type="client" if current_user and current_user.role in CLIENT_ROLES else "staff" if current_user else "api",
+        actor_user_id=current_user.id if current_user else None,
+        action="report.certified",
+        details={
+            "certified_by": certification.certified_by_name,
+            "ip_address": client_ip,
+            "checkboxes": certification.certification_checkboxes,
+        },
+        ip_address=client_ip,
+    )
+    db.add(audit)
+    db.commit()
+    
+    return {
+        "success": True,
+        "certified_at": report.certified_at.isoformat(),
+        "message": "Request certified successfully",
+    }
+
+
 @router.post("/{report_id}/ready-check", response_model=ReadyCheckResponse)
 def ready_check(
     report_id: UUID,
@@ -1039,6 +1121,21 @@ def file_report(
     
     if report.status == "exempt":
         raise HTTPException(status_code=400, detail="Exempt reports cannot be filed")
+    
+    # Require certification before filing
+    if not report.certified_at:
+        raise HTTPException(
+            status_code=400,
+            detail="Request must be certified before filing. Please complete the review and certification step."
+        )
+    
+    # Check certification is recent (within last 24 hours)
+    hours_since_cert = (datetime.utcnow() - report.certified_at).total_seconds() / 3600
+    if hours_since_cert > 24:
+        raise HTTPException(
+            status_code=400,
+            detail="Certification has expired. Please re-certify before filing."
+        )
     
     # Perform ready check
     is_ready, errors = perform_ready_check(report)

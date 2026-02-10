@@ -62,6 +62,8 @@ import {
 import { cn } from "@/lib/utils"
 import { AddressAutocomplete } from "@/components/AddressAutocomplete"
 import { LinksSentConfirmation } from "@/components/wizard/LinksSentConfirmation"
+import { ReviewCertification, type CertificationData } from "@/components/wizard/ReviewCertification"
+import { certifyReport } from "@/lib/api"
 import { useDemo } from "@/hooks/use-demo"
 import type { ParsedAddress, PropertyData } from "@/lib/property-types"
 import {
@@ -507,6 +509,11 @@ export function RRERQuestionnaire({
   const [readyCheckResult, setReadyCheckResult] = useState<{ ready: boolean; errors?: string[] } | null>(null)
   const [filingResult, setFilingResult] = useState<{ success: boolean; receiptId?: string; error?: string } | null>(null)
   
+  // Certification flow state
+  const [showReviewCertification, setShowReviewCertification] = useState(true)
+  const [isCertified, setIsCertified] = useState(false)
+  const [isCertifying, setIsCertifying] = useState(false)
+  
   // API loading states
   const [sendingLinks, setSendingLinks] = useState(false)
   const [runningReadyCheck, setRunningReadyCheck] = useState(false)
@@ -700,6 +707,47 @@ export function RRERQuestionnaire({
       })
     } finally {
       setFiling(false)
+    }
+  }
+
+  // Handler: Certify report before filing
+  const handleCertify = async (certification: CertificationData) => {
+    if (!reportId) {
+      toast({
+        title: "Error",
+        description: "No report ID available for certification.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsCertifying(true)
+    try {
+      const response = await certifyReport(reportId, {
+        certified_by_name: certification.certified_by_name,
+        certified_by_email: certification.certified_by_email,
+        certification_checkboxes: certification.certification_checkboxes,
+      })
+
+      if (response.success) {
+        setIsCertified(true)
+        setShowReviewCertification(false)
+        // Also set the legacy fileCertified state for the filing button
+        setFileCertified(true)
+        toast({
+          title: "Request Certified Successfully",
+          description: "You can now proceed to file with FinCEN.",
+        })
+      }
+    } catch (error) {
+      console.error("Certification failed:", error)
+      toast({
+        title: "Certification Failed",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsCertifying(false)
     }
   }
   
@@ -4522,165 +4570,130 @@ export function RRERQuestionnaire({
                   </>
                 )}
 
-                {/* NEW: File Report Step */}
+                {/* File Report Step — Review & Certify then File */}
                 {collectionStep === "file-report" && (
                   <>
-                    <SectionHeader 
-                      step="Section 2F: File Report"
-                      title="File Report to FinCEN"
-                      description="Final review and submission"
-                    />
-                    <CardContent className="pt-6 space-y-6">
-                      {/* Demo Mode Banner */}
-                      {process.env.NEXT_PUBLIC_DEMO_MODE === "true" && (
-                        <div className="px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-3 text-amber-800">
-                          <span className="text-xl">🎭</span>
-                          <div>
-                            <p className="font-medium">Demo Mode Active</p>
-                            <p className="text-sm text-amber-700">Filing will be simulated - not submitted to real FinCEN</p>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Show success state if filed */}
-                      {filingResult?.success ? (
-                        <div className="text-center py-8">
-                          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <CheckCircle2 className="h-8 w-8 text-green-600" />
-                          </div>
-                          <h3 className="text-xl font-bold text-green-800">Report Filed Successfully!</h3>
-                          <p className="text-muted-foreground mt-2">Your report has been submitted to FinCEN.</p>
-                          
-                          <Card className="mt-6 bg-green-50 border-green-200 max-w-sm mx-auto">
-                            <CardContent className="pt-6">
-                              <div className="text-center">
-                                <p className="text-sm text-muted-foreground">Receipt ID</p>
-                                <p className="font-mono font-bold text-xl">{filingResult.receiptId}</p>
-                              </div>
-                            </CardContent>
-                          </Card>
-                          
-                          <Button 
-                            className="mt-6"
-                            onClick={() => window.location.href = "/app/reports"}
-                          >
-                            Back to Reports Dashboard
-                          </Button>
-                        </div>
-                      ) : (
-                        <>
-                          {/* Filing Summary */}
-                          <div className="p-4 bg-muted/30 rounded-lg space-y-3">
-                            <h4 className="font-semibold flex items-center gap-2">
-                              <FileText className="w-4 h-4" />
-                              Filing Summary
-                            </h4>
-                            <div className="grid gap-2 text-sm">
-                              <div className="flex justify-between">
-                                <span className="text-muted-foreground">Property:</span>
-                                <span className="font-medium">
-                                  {collection.propertyAddress 
-                                    ? `${collection.propertyAddress.street}, ${collection.propertyAddress.city}, ${collection.propertyAddress.state}` 
-                                    : "Not specified"}
-                                </span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-muted-foreground">Purchase Price:</span>
-                                <span className="font-medium">
-                                  {collection.purchasePrice 
-                                    ? `$${collection.purchasePrice.toLocaleString()}` 
-                                    : "Not specified"}
-                                </span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-muted-foreground">Closing Date:</span>
-                                <span className="font-medium">
-                                  {collection.closingDate 
-                                    ? new Date(collection.closingDate).toLocaleDateString() 
-                                    : "Not specified"}
-                                </span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-muted-foreground">Determination:</span>
-                                <Badge variant="destructive">REPORTABLE</Badge>
-                              </div>
-                              {partyStatus && (
-                                <div className="flex justify-between">
-                                  <span className="text-muted-foreground">Parties:</span>
-                                  <span className="font-medium">
-                                    {partyStatus.summary.submitted}/{partyStatus.summary.total} submitted
-                                  </span>
+                    {/* Show success state if already filed */}
+                    {filingResult?.success ? (
+                      <>
+                        <SectionHeader 
+                          step="Section 2F: File Request"
+                          title="Request Filed"
+                          description="Successfully submitted to FinCEN"
+                        />
+                        <CardContent className="pt-6 space-y-6">
+                          <div className="text-center py-8">
+                            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                              <CheckCircle2 className="h-8 w-8 text-green-600" />
+                            </div>
+                            <h3 className="text-xl font-bold text-green-800">Request Filed Successfully!</h3>
+                            <p className="text-muted-foreground mt-2">Your request has been submitted to FinCEN.</p>
+                            
+                            <Card className="mt-6 bg-green-50 border-green-200 max-w-sm mx-auto">
+                              <CardContent className="pt-6">
+                                <div className="text-center">
+                                  <p className="text-sm text-muted-foreground">Receipt ID</p>
+                                  <p className="font-mono font-bold text-xl">{filingResult.receiptId}</p>
                                 </div>
-                              )}
+                              </CardContent>
+                            </Card>
+                            
+                            <Button 
+                              className="mt-6"
+                              onClick={() => window.location.href = "/app/reports"}
+                            >
+                              Back to Requests Dashboard
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </>
+                    ) : showReviewCertification && !isCertified ? (
+                      /* Phase 1: Review & Certify */
+                      <CardContent className="pt-6">
+                        {/* Demo Mode Banner */}
+                        {process.env.NEXT_PUBLIC_DEMO_MODE === "true" && (
+                          <div className="px-4 py-3 mb-6 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-3 text-amber-800">
+                            <span className="text-xl">🎭</span>
+                            <div>
+                              <p className="font-medium">Demo Mode Active</p>
+                              <p className="text-sm text-amber-700">Filing will be simulated — not submitted to real FinCEN</p>
                             </div>
                           </div>
-
-                          {/* Pre-Filing Check */}
-                          <div className="p-4 border rounded-lg space-y-3">
-                            <h4 className="font-semibold flex items-center gap-2">
-                              <FileCheck className="w-4 h-4" />
-                              Pre-Filing Check
-                            </h4>
-                            {readyCheckResult ? (
-                              readyCheckResult.ready ? (
-                                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                                  <div className="flex items-center gap-2 text-green-700">
-                                    <CheckCircle2 className="h-5 w-5" />
-                                    <span className="font-medium">All checks passed. Ready to file.</span>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                                  <div className="flex items-center gap-2 text-red-700 mb-2">
-                                    <AlertTriangle className="h-5 w-5" />
-                                    <span className="font-medium">Issues found:</span>
-                                  </div>
-                                  <ul className="list-disc list-inside text-sm text-red-600">
-                                    {readyCheckResult.errors?.map((err, i) => (
-                                      <li key={i}>{err}</li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )
-                            ) : (
-                              <Button 
-                                variant="outline" 
-                                onClick={handleReadyCheck}
-                                disabled={runningReadyCheck}
-                              >
-                                {runningReadyCheck ? (
-                                  <>
-                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                    Running Checks...
-                                  </>
-                                ) : (
-                                  <>
-                                    <Shield className="h-4 w-4 mr-2" />
-                                    Run Pre-Filing Check
-                                  </>
-                                )}
-                              </Button>
-                            )}
-                          </div>
-
-                          {/* Final Certification */}
-                          <div className="p-4 border rounded-lg space-y-3">
-                            <h4 className="font-semibold flex items-center gap-2">
-                              <Shield className="w-4 h-4" />
-                              Final Certification
-                            </h4>
-                            <div className="flex items-start gap-3">
-                              <Checkbox
-                                id="file-cert"
-                                checked={fileCertified}
-                                onCheckedChange={(checked) => setFileCertified(!!checked)}
-                              />
-                              <Label htmlFor="file-cert" className="text-sm leading-relaxed cursor-pointer">
-                                I certify that I have reviewed all information in this report, the information 
-                                is accurate to the best of my knowledge, and I am authorized to submit this 
-                                report to FinCEN on behalf of {collection.reportingPerson?.companyName || "the reporting person"}.
-                              </Label>
+                        )}
+                        <ReviewCertification
+                          transaction={{
+                            propertyAddress: {
+                              street: collection.propertyAddress?.street || "",
+                              city: collection.propertyAddress?.city || "",
+                              state: collection.propertyAddress?.state || "",
+                              zip: collection.propertyAddress?.zip || "",
+                              county: collection.propertyAddress?.county,
+                            },
+                            closingDate: collection.closingDate
+                              ? new Date(collection.closingDate).toLocaleDateString()
+                              : "Not specified",
+                            purchasePrice: collection.purchasePrice || 0,
+                          }}
+                          buyers={
+                            (partyStatus?.parties || [])
+                              .filter(p => p.party_role === "transferee")
+                              .map(p => ({
+                                id: p.id,
+                                display_name: p.display_name || "Unknown",
+                                party_role: "transferee" as const,
+                                entity_type: p.entity_type || "individual",
+                                email: p.email || "",
+                                status: p.status,
+                                party_data: undefined, // Party data is read-only / masked on server
+                              }))
+                          }
+                          sellers={
+                            (partyStatus?.parties || [])
+                              .filter(p => p.party_role === "transferor")
+                              .map(p => ({
+                                id: p.id,
+                                display_name: p.display_name || "Unknown",
+                                party_role: "transferor" as const,
+                                entity_type: p.entity_type || "individual",
+                                email: p.email || "",
+                                status: p.status,
+                                party_data: undefined,
+                              }))
+                          }
+                          paymentSources={collection.paymentSources || []}
+                          reportingPerson={{
+                            companyName: collection.reportingPerson?.companyName || "",
+                            contactName: collection.reportingPerson?.contactName || "",
+                            email: collection.reportingPerson?.email || "",
+                            phone: collection.reportingPerson?.phone || "",
+                          }}
+                          onRequestCorrection={(partyId) => {
+                            toast({
+                              title: "Correction Request",
+                              description: `A correction request would be sent to party ${partyId}. This feature is coming soon.`,
+                            })
+                          }}
+                          onCertify={handleCertify}
+                          onBack={() => setCollectionStep("reporting-person")}
+                          certifierName={demoUser?.name || collection.reportingPerson?.contactName || "Unknown"}
+                          isSubmitting={isCertifying}
+                        />
+                      </CardContent>
+                    ) : (
+                      /* Phase 2: Certified — Ready to File */
+                      <>
+                        <SectionHeader 
+                          step="Section 2F: File Request"
+                          title="File Request to FinCEN"
+                          description="Request certified — ready for submission"
+                        />
+                        <CardContent className="pt-6 space-y-6">
+                          <div className="text-center">
+                            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                              <CheckCircle className="w-8 h-8 text-green-600" />
                             </div>
+                            <h2 className="text-xl font-bold mb-2">Request Certified</h2>
+                            <p className="text-gray-600 mb-6">All information has been reviewed and certified. Ready to file with FinCEN.</p>
                           </div>
 
                           {/* Error message if filing failed */}
@@ -4695,7 +4708,7 @@ export function RRERQuestionnaire({
                           {/* Submit Button */}
                           <Button
                             onClick={handleFileToFinCEN}
-                            disabled={filing || !fileCertified || (readyCheckResult !== null && !readyCheckResult.ready)}
+                            disabled={filing}
                             className="w-full h-12 bg-gradient-to-r from-primary to-teal-600 text-lg"
                           >
                             {filing ? (
@@ -4711,14 +4724,24 @@ export function RRERQuestionnaire({
                             )}
                           </Button>
 
-                          {!fileCertified && (
-                            <p className="text-sm text-muted-foreground text-center">
-                              Please check the certification box to proceed
-                            </p>
-                          )}
-                        </>
-                      )}
-                    </CardContent>
+                          {/* Option to re-review */}
+                          <div className="text-center">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setIsCertified(false)
+                                setShowReviewCertification(true)
+                                setFileCertified(false)
+                              }}
+                              className="text-muted-foreground"
+                            >
+                              ← Review again
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </>
+                    )}
                   </>
                 )}
 
