@@ -524,16 +524,9 @@ export function RRERQuestionnaire({
 
   // Handler: Send Party Links
   const handleSendPartyLinks = async () => {
-    console.log("[SendLinks] Handler called", {
-      sellersCount: partySetup.sellers.length,
-      buyersCount: partySetup.buyers.length,
-      hasOnSendPartyLinks: !!onSendPartyLinks,
-    })
-
     try {
       // Validate we have at least one seller and one buyer
       if (partySetup.sellers.length === 0) {
-        console.log("[SendLinks] Validation failed: no sellers")
         toast({
           title: "Missing Seller",
           description: "Please add at least one seller.",
@@ -543,7 +536,6 @@ export function RRERQuestionnaire({
       }
       
       if (partySetup.buyers.length === 0) {
-        console.log("[SendLinks] Validation failed: no buyers")
         toast({
           title: "Missing Buyer", 
           description: "Please add at least one buyer.",
@@ -556,7 +548,6 @@ export function RRERQuestionnaire({
       const allParties = [...partySetup.sellers, ...partySetup.buyers]
       const invalidParty = allParties.find(p => !p.name?.trim() || !p.email?.trim())
       if (invalidParty) {
-        console.log("[SendLinks] Validation failed: missing name/email", invalidParty)
         toast({
           title: "Missing Information",
           description: "All parties must have a name and email address.",
@@ -583,14 +574,9 @@ export function RRERQuestionnaire({
         })),
       ]
 
-      console.log("[SendLinks] Calling API with", parties.length, "parties")
-
       // Call the API via prop
       if (onSendPartyLinks) {
         await onSendPartyLinks(parties)
-        console.log("[SendLinks] API call succeeded")
-      } else {
-        console.warn("[SendLinks] onSendPartyLinks prop is undefined — skipping API call")
       }
       
       // Show success
@@ -606,10 +592,8 @@ export function RRERQuestionnaire({
       
       // Show confirmation screen instead of auto-advancing
       setShowLinksSentConfirmation(true)
-      console.log("[SendLinks] Confirmation screen activated")
 
     } catch (error) {
-      console.error("[SendLinks] ERROR:", error)
       toast({
         title: "Failed to Send Links",
         description: error instanceof Error ? error.message : "Please try again.",
@@ -699,7 +683,6 @@ export function RRERQuestionnaire({
       }
       
     } catch (error) {
-      console.error("Filing failed:", error)
       toast({
         title: "Filing Failed",
         description: error instanceof Error ? error.message : "Please try again.",
@@ -740,7 +723,6 @@ export function RRERQuestionnaire({
         })
       }
     } catch (error) {
-      console.error("Certification failed:", error)
       toast({
         title: "Certification Failed",
         description: error instanceof Error ? error.message : "Please try again.",
@@ -928,23 +910,21 @@ export function RRERQuestionnaire({
       !determinationPersistedRef.current
     ) {
       determinationPersistedRef.current = true
-      onDetermine().catch((err) => {
-        console.error("Failed to persist determination:", err)
+      onDetermine().catch(() => {
         determinationPersistedRef.current = false // Allow retry
       })
     }
   }, [determinationResult, determinationStep, onDetermine])
 
-  // Collection steps - NEW RESTRUCTURED FLOW
-  // Phase 2 now focuses on party setup and monitoring, not data entry
-  // Parties fill out their own info via the party portal
+  // Collection steps - RESTRUCTURED FLOW (matches real-world timing)
+  // Session 1: Setup transaction → add parties → send links → exit to dashboard
+  // Session 2: Come back when ready → review & certify → file
+  // monitor-progress is accessible but NOT a required linear step
   const collectionSteps: CollectionStepId[] = [
     "transaction-property",  // PCT enters closing date, price, property details
     "party-setup",           // Add parties (name, email, type), send links
-    "monitor-progress",      // Track party submissions with polling
-    "review-submissions",    // View all submitted party data
-    "reporting-person",      // FinClear internal info
-    "file-report",           // Final certification and file
+    "reporting-person",      // FinClear internal info (reporting person designation)
+    "file-report",           // Review, certify, and file with FinCEN
   ]
 
   // Progress calculations
@@ -1266,34 +1246,44 @@ export function RRERQuestionnaire({
 
             {phase === "collection" && (
               <div className="mb-6 print:hidden">
-                {/* Enhanced Progress Bar */}
-                <div className="relative">
-                  {/* Background track */}
-                  <div className="h-2 bg-muted rounded-full overflow-hidden">
-                    {/* Animated fill */}
-                    <div 
-                      className="h-full bg-gradient-to-r from-primary to-primary/80 rounded-full transition-all duration-500 ease-out"
-                      style={{ width: `${collectionProgress}%` }}
-                    />
-                  </div>
-                  
-                  {/* Progress indicator badge */}
-                  <div className="flex items-center justify-between mt-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">
-                        Section {collectionSteps.indexOf(collectionStep) + 1}
-                      </span>
-                      <span className="text-sm text-muted-foreground">
-                        of {collectionSteps.length}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-                      <span className="text-sm font-semibold text-primary">
-                        {Math.round(collectionProgress)}%
-                      </span>
-                    </div>
-                  </div>
+                {/* 3-stage progress indicator */}
+                <div className="flex items-center justify-center gap-3">
+                  {[
+                    { id: "setup", label: "Setup", steps: ["transaction-property", "party-setup"] },
+                    { id: "collecting", label: "Collecting", steps: ["monitor-progress", "review-submissions"] },
+                    { id: "file", label: "Review & File", steps: ["reporting-person", "file-report"] },
+                  ].map((stage, idx, arr) => {
+                    const currentStageIndex = arr.findIndex(s => s.steps.includes(collectionStep))
+                    const isComplete = idx < currentStageIndex
+                    const isCurrent = idx === currentStageIndex
+
+                    return (
+                      <div key={stage.id} className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
+                          <div className={cn(
+                            "w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-all",
+                            isComplete && "bg-teal-500 text-white",
+                            isCurrent && "bg-teal-500 text-white ring-4 ring-teal-100",
+                            !isComplete && !isCurrent && "bg-gray-200 text-gray-500"
+                          )}>
+                            {isComplete ? <Check className="w-4 h-4" /> : idx + 1}
+                          </div>
+                          <span className={cn(
+                            "text-sm font-medium hidden sm:inline",
+                            isCurrent ? "text-teal-700" : isComplete ? "text-teal-600" : "text-gray-400"
+                          )}>
+                            {stage.label}
+                          </span>
+                        </div>
+                        {idx < arr.length - 1 && (
+                          <div className={cn(
+                            "w-8 h-0.5",
+                            isComplete ? "bg-teal-500" : "bg-gray-200"
+                          )} />
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )}
@@ -4920,42 +4910,125 @@ export function RRERQuestionnaire({
                   </>
                 )}
 
-                {/* Collection Navigation */}
-                <CardFooter className="border-t bg-gradient-to-r from-slate-50 via-gray-50 to-slate-50 flex items-center justify-between py-5 print:hidden">
-                  <Button
-                    variant="outline"
-                    onClick={goToPreviousCollectionStep}
-                    disabled={collectionSteps.indexOf(collectionStep) === 0}
-                    className="gap-2 h-11 px-6 rounded-xl border-2 font-medium hover:bg-white hover:border-teal-300"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                    Back
-                  </Button>
-                  
-                  {/* Step indicator */}
-                  <div className="hidden sm:flex items-center gap-2">
-                    {collectionSteps.map((_, idx) => (
-                      <div
-                        key={idx}
-                        className={cn(
-                          "w-2 h-2 rounded-full transition-all",
-                          idx <= collectionSteps.indexOf(collectionStep) 
-                            ? "bg-teal-500" 
-                            : "bg-gray-200"
-                        )}
-                      />
-                    ))}
-                  </div>
-                  
-                  <Button
-                    onClick={goToNextCollectionStep}
-                    disabled={collectionSteps.indexOf(collectionStep) === collectionSteps.length - 1}
-                    className="gap-2 min-w-[130px] h-11 rounded-xl bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white font-semibold shadow-lg shadow-teal-500/25 hover:shadow-xl transition-all"
-                  >
-                    Continue
-                    <ChevronRight className="w-4 h-4" />
-                  </Button>
-                </CardFooter>
+                {/* Context-aware Collection Navigation */}
+                {(() => {
+                  // Define navigation behavior per step
+                  const navConfig: Record<string, {
+                    showBack: boolean
+                    backLabel?: string
+                    onBack?: () => void
+                    showContinue: boolean
+                    continueLabel?: string
+                    onContinue?: () => void
+                  }> = {
+                    "transaction-property": {
+                      showBack: false,
+                      showContinue: true,
+                      continueLabel: "Continue to Party Setup",
+                      onContinue: goToNextCollectionStep,
+                    },
+                    "party-setup": {
+                      showBack: true,
+                      backLabel: "Back",
+                      onBack: goToPreviousCollectionStep,
+                      showContinue: false, // "Send Links" button is inline in the step
+                    },
+                    "monitor-progress": {
+                      showBack: true,
+                      backLabel: "Back to Parties",
+                      onBack: () => setCollectionStep("party-setup"),
+                      showContinue: false, // "Continue to Review" is handled inline
+                    },
+                    "review-submissions": {
+                      showBack: true,
+                      backLabel: "Back",
+                      onBack: () => setCollectionStep("monitor-progress"),
+                      showContinue: true,
+                      continueLabel: "Continue",
+                      onContinue: () => setCollectionStep("reporting-person"),
+                    },
+                    "reporting-person": {
+                      showBack: true,
+                      backLabel: "Back",
+                      onBack: goToPreviousCollectionStep,
+                      showContinue: true,
+                      continueLabel: "Continue to Review & File",
+                      onContinue: goToNextCollectionStep,
+                    },
+                    "file-report": {
+                      showBack: false, // Review & Certify has its own back button
+                      showContinue: false, // Filing handled inline
+                    },
+                  }
+
+                  const config = navConfig[collectionStep] || { showBack: false, showContinue: false }
+
+                  // Don't render footer for steps that handle their own navigation
+                  if (!config.showBack && !config.showContinue) return null
+
+                  // 3-stage progress indicator
+                  const stages = [
+                    { id: "setup", label: "Setup", steps: ["transaction-property", "party-setup"] },
+                    { id: "collecting", label: "Collecting", steps: ["monitor-progress", "review-submissions"] },
+                    { id: "file", label: "Review & File", steps: ["reporting-person", "file-report"] },
+                  ]
+                  const currentStageIndex = stages.findIndex(s => s.steps.includes(collectionStep))
+
+                  return (
+                    <CardFooter className="border-t bg-gradient-to-r from-slate-50 via-gray-50 to-slate-50 flex items-center justify-between py-5 print:hidden">
+                      {config.showBack ? (
+                        <Button
+                          variant="outline"
+                          onClick={config.onBack || goToPreviousCollectionStep}
+                          className="gap-2 h-11 px-6 rounded-xl border-2 font-medium hover:bg-white hover:border-teal-300"
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                          {config.backLabel || "Back"}
+                        </Button>
+                      ) : (
+                        <div />
+                      )}
+                      
+                      {/* 3-stage progress indicator */}
+                      <div className="hidden sm:flex items-center gap-1.5">
+                        {stages.map((stage, idx) => (
+                          <div key={stage.id} className="flex items-center gap-1.5">
+                            <div className={cn(
+                              "w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold transition-all",
+                              idx < currentStageIndex && "bg-teal-500 text-white",
+                              idx === currentStageIndex && "bg-teal-500 text-white ring-4 ring-teal-100",
+                              idx > currentStageIndex && "bg-gray-200 text-gray-500"
+                            )}>
+                              {idx < currentStageIndex ? (
+                                <Check className="w-4 h-4" />
+                              ) : (
+                                idx + 1
+                              )}
+                            </div>
+                            {idx < stages.length - 1 && (
+                              <div className={cn(
+                                "w-6 h-0.5",
+                                idx < currentStageIndex ? "bg-teal-500" : "bg-gray-200"
+                              )} />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      
+                      {config.showContinue ? (
+                        <Button
+                          onClick={config.onContinue || goToNextCollectionStep}
+                          className="gap-2 min-w-[130px] h-11 rounded-xl bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white font-semibold shadow-lg shadow-teal-500/25 hover:shadow-xl transition-all"
+                        >
+                          {config.continueLabel || "Continue"}
+                          <ChevronRight className="w-4 h-4" />
+                        </Button>
+                      ) : (
+                        <div />
+                      )}
+                    </CardFooter>
+                  )
+                })()}
               </Card>
             </>
           )}
@@ -5014,8 +5087,6 @@ export function RRERQuestionnaire({
                     {[
                       { key: "transaction", label: "Transaction & Property", step: "transaction-property" as CollectionStepId },
                       { key: "partySetup", label: "Party Setup", step: "party-setup" as CollectionStepId },
-                      { key: "monitorProgress", label: "Monitor Progress", step: "monitor-progress" as CollectionStepId },
-                      { key: "reviewSubmissions", label: "Review Submissions", step: "review-submissions" as CollectionStepId },
                       { key: "reportingPerson", label: "Reporting Person", step: "reporting-person" as CollectionStepId },
                       { key: "fileReport", label: "File Report", step: "file-report" as CollectionStepId },
                     ].map(({ key, label, step }) => (

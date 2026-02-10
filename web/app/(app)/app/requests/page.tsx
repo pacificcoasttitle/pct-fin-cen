@@ -232,7 +232,7 @@ export default function UnifiedRequestsPage() {
         <Button
           variant="default"
           size="sm"
-          onClick={(e) => { e.stopPropagation(); router.push(`/app/reports/${id}/wizard?step=file`); }}
+          onClick={(e) => { e.stopPropagation(); router.push(`/app/reports/${id}/wizard?step=file-report`); }}
         >
           <Send className="mr-1 h-3 w-3" /> File Now
         </Button>
