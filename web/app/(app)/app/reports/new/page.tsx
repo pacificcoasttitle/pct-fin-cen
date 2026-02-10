@@ -101,7 +101,7 @@ export default function NewReportPage() {
       // Redirect to wizard
       router.push(`/app/reports/${report.id}/wizard`)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create report")
+      setError(err instanceof Error ? err.message : "Failed to create request")
       setIsSubmitting(false)
     }
   }
@@ -114,11 +114,11 @@ export default function NewReportPage() {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-3 tracking-tight">
-            Start a New FinCEN Report
+            New Filing Request
           </h1>
           <p className="text-lg text-gray-600">
-            Enter the property address to begin. You&apos;ll complete the full 
-            report through our guided wizard.
+            Enter the property address to begin. Our guided wizard will walk you
+            through the determination and filing process.
           </p>
         </div>
 
@@ -266,7 +266,7 @@ export default function NewReportPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => router.push("/app/reports")}
+                onClick={() => router.push("/app/requests")}
                 disabled={isSubmitting}
                 className="h-12 px-6 rounded-xl border-2 font-medium hover:bg-white hover:border-teal-300"
               >
@@ -280,7 +280,7 @@ export default function NewReportPage() {
                 {isSubmitting ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Creating Report...
+                    Creating Request...
                   </>
                 ) : (
                   <>

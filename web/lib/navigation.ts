@@ -14,7 +14,6 @@ import {
   Settings,
   FileImage,
   PlusCircle,
-  Archive,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -288,7 +287,7 @@ function getClientAdminNavigation(counts: BadgeCounts): NavSection[] {
           icon: LayoutDashboard,
         },
         {
-          label: "Start New Report",
+          label: "New Request",
           href: "/app/reports/new",
           icon: PlusCircle,
         },
@@ -298,17 +297,12 @@ function getClientAdminNavigation(counts: BadgeCounts): NavSection[] {
       title: "My Company",
       items: [
         {
-          label: "My Reports",
-          href: "/app/reports",
+          label: "My Requests",
+          href: "/app/requests",
           icon: FileText,
           badge: counts.requestsActive > 0
             ? { count: counts.requestsActive, variant: "info" as BadgeVariant }  // BLUE
             : undefined,
-        },
-        {
-          label: "Request History",
-          href: "/app/requests",
-          icon: Archive,
         },
         {
           label: "Billing",
@@ -349,27 +343,22 @@ function getClientUserNavigation(counts: BadgeCounts): NavSection[] {
           icon: LayoutDashboard,
         },
         {
-          label: "Start New Report",
+          label: "New Request",
           href: "/app/reports/new",
           icon: PlusCircle,
         },
       ],
     },
     {
-      title: "My Reports",
+      title: "My Requests",
       items: [
         {
-          label: "All Reports",
-          href: "/app/reports",
+          label: "All Requests",
+          href: "/app/requests",
           icon: FileText,
           badge: counts.requestsActive > 0
             ? { count: counts.requestsActive, variant: "info" as BadgeVariant }  // BLUE
             : undefined,
-        },
-        {
-          label: "Request History",
-          href: "/app/requests",
-          icon: Archive,
         },
       ],
     },

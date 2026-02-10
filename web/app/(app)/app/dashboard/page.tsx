@@ -63,13 +63,13 @@ export default function DashboardPage() {
 
   const actionItems = [
     awaitingCount > 0 && {
-      message: `${awaitingCount} report${awaitingCount > 1 ? "s" : ""} awaiting party responses`,
-      href: "/app/reports",
+      message: `${awaitingCount} request${awaitingCount > 1 ? "s" : ""} awaiting party responses`,
+      href: "/app/requests",
       color: "amber",
     },
     readyCount > 0 && {
-      message: `${readyCount} report${readyCount > 1 ? "s" : ""} ready to file`,
-      href: "/app/reports",
+      message: `${readyCount} request${readyCount > 1 ? "s" : ""} ready to file`,
+      href: "/app/requests",
       color: "green",
     },
   ].filter(Boolean) as { message: string; href: string; color: string }[];
@@ -93,14 +93,14 @@ export default function DashboardPage() {
   const formatStatus = (report: ReportWithParties) => {
     switch (report.status) {
       case "filed":
-        return "Filed";
+        return "Filed with FinCEN";
       case "ready_to_file":
         return "Ready to file";
       case "collecting":
       case "awaiting_parties":
         return `Awaiting ${report.party_summary?.submitted || 0}/${report.party_summary?.total || 0} parties`;
       case "exempt":
-        return "Exempt";
+        return "Exempt — no filing required";
       case "determination_complete":
         return "Determination complete";
       default:
@@ -137,7 +137,7 @@ export default function DashboardPage() {
             Welcome back{user?.name ? `, ${user.name.split(" ")[0]}` : ""}
           </h1>
           <p className="text-gray-500 text-sm mt-1">
-            Here&apos;s what&apos;s happening with your reports
+            Here&apos;s what&apos;s happening with your requests
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -152,7 +152,7 @@ export default function DashboardPage() {
           <Button asChild className="bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700">
             <Link href="/app/reports/new">
               <Plus className="w-4 h-4 mr-2" />
-              New Report
+              New Request
             </Link>
           </Button>
         </div>
@@ -185,7 +185,7 @@ export default function DashboardPage() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Link href="/app/reports">
+        <Link href="/app/requests">
           <Card className="hover:shadow-md transition cursor-pointer h-full">
             <CardContent className="p-4 text-center">
               <p className="text-3xl font-bold text-gray-900">
@@ -195,7 +195,7 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </Link>
-        <Link href="/app/reports">
+        <Link href="/app/requests">
           <Card className="hover:shadow-md transition cursor-pointer border-amber-200 h-full">
             <CardContent className="p-4 text-center">
               <p className="text-3xl font-bold text-amber-600">{stats?.in_progress ?? 0}</p>
@@ -203,7 +203,7 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </Link>
-        <Link href="/app/reports">
+        <Link href="/app/requests">
           <Card className="hover:shadow-md transition cursor-pointer border-green-200 h-full">
             <CardContent className="p-4 text-center">
               <p className="text-3xl font-bold text-green-600">{stats?.completed ?? 0}</p>
@@ -223,7 +223,7 @@ export default function DashboardPage() {
       <div>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-gray-900">Recent Activity</h2>
-          <Link href="/app/reports" className="text-sm text-teal-600 hover:text-teal-700">
+          <Link href="/app/requests" className="text-sm text-teal-600 hover:text-teal-700">
             View all →
           </Link>
         </div>
@@ -253,9 +253,9 @@ export default function DashboardPage() {
           <Card>
             <CardContent className="p-8 text-center">
               <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500 mb-4">No reports yet</p>
+              <p className="text-gray-500 mb-4">No requests yet</p>
               <Button asChild variant="outline">
-                <Link href="/app/reports/new">Create your first report</Link>
+                <Link href="/app/reports/new">Create your first request</Link>
               </Button>
             </CardContent>
           </Card>
