@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useMemo, useCallback, useEffect, useRef } from "react"
+import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
@@ -135,6 +136,24 @@ function formatPriceForInput(value: number | undefined | null): string {
 function parsePriceFromInput(formatted: string): number {
   const digits = formatted.replace(/[^0-9]/g, "")
   return digits ? parseInt(digits, 10) : 0
+}
+
+// ============================================================================
+// SiteX Property Type Mapping
+// ============================================================================
+
+/**
+ * Map SiteX property type codes (e.g. "SFR", "Condo") to wizard property type values
+ */
+function mapSiteXPropertyType(siteXType?: string): string {
+  if (!siteXType) return ""
+  const normalized = siteXType.toLowerCase()
+  if (normalized.includes("sfr") || normalized.includes("single family") || normalized.includes("residential")) return "1-4-family"
+  if (normalized.includes("condo")) return "condo"
+  if (normalized.includes("townho")) return "townhome"
+  if (normalized.includes("co-op") || normalized.includes("coop")) return "coop"
+  if (normalized.includes("land") || normalized.includes("vacant")) return "land"
+  return "" // Unknown type — let user select manually
 }
 
 // ============================================================================
@@ -438,6 +457,7 @@ export function RRERQuestionnaire({
   onFileReport,
   onDetermine,
 }: RRERQuestionnaireProps = {}) {
+  const router = useRouter()
   const { user: demoUser } = useDemo()
   const [showLinksSentConfirmation, setShowLinksSentConfirmation] = useState(false)
   const [phase, setPhase] = useState<Phase>(initialData?.phase || "determination")
@@ -1879,6 +1899,7 @@ export function RRERQuestionnaire({
                                 <DialogTitle>Exemption Certificate</DialogTitle>
                               </DialogHeader>
                               <ExemptionCertificate
+                                reportId={reportId}
                                 data={{
                                   certificateId: determinationId,
                                   propertyAddress: {
@@ -2009,6 +2030,7 @@ export function RRERQuestionnaire({
                             <DialogTitle>Exemption Certificate</DialogTitle>
                           </DialogHeader>
                           <ExemptionCertificate
+                            reportId={reportId}
                             data={{
                               certificateId: determinationId,
                               propertyAddress: {
@@ -2040,9 +2062,13 @@ export function RRERQuestionnaire({
                       <Printer className="w-4 h-4" />
                       Print Summary
                     </Button>
-                    <Button variant="outline" onClick={resetQuestionnaire} className="gap-2 h-11 rounded-xl border-2 font-medium hover:bg-white hover:border-teal-300">
-                      <RotateCcw className="w-4 h-4" />
-                      Start Over
+                    <Button variant="outline" onClick={() => router.push("/app/requests")} className="gap-2 h-11 rounded-xl border-2 font-medium hover:bg-white hover:border-teal-300">
+                      <ArrowLeft className="w-4 h-4" />
+                      Back to Requests
+                    </Button>
+                    <Button onClick={() => router.push("/app/reports/new")} className="gap-2 h-11 rounded-xl border-2 font-medium bg-gradient-to-r from-teal-500 to-cyan-600 text-white hover:from-teal-600 hover:to-cyan-700">
+                      <Plus className="w-4 h-4" />
+                      Start New Request
                     </Button>
                   </CardFooter>
                 </>
@@ -2271,8 +2297,10 @@ export function RRERQuestionnaire({
                                       zip: address.zip,
                                       country: "United States",
                                     },
-                                    county: address.county || prev.county || "",
+                                    county: address.county || property?.county || prev.county || "",
                                     apn: property?.apn || prev.apn || "",
+                                    legalDescription: property?.legal_description || prev.legalDescription || "",
+                                    propertyType: mapSiteXPropertyType(property?.property_type) || prev.propertyType || "",
                                     sellers: updatedSellers,
                                     siteXData: property ? {
                                       apn: property.apn,
@@ -2475,33 +2503,9 @@ export function RRERQuestionnaire({
                                   </Button>
                                 )}
                               </div>
-                              <div className="grid gap-3 md:grid-cols-2">
-                                <div className="grid gap-2">
-                                  <Label>Name *</Label>
-                                  <Input
-                                    value={seller.name}
-                                    onChange={(e) => setPartySetup(prev => ({
-                                      ...prev,
-                                      sellers: prev.sellers.map(s => s.id === seller.id ? { ...s, name: e.target.value } : s)
-                                    }))}
-                                    placeholder="John Smith"
-                                  />
-                                </div>
-                                <div className="grid gap-2">
-                                  <Label>Email *</Label>
-                                  <Input
-                                    type="email"
-                                    value={seller.email}
-                                    onChange={(e) => setPartySetup(prev => ({
-                                      ...prev,
-                                      sellers: prev.sellers.map(s => s.id === seller.id ? { ...s, email: e.target.value } : s)
-                                    }))}
-                                    placeholder="john@email.com"
-                                  />
-                                </div>
-                              </div>
+                              {/* Type selection FIRST */}
                               <div className="grid gap-2">
-                                <Label>Type *</Label>
+                                <Label>Seller Type *</Label>
                                 <div className="flex gap-4">
                                   {(["individual", "entity", "trust"] as const).map(type => (
                                     <label key={type} className="flex items-center gap-2 cursor-pointer">
@@ -2520,9 +2524,35 @@ export function RRERQuestionnaire({
                                   ))}
                                 </div>
                               </div>
+                              {/* Name and email AFTER type */}
+                              <div className="grid gap-3 md:grid-cols-2">
+                                <div className="grid gap-2">
+                                  <Label>{seller.type === "individual" ? "Full Name" : seller.type === "entity" ? "Company Name" : "Trust Name"} *</Label>
+                                  <Input
+                                    value={seller.name}
+                                    onChange={(e) => setPartySetup(prev => ({
+                                      ...prev,
+                                      sellers: prev.sellers.map(s => s.id === seller.id ? { ...s, name: e.target.value } : s)
+                                    }))}
+                                    placeholder={seller.type === "individual" ? "John Smith" : seller.type === "entity" ? "ABC Holdings LLC" : "Smith Family Trust"}
+                                  />
+                                </div>
+                                <div className="grid gap-2">
+                                  <Label>Email *</Label>
+                                  <Input
+                                    type="email"
+                                    value={seller.email}
+                                    onChange={(e) => setPartySetup(prev => ({
+                                      ...prev,
+                                      sellers: prev.sellers.map(s => s.id === seller.id ? { ...s, email: e.target.value } : s)
+                                    }))}
+                                    placeholder="john@email.com"
+                                  />
+                                </div>
+                              </div>
                               {(seller.type === "entity" || seller.type === "trust") && (
                                 <div className="grid gap-2">
-                                  <Label>Entity/Trust Name</Label>
+                                  <Label>Entity/Trust Legal Name (if different)</Label>
                                   <Input
                                     value={seller.entityName || ""}
                                     onChange={(e) => setPartySetup(prev => ({
@@ -2575,33 +2605,9 @@ export function RRERQuestionnaire({
                                   </Button>
                                 )}
                               </div>
-                              <div className="grid gap-3 md:grid-cols-2">
-                                <div className="grid gap-2">
-                                  <Label>Name/Entity Name *</Label>
-                                  <Input
-                                    value={buyer.name}
-                                    onChange={(e) => setPartySetup(prev => ({
-                                      ...prev,
-                                      buyers: prev.buyers.map(b => b.id === buyer.id ? { ...b, name: e.target.value } : b)
-                                    }))}
-                                    placeholder="ABC Holdings LLC"
-                                  />
-                                </div>
-                                <div className="grid gap-2">
-                                  <Label>Contact Email *</Label>
-                                  <Input
-                                    type="email"
-                                    value={buyer.email}
-                                    onChange={(e) => setPartySetup(prev => ({
-                                      ...prev,
-                                      buyers: prev.buyers.map(b => b.id === buyer.id ? { ...b, email: e.target.value } : b)
-                                    }))}
-                                    placeholder="contact@abc.com"
-                                  />
-                                </div>
-                              </div>
+                              {/* Type selection FIRST */}
                               <div className="grid gap-2">
-                                <Label>Type *</Label>
+                                <Label>Buyer Type *</Label>
                                 <div className="flex gap-4">
                                   {(["individual", "entity", "trust"] as const).map(type => (
                                     <label key={type} className="flex items-center gap-2 cursor-pointer">
@@ -2618,6 +2624,32 @@ export function RRERQuestionnaire({
                                       <span className="capitalize">{type}</span>
                                     </label>
                                   ))}
+                                </div>
+                              </div>
+                              {/* Name and email AFTER type */}
+                              <div className="grid gap-3 md:grid-cols-2">
+                                <div className="grid gap-2">
+                                  <Label>{buyer.type === "individual" ? "Full Name" : buyer.type === "entity" ? "Company Name" : "Trust Name"} *</Label>
+                                  <Input
+                                    value={buyer.name}
+                                    onChange={(e) => setPartySetup(prev => ({
+                                      ...prev,
+                                      buyers: prev.buyers.map(b => b.id === buyer.id ? { ...b, name: e.target.value } : b)
+                                    }))}
+                                    placeholder={buyer.type === "individual" ? "Jane Smith" : buyer.type === "entity" ? "ABC Holdings LLC" : "Smith Family Trust"}
+                                  />
+                                </div>
+                                <div className="grid gap-2">
+                                  <Label>Contact Email *</Label>
+                                  <Input
+                                    type="email"
+                                    value={buyer.email}
+                                    onChange={(e) => setPartySetup(prev => ({
+                                      ...prev,
+                                      buyers: prev.buyers.map(b => b.id === buyer.id ? { ...b, email: e.target.value } : b)
+                                    }))}
+                                    placeholder="contact@abc.com"
+                                  />
                                 </div>
                               </div>
                               {buyer.type !== "individual" && (
@@ -5182,9 +5214,13 @@ export function RRERQuestionnaire({
                     <Printer className="w-4 h-4" />
                     Print Summary
                   </Button>
-                  <Button variant="outline" onClick={resetQuestionnaire} className="gap-2 h-11 rounded-xl border-2 font-medium hover:bg-white hover:border-teal-300">
-                    <RotateCcw className="w-4 h-4" />
-                    Start New
+                  <Button variant="outline" onClick={() => router.push("/app/requests")} className="gap-2 h-11 rounded-xl border-2 font-medium hover:bg-white hover:border-teal-300">
+                    <ArrowLeft className="w-4 h-4" />
+                    Back to Requests
+                  </Button>
+                  <Button onClick={() => router.push("/app/reports/new")} className="gap-2 h-11 rounded-xl border-2 font-medium bg-gradient-to-r from-teal-500 to-cyan-600 text-white hover:from-teal-600 hover:to-cyan-700">
+                    <Plus className="w-4 h-4" />
+                    Start New Request
                   </Button>
                 </CardFooter>
               </Card>

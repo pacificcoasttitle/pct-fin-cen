@@ -11,7 +11,7 @@ from datetime import date, datetime, timedelta
 from typing import Optional, Dict
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Header
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Header, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import case
@@ -757,12 +757,12 @@ def create_party_links(
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
     
-    # Allow draft, determination_complete, or collecting status
+    # Allow most statuses — only block filed/exempt reports
     # Status will auto-transition to "collecting" when links are created
-    if report.status not in ["draft", "determination_complete", "collecting"]:
+    if report.status in ["filed", "exempt"]:
         raise HTTPException(
             status_code=400, 
-            detail=f"Cannot create party links for report in '{report.status}' status. Report must be in draft or collecting phase."
+            detail=f"Cannot create party links for report in '{report.status}' status. Exempt and filed reports cannot collect party data."
         )
     
     links_created = []
@@ -1377,3 +1377,104 @@ def _mark_submission_request_completed(db: Session, report: Report) -> None:
         submission_request.status = "completed"
         submission_request.updated_at = datetime.utcnow()
         db.commit()
+
+
+# ============================================================================
+# Certificate PDF Download
+# ============================================================================
+
+@router.get("/{report_id}/certificate/pdf")
+async def get_certificate_pdf(
+    report_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Download exemption certificate as PDF."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    report = db.query(Report).filter(Report.id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    
+    # Verify report is exempt
+    if report.determination_result != "exempt" and report.status != "exempt":
+        raise HTTPException(
+            status_code=400, 
+            detail="Certificate only available for exempt reports"
+        )
+    
+    # Extract certificate data from report
+    certificate_id = report.exemption_certificate_id or "N/A"
+    property_address = report.property_address_text or "Address not available"
+    escrow_number = report.escrow_number
+    
+    # Get purchase price and buyer name from wizard data
+    wizard_data = report.wizard_data or {}
+    collection = wizard_data.get("collection", {})
+    purchase_price = collection.get("purchasePrice", 0)
+    
+    # Try to get buyer name from determination or collection data
+    determination = report.determination or {}
+    buyer_name = determination.get("buyer_name", "")
+    if not buyer_name:
+        buyers = collection.get("buyers", [])
+        if buyers and isinstance(buyers, list):
+            first_buyer = buyers[0] if len(buyers) > 0 else {}
+            if isinstance(first_buyer, dict):
+                buyer_name = first_buyer.get("name", first_buyer.get("entityName", "Unknown"))
+        if not buyer_name:
+            buyer_name = "Unknown Buyer"
+    
+    # Get exemption reasons
+    exemption_reasons = report.exemption_reasons or []
+    # If stored as strings, convert to display format
+    if exemption_reasons and isinstance(exemption_reasons[0], str):
+        exemption_reasons = [{"code": r, "display": r.replace("_", " ").title()} for r in exemption_reasons]
+    
+    determination_timestamp = (
+        report.determination_completed_at.isoformat() 
+        if report.determination_completed_at 
+        else datetime.utcnow().isoformat()
+    )
+    determination_method = determination.get("method", "Automated Analysis")
+    
+    # Generate PDF
+    try:
+        from app.services.pdf_service import generate_certificate_pdf as gen_cert_pdf
+        
+        result = await gen_cert_pdf(
+            certificate_id=certificate_id,
+            property_address=property_address,
+            purchase_price=float(purchase_price),
+            buyer_name=buyer_name,
+            escrow_number=escrow_number,
+            exemption_reasons=exemption_reasons,
+            determination_timestamp=determination_timestamp,
+            determination_method=determination_method,
+        )
+        
+        if result.pdf_bytes:
+            escrow_num = escrow_number or str(report_id)[:8]
+            filename = f"exemption-certificate-{escrow_num}.pdf"
+            
+            return Response(
+                content=result.pdf_bytes,
+                media_type="application/pdf",
+                headers={
+                    "Content-Disposition": f'attachment; filename="{filename}"'
+                }
+            )
+        else:
+            # Fallback: return HTML if PDFShift not configured
+            return Response(
+                content=result.html_content or "PDF generation unavailable",
+                media_type="text/html",
+            )
+            
+    except Exception as e:
+        logger.error(f"PDF generation failed for report {report_id}: {e}")
+        raise HTTPException(
+            status_code=500, 
+            detail="Failed to generate PDF. Please try again."
+        )

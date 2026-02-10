@@ -404,6 +404,24 @@ export async function readyCheck(reportId: string): Promise<ReadyCheckResult> {
   });
 }
 
+/**
+ * Download exemption certificate as PDF
+ */
+export async function downloadCertificatePdf(reportId: string): Promise<Blob> {
+  const url = `${API_BASE_URL}/reports/${reportId}/certificate/pdf`;
+  const response = await fetch(url, {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: 'Failed to download certificate' }));
+    throw new Error(error.detail || `HTTP ${response.status}`);
+  }
+
+  return response.blob();
+}
+
 // Party status types
 export interface PartyStatusItem {
   id: string;

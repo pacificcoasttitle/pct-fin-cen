@@ -1,11 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { Shield, CheckCircle, Printer, Download, FileText, Building2 } from "lucide-react";
+import { Shield, CheckCircle, Printer, Download, FileText, Building2, Loader2 } from "lucide-react";
 import { BRAND } from "@/lib/brand";
+import { downloadCertificatePdf } from "@/lib/api";
 
 export interface ExemptionCertificateData {
   certificateId: string;
@@ -25,6 +27,7 @@ export interface ExemptionCertificateData {
 
 interface ExemptionCertificateProps {
   data: ExemptionCertificateData;
+  reportId?: string;
   showActions?: boolean;
   className?: string;
 }
@@ -57,17 +60,47 @@ function formatAddress(addr: ExemptionCertificateData["propertyAddress"]): strin
 
 export function ExemptionCertificate({
   data,
+  reportId,
   showActions = true,
   className,
 }: ExemptionCertificateProps) {
+  const [downloading, setDownloading] = useState(false);
+
   const handlePrint = () => {
     window.print();
   };
 
-  const handleDownload = () => {
-    // In a real implementation, this would generate a PDF
-    // For now, we'll trigger print which can save as PDF
-    window.print();
+  const handleDownload = async () => {
+    if (!reportId) {
+      // Fallback to print if no reportId
+      window.print();
+      return;
+    }
+
+    setDownloading(true);
+    try {
+      const blob = await downloadCertificatePdf(reportId);
+
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `exemption-certificate-${data.escrowNumber || reportId.slice(0, 8)}.pdf`;
+
+      // Trigger download
+      document.body.appendChild(link);
+      link.click();
+
+      // Cleanup
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Download failed:", error);
+      // Fallback to print dialog
+      window.print();
+    } finally {
+      setDownloading(false);
+    }
   };
 
   return (
@@ -79,9 +112,18 @@ export function ExemptionCertificate({
             <Printer className="h-4 w-4 mr-2" />
             Print
           </Button>
-          <Button variant="outline" size="sm" onClick={handleDownload}>
-            <Download className="h-4 w-4 mr-2" />
-            Download PDF
+          <Button variant="outline" size="sm" onClick={handleDownload} disabled={downloading}>
+            {downloading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Generating...
+              </>
+            ) : (
+              <>
+                <Download className="h-4 w-4 mr-2" />
+                Download PDF
+              </>
+            )}
           </Button>
         </div>
       )}
