@@ -4,11 +4,12 @@ Handles CRUD operations for client companies.
 """
 
 import re
+import uuid as uuid_module
 from datetime import datetime
 from typing import List, Optional
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
@@ -20,6 +21,7 @@ from app.models.submission_request import SubmissionRequest
 from app.models.report import Report
 from app.models.invoice import Invoice
 from app.services.audit import log_event, log_change, ENTITY_COMPANY, ENTITY_USER
+from app.services.storage import storage_service
 
 router = APIRouter(prefix="/companies", tags=["companies"])
 
@@ -151,6 +153,14 @@ async def get_my_company(
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
     
+    # Generate a pre-signed URL for logo if a key is stored
+    logo_public_url = None
+    if company.logo_url:
+        logo_public_url = storage_service.generate_download_url(
+            key=company.logo_url,
+            expires_in=86400,  # 24 hours
+        ) or None
+    
     return {
         "id": str(company.id),
         "name": company.name,
@@ -164,6 +174,11 @@ async def get_my_company(
         "filing_fee_cents": company.filing_fee_cents or 7500,
         "filing_fee_dollars": (company.filing_fee_cents or 7500) / 100.0,
         "payment_terms_days": company.payment_terms_days or 30,
+        # Branding
+        "logo_url": logo_public_url,
+        "logo_updated_at": company.logo_updated_at.isoformat() if company.logo_updated_at else None,
+        "primary_color": company.primary_color,
+        "secondary_color": company.secondary_color,
     }
 
 
@@ -242,6 +257,175 @@ async def update_my_company(
     return {
         "ok": True,
         "message": "Company updated successfully",
+    }
+
+
+# ============================================================================
+# LOGO UPLOAD / DELETE (Client Admin)
+# ============================================================================
+
+ALLOWED_LOGO_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+MAX_LOGO_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB
+
+
+@router.post("/me/logo")
+async def upload_company_logo(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    """
+    Upload or replace company logo.
+    Logo is stored in Cloudflare R2 under company_logos/{company_id}/logo.{ext}.
+    
+    POST /companies/me/logo
+    Content-Type: multipart/form-data
+    """
+    # Get current user's company (demo mode fallback)
+    demo_user = db.query(User).filter(
+        User.email == "admin@demotitle.com",
+        User.role == "client_admin"
+    ).first()
+    if not demo_user:
+        demo_user = db.query(User).filter(User.role == "client_admin").first()
+    
+    if not demo_user or not demo_user.company_id:
+        raise HTTPException(status_code=404, detail="No company associated with user")
+    
+    company = db.query(Company).filter(Company.id == demo_user.company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    # Validate file type
+    if file.content_type not in ALLOWED_LOGO_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid file type. Allowed: JPG, PNG, GIF, WebP"
+        )
+    
+    # Read and validate size
+    contents = await file.read()
+    if len(contents) > MAX_LOGO_SIZE_BYTES:
+        raise HTTPException(status_code=400, detail="Image must be less than 5MB")
+    
+    if len(contents) == 0:
+        raise HTTPException(status_code=400, detail="File is empty")
+    
+    # Check R2 is configured
+    if not storage_service.is_configured:
+        raise HTTPException(status_code=503, detail="File storage is not configured")
+    
+    # Determine extension from content type
+    ext_map = {
+        "image/jpeg": "jpg",
+        "image/png": "png",
+        "image/gif": "gif",
+        "image/webp": "webp",
+    }
+    ext = ext_map.get(file.content_type, "png")
+    
+    # Delete old logo from R2 if exists
+    if company.logo_url:
+        storage_service.delete_file(company.logo_url)
+    
+    # Generate unique key path
+    unique_id = uuid_module.uuid4().hex[:12]
+    r2_key = f"company_logos/{company.id}/{unique_id}.{ext}"
+    
+    # Upload to R2
+    success = storage_service.upload_file(
+        key=r2_key,
+        data=contents,
+        content_type=file.content_type,
+    )
+    
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to upload logo to storage")
+    
+    # Update company record
+    company.logo_url = r2_key
+    company.logo_updated_at = datetime.utcnow()
+    company.updated_at = datetime.utcnow()
+    
+    # Audit log
+    log_event(
+        db=db,
+        entity_type=ENTITY_COMPANY,
+        entity_id=str(company.id),
+        event_type="company.logo_uploaded",
+        actor_type="client_admin",
+        actor_id=str(demo_user.id),
+        details={
+            "r2_key": r2_key,
+            "content_type": file.content_type,
+            "size_bytes": len(contents),
+            "filename": file.filename,
+        },
+    )
+    
+    db.commit()
+    
+    # Generate a pre-signed URL for immediate display
+    logo_public_url = storage_service.generate_download_url(
+        key=r2_key,
+        expires_in=86400,  # 24 hours
+    )
+    
+    return {
+        "success": True,
+        "logo_url": logo_public_url,
+        "message": "Logo uploaded successfully",
+    }
+
+
+@router.delete("/me/logo")
+async def delete_company_logo(
+    db: Session = Depends(get_db),
+):
+    """
+    Delete company logo.
+    
+    DELETE /companies/me/logo
+    """
+    # Get current user's company (demo mode fallback)
+    demo_user = db.query(User).filter(
+        User.email == "admin@demotitle.com",
+        User.role == "client_admin"
+    ).first()
+    if not demo_user:
+        demo_user = db.query(User).filter(User.role == "client_admin").first()
+    
+    if not demo_user or not demo_user.company_id:
+        raise HTTPException(status_code=404, detail="No company associated with user")
+    
+    company = db.query(Company).filter(Company.id == demo_user.company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    if company.logo_url:
+        # Delete from R2
+        storage_service.delete_file(company.logo_url)
+        
+        old_key = company.logo_url
+        company.logo_url = None
+        company.logo_updated_at = None
+        company.updated_at = datetime.utcnow()
+        
+        # Audit log
+        log_event(
+            db=db,
+            entity_type=ENTITY_COMPANY,
+            entity_id=str(company.id),
+            event_type="company.logo_deleted",
+            actor_type="client_admin",
+            actor_id=str(demo_user.id),
+            details={"deleted_r2_key": old_key},
+        )
+        
+        db.commit()
+    
+    return {
+        "success": True,
+        "message": "Logo removed successfully",
     }
 
 

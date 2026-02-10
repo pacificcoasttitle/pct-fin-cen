@@ -101,12 +101,45 @@ def get_party_invite_html(
     property_address: str,
     portal_link: str,
     company_name: Optional[str] = None,
+    company_logo_url: Optional[str] = None,
 ) -> str:
-    """Generate HTML for party invitation email."""
+    """Generate HTML for party invitation email with optional company logo."""
     
     role_display = party_role.replace("_", " ").title()
     greeting = party_name if party_name else "Property Transaction Party"
     company_line = f" on behalf of {company_name}" if company_name else ""
+    display_company = company_name or "Your Title Company"
+    
+    # Build company logo HTML for email header
+    if company_logo_url:
+        logo_html = f'''
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid #e5e7eb;">
+                                <tr>
+                                    <td width="60" valign="middle">
+                                        <img src="{company_logo_url}" alt="{display_company}" width="56" height="56" style="width: 56px; height: 56px; object-fit: contain; border-radius: 8px; display: block;" />
+                                    </td>
+                                    <td valign="middle" style="padding-left: 16px;">
+                                        <p style="margin: 0; font-weight: 600; font-size: 18px; color: #111827;">{display_company}</p>
+                                        <p style="margin: 4px 0 0; font-size: 14px; color: #6b7280;">Secure Document Portal</p>
+                                    </td>
+                                </tr>
+                            </table>'''
+    else:
+        first_letter = display_company[0].upper() if display_company else "C"
+        logo_html = f'''
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid #e5e7eb;">
+                                <tr>
+                                    <td width="60" valign="middle">
+                                        <div style="width: 56px; height: 56px; background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); border-radius: 8px; text-align: center; line-height: 56px;">
+                                            <span style="color: white; font-size: 24px; font-weight: bold;">{first_letter}</span>
+                                        </div>
+                                    </td>
+                                    <td valign="middle" style="padding-left: 16px;">
+                                        <p style="margin: 0; font-weight: 600; font-size: 18px; color: #111827;">{display_company}</p>
+                                        <p style="margin: 4px 0 0; font-size: 14px; color: #6b7280;">Secure Document Portal</p>
+                                    </td>
+                                </tr>
+                            </table>'''
     
     return f"""
 <!DOCTYPE html>
@@ -141,6 +174,9 @@ def get_party_invite_html(
                     <tr>
                         <td style="padding: 40px;">
                             
+                            <!-- Company Logo / Name Bar -->
+                            {logo_html}
+                            
                             <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
                                 Dear {greeting},
                             </p>
@@ -157,7 +193,7 @@ def get_party_invite_html(
                                             Property Address
                                         </p>
                                         <p style="margin: 0; color: #1e3a8a; font-size: 18px; font-weight: 600;">
-                                            📍 {property_address}
+                                            {property_address}
                                         </p>
                                     </td>
                                 </tr>
@@ -183,7 +219,7 @@ def get_party_invite_html(
                                 <tr>
                                     <td style="background-color: #fef3c7; border: 1px solid #fbbf24; padding: 16px 20px; border-radius: 8px;">
                                         <p style="margin: 0; color: #92400e; font-size: 14px;">
-                                            <strong>⏰ Time Sensitive:</strong> Please complete this form within <strong>7 days</strong>. The secure link will expire after that time.
+                                            <strong>Time Sensitive:</strong> Please complete this form within <strong>7 days</strong>. The secure link will expire after that time.
                                         </p>
                                     </td>
                                 </tr>
@@ -418,6 +454,7 @@ def send_party_invite(
     property_address: str,
     portal_link: str,
     company_name: Optional[str] = None,
+    company_logo_url: Optional[str] = None,
 ) -> EmailResult:
     """
     Send party invitation email.
@@ -429,6 +466,7 @@ def send_party_invite(
         property_address: Full property address string
         portal_link: Complete URL to party portal
         company_name: Optional title company name
+        company_logo_url: Optional URL to company logo image
     
     Returns:
         EmailResult with success status and message_id
@@ -441,6 +479,7 @@ def send_party_invite(
         property_address=property_address,
         portal_link=portal_link,
         company_name=company_name,
+        company_logo_url=company_logo_url,
     )
     
     text_content = get_party_invite_text(

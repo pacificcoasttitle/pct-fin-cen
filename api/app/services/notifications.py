@@ -108,6 +108,7 @@ def send_party_invite_notification(
     property_address: str,
     portal_link: str,
     company_name: Optional[str] = None,
+    company_logo_url: Optional[str] = None,
 ) -> NotificationEvent:
     """
     Log and send party invitation email.
@@ -142,6 +143,7 @@ def send_party_invite_notification(
         property_address=property_address,
         portal_link=portal_link,
         company_name=company_name,
+        company_logo_url=company_logo_url,
     )
     
     # 3. Update delivery status

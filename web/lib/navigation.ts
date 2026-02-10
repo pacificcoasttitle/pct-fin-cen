@@ -15,6 +15,7 @@ import {
   FileImage,
   PlusCircle,
   Building,
+  Palette,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -319,6 +320,11 @@ function getClientAdminNavigation(counts: BadgeCounts): NavSection[] {
           label: "Company Settings",
           href: "/app/settings/company",
           icon: Building2,
+        },
+        {
+          label: "Branding",
+          href: "/app/settings/branding",
+          icon: Palette,
         },
         {
           label: "Branches",

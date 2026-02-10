@@ -768,6 +768,22 @@ def create_party_links(
     expires_at = datetime.utcnow() + timedelta(days=party_links_in.expires_in_days)
     property_address = report.property_address_text or "Property"
     
+    # Look up company name and logo for white-label emails
+    company_name_for_email = "Pacific Coast Title Company"
+    company_logo_url_for_email = None
+    if report.company_id:
+        from app.models.company import Company as CompanyModel
+        from app.services.storage import storage_service as r2_storage
+        report_company = db.query(CompanyModel).filter(CompanyModel.id == report.company_id).first()
+        if report_company:
+            company_name_for_email = report_company.name
+            if report_company.logo_url:
+                # Generate a pre-signed URL for the logo (7-day expiry for emails)
+                company_logo_url_for_email = r2_storage.generate_download_url(
+                    key=report_company.logo_url,
+                    expires_in=604800,  # 7 days
+                )
+    
     for party_in in party_links_in.parties:
         # Build initial party_data from input - this gets hydrated to the form
         initial_party_data = {}
@@ -825,7 +841,8 @@ def create_party_links(
                 party_role=party_in.party_role,
                 property_address=property_address,
                 portal_link=link_url,
-                company_name="Pacific Coast Title Company",
+                company_name=company_name_for_email,
+                company_logo_url=company_logo_url_for_email,
             )
             email_sent = True
         else:

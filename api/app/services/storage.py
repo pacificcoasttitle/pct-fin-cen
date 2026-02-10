@@ -203,6 +203,42 @@ class R2StorageService:
         except ClientError:
             return False
     
+    def upload_file(
+        self,
+        key: str,
+        data: bytes,
+        content_type: str,
+    ) -> bool:
+        """
+        Upload a file directly to R2 (server-side upload).
+        
+        Used for logo uploads where the file comes through our API first.
+        
+        Args:
+            key: R2 object key (path)
+            data: File contents as bytes
+            content_type: MIME type of file
+            
+        Returns:
+            True if uploaded successfully
+        """
+        if not self.client:
+            logger.error("R2 client not configured")
+            return False
+        
+        try:
+            self.client.put_object(
+                Bucket=self.bucket,
+                Key=key,
+                Body=data,
+                ContentType=content_type,
+            )
+            logger.info(f"Uploaded file to R2: {key} ({len(data)} bytes)")
+            return True
+        except ClientError as e:
+            logger.error(f"Failed to upload file to R2: {key} - {e}")
+            return False
+    
     def get_file_info(self, key: str) -> Optional[Dict[str, Any]]:
         """
         Get metadata about a file in R2.

@@ -39,6 +39,12 @@ class Company(Base):
     billing_notes = Column(Text, nullable=True)  # Internal notes about billing arrangements
     stripe_customer_id = Column(String(255), nullable=True)  # For hybrid tier auto-charge
     
+    # Branding
+    logo_url = Column(String(500), nullable=True)  # R2 object key for company logo
+    logo_updated_at = Column(DateTime, nullable=True)
+    primary_color = Column(String(7), nullable=True)  # e.g., "#0D9488"
+    secondary_color = Column(String(7), nullable=True)
+    
     # Status
     status = Column(String(50), nullable=False, server_default="active")  # active, suspended, inactive
     settings = Column(JSONBType, nullable=True, server_default="{}")  # Future config
