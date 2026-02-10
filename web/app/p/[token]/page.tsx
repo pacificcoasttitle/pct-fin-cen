@@ -2,27 +2,30 @@
 
 import { useEffect, useState, useCallback, useRef } from "react"
 import { useParams } from "next/navigation"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
-import { 
-  Loader2, 
-  AlertTriangle, 
-  CheckCircle2, 
-  Shield, 
-  Building2, 
-  User,
-  Save,
-  Send,
+import {
+  Loader2,
+  AlertTriangle,
+  CheckCircle2,
+  Shield,
   Clock,
   XCircle,
-  Info
+  ArrowLeft,
+  ArrowRight,
+  Info,
 } from "lucide-react"
-import Image from "next/image"
+import { Card, CardContent } from "@/components/ui/card"
+import { toast } from "sonner"
 import { getParty, saveParty, submitParty, type PartyData } from "@/lib/api"
-import { DynamicPartyForm, type PartySubmissionData } from "@/components/party-portal"
-import { BRAND } from "@/lib/brand"
+import { type PartySubmissionData } from "@/components/party-portal/types"
+
+// New stepper components
+import { VerticalStepper, type Step } from "@/components/party-portal/VerticalStepper"
+import { BrandedHeader } from "@/components/party-portal/BrandedHeader"
+import { PersonalInfoStep } from "@/components/party-portal/steps/PersonalInfoStep"
+import { AddressStep } from "@/components/party-portal/steps/AddressStep"
+import { DocumentsStep } from "@/components/party-portal/steps/DocumentsStep"
+import { CertificationStep } from "@/components/party-portal/steps/CertificationStep"
 
 export default function PartyPortalPage() {
   const params = useParams()
@@ -35,72 +38,19 @@ export default function PartyPortalPage() {
   const [error, setError] = useState<string | null>(null)
   const [errorType, setErrorType] = useState<"expired" | "invalid" | "generic" | null>(null)
   const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [submittedAt, setSubmittedAt] = useState<string | null>(null)
   const [confirmationId, setConfirmationId] = useState<string | null>(null)
-  
+
+  // Stepper state
+  const [currentStep, setCurrentStep] = useState(0)
+
   // Autosave state
   const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle")
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null)
   const initialDataRef = useRef<string>("")
-
-  // Calculate form completion based on role/type
-  const calculateProgress = useCallback(() => {
-    if (!partyData) return 0
-    
-    const role = partyData.party_role
-    const type = partyData.entity_type
-    
-    let requiredFields: (keyof PartySubmissionData)[] = []
-    
-    if (type === "individual") {
-      requiredFields = ["first_name", "last_name", "date_of_birth", "certified", "certification_signature"]
-      if (formData.address) {
-        const addr = formData.address
-        if (addr.street && addr.city && addr.state && addr.zip) {
-          requiredFields = requiredFields.filter(f => f !== "address" as any)
-        }
-      }
-    } else if (type === "entity") {
-      requiredFields = ["entity_name", "entity_type", "ein", "formation_state", "certified", "certification_signature"]
-      if (role === "transferee") {
-        // Buyer entity needs beneficial owners
-        if (!formData.beneficial_owners || formData.beneficial_owners.length === 0) {
-          return Math.min(50, calculateBasicProgress(requiredFields))
-        }
-      }
-    } else if (type === "trust") {
-      requiredFields = ["trust_name", "trust_type", "trust_date", "signer_name", "certified", "certification_signature"]
-    }
-    
-    return calculateBasicProgress(requiredFields)
-  }, [formData, partyData])
-
-  const calculateBasicProgress = (requiredFields: (keyof PartySubmissionData)[]) => {
-    let filled = 0
-    let total = requiredFields.length
-    
-    for (const field of requiredFields) {
-      const value = formData[field]
-      if (value !== undefined && value !== null && value !== "" && value !== false) {
-        filled++
-      }
-    }
-    
-    // Check address separately
-    if (formData.address) {
-      const addr = formData.address
-      if (addr.street && addr.city && addr.state && addr.zip) {
-        filled++
-      }
-      total++
-    }
-    
-    return Math.round((filled / total) * 100)
-  }
 
   // Load party data
   useEffect(() => {
@@ -111,12 +61,12 @@ export default function PartyPortalPage() {
         setErrorType(null)
         const data = await getParty(token)
         setPartyData(data)
-        
+
         // Hydrate form from existing party_data
         if (data.party_data && typeof data.party_data === "object") {
           setFormData(data.party_data as Partial<PartySubmissionData>)
         }
-        
+
         // Check if already submitted
         if (data.status === "submitted") {
           setSubmitted(true)
@@ -141,24 +91,23 @@ export default function PartyPortalPage() {
   }, [token])
 
   // Handle form data changes
-  const handleFormChange = (newData: Partial<PartySubmissionData>) => {
+  const handleFormChange = useCallback((newData: Partial<PartySubmissionData>) => {
     if (submitted) return
     setFormData(newData)
-    setSaved(false)
     setHasUnsavedChanges(true)
-  }
+  }, [submitted])
 
   // Debounced autosave — saves 2 seconds after last change
   useEffect(() => {
     if (!hasUnsavedChanges || submitted || !partyData) return
-    
+
     const dataStr = JSON.stringify(formData)
     if (dataStr === initialDataRef.current) return
-    
+
     if (autoSaveTimerRef.current) {
       clearTimeout(autoSaveTimerRef.current)
     }
-    
+
     autoSaveTimerRef.current = setTimeout(async () => {
       try {
         setAutoSaveStatus("saving")
@@ -171,7 +120,7 @@ export default function PartyPortalPage() {
         setAutoSaveStatus("error")
       }
     }, 2000)
-    
+
     return () => {
       if (autoSaveTimerRef.current) {
         clearTimeout(autoSaveTimerRef.current)
@@ -198,21 +147,32 @@ export default function PartyPortalPage() {
     }
   }, [partyData])
 
-  // Save progress
-  const handleSave = async () => {
+  // Save & navigate to next step
+  const handleSaveAndContinue = async () => {
+    setSaving(true)
     try {
-      setSaving(true)
       await saveParty(token, formData)
-      setSaved(true)
-      setTimeout(() => setSaved(false), 3000)
+      setHasUnsavedChanges(false)
+      initialDataRef.current = JSON.stringify(formData)
+      setAutoSaveStatus("saved")
+      setTimeout(() => setAutoSaveStatus("idle"), 2000)
+      setCurrentStep((prev) => Math.min(prev + 1, 3))
+      // Scroll to top on mobile
+      window.scrollTo({ top: 0, behavior: "smooth" })
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save")
+      toast.error("Failed to save progress")
     } finally {
       setSaving(false)
     }
   }
 
-  // Submit
+  // Go back
+  const handlePrevious = () => {
+    setCurrentStep((prev) => Math.max(prev - 1, 0))
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }
+
+  // Final submit
   const handleSubmit = async () => {
     try {
       setSubmitting(true)
@@ -224,33 +184,95 @@ export default function PartyPortalPage() {
       setSubmitted(true)
       setSubmittedAt(result.submitted_at)
       setConfirmationId(result.confirmation_id)
+      toast.success("Information submitted successfully!")
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to submit")
+      const msg = err instanceof Error ? err.message : "Failed to submit"
+      setError(msg)
+      toast.error(msg)
     } finally {
       setSubmitting(false)
     }
   }
 
-  // Loading state
+  // Step click handler (allow going back to completed steps)
+  const handleStepClick = (index: number) => {
+    if (index <= currentStep) {
+      setCurrentStep(index)
+      window.scrollTo({ top: 0, behavior: "smooth" })
+    }
+  }
+
+  // Build steps array
+  const getSteps = (): Step[] => {
+    const entityType = partyData?.entity_type || "individual"
+    const personalTitle =
+      entityType === "individual" ? "Personal Information"
+        : entityType === "entity" ? "Entity Information"
+          : "Trust Information"
+
+    const personalDesc =
+      entityType === "individual" ? "Name, DOB, contact info"
+        : entityType === "entity" ? "Company name, EIN, rep"
+          : "Trust name, trustee info"
+
+    return [
+      {
+        id: "personal",
+        title: personalTitle,
+        description: personalDesc,
+        status: currentStep > 0 ? "complete" : currentStep === 0 ? "current" : "pending",
+      },
+      {
+        id: "address",
+        title: "Address Details",
+        description: "Mailing / business address",
+        status: currentStep > 1 ? "complete" : currentStep === 1 ? "current" : "pending",
+      },
+      {
+        id: "documents",
+        title: "Identification",
+        description: "Upload ID verification",
+        status: currentStep > 2 ? "complete" : currentStep === 2 ? "current" : "pending",
+      },
+      {
+        id: "certify",
+        title: "Review & Certify",
+        description: "Confirm and submit",
+        status: currentStep === 3 ? "current" : "pending",
+      },
+    ]
+  }
+
+  // ─── Loading state ───
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <div className="w-16 h-16 bg-teal-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
           </div>
-          <p className="text-muted-foreground">Loading your form...</p>
+          <p className="text-gray-500">Loading your form...</p>
         </div>
       </div>
     )
   }
 
-  // Error state (no party data loaded)
+  // ─── Error state (no party data loaded) ───
   if (error && !partyData) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
-        <Header />
-        <div className="container mx-auto px-4 py-12 max-w-md">
+        <div className="border-b bg-white">
+          <div className="max-w-4xl mx-auto px-4 py-4 flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-xl flex items-center justify-center">
+              <Shield className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <p className="font-semibold text-gray-900">FinClear Solutions</p>
+              <p className="text-sm text-gray-500">Secure Portal</p>
+            </div>
+          </div>
+        </div>
+        <div className="max-w-md mx-auto px-4 py-12">
           <Card className="shadow-lg">
             <CardContent className="pt-6">
               <div className="text-center py-8">
@@ -270,7 +292,7 @@ export default function PartyPortalPage() {
                 <h2 className="text-xl font-bold mb-2">
                   {errorType === "expired" ? "Link Expired" : errorType === "invalid" ? "Invalid Link" : "Error"}
                 </h2>
-                <p className="text-muted-foreground">{error}</p>
+                <p className="text-gray-500">{error}</p>
               </div>
             </CardContent>
           </Card>
@@ -279,12 +301,19 @@ export default function PartyPortalPage() {
     )
   }
 
-  // Success state (submitted)
+  // ─── Success state (submitted) ───
   if (submitted) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-green-50 to-white">
-        <Header />
-        <div className="container mx-auto px-4 py-12 max-w-md">
+        {partyData && (
+          <BrandedHeader
+            companyName={partyData.company_name || "FinClear Solutions"}
+            companyLogo={partyData.company_logo}
+            propertyAddress={partyData.report_summary.property_address || "Property"}
+            closingDate={partyData.report_summary.closing_date}
+          />
+        )}
+        <div className="max-w-md mx-auto px-4 py-12">
           <Card className="border-green-200 shadow-lg">
             <CardContent className="pt-6">
               <div className="text-center py-8">
@@ -292,12 +321,12 @@ export default function PartyPortalPage() {
                   <CheckCircle2 className="h-12 w-12 text-green-600" />
                 </div>
                 <h2 className="text-2xl font-bold text-green-800 mb-2">
-                  Information Submitted!
+                  Thank You!
                 </h2>
-                <p className="text-muted-foreground mb-6">
-                  Thank you! Your information has been successfully submitted.
+                <p className="text-gray-500 mb-6">
+                  Your information has been submitted successfully. The escrow team will be in touch if anything else is needed.
                 </p>
-                
+
                 {/* Confirmation ID */}
                 {confirmationId && (
                   <div className="inline-block bg-green-100 border-2 border-green-200 rounded-xl px-8 py-4 mb-6">
@@ -309,33 +338,15 @@ export default function PartyPortalPage() {
                     </p>
                   </div>
                 )}
-                
-                {partyData && (
-                  <div className="bg-muted/50 rounded-xl p-5 text-left mb-6">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                        <Building2 className="h-5 w-5 text-primary" />
-                      </div>
-                      <div>
-                        <span className="font-medium block">
-                          {partyData.report_summary.property_address || "Property Address"}
-                        </span>
-                        <span className="text-sm text-muted-foreground capitalize">
-                          {partyData.party_role.replace("_", " ")} • {partyData.entity_type}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
+
                 {submittedAt && (
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-gray-400">
                     Submitted: {new Date(submittedAt).toLocaleString()}
                   </p>
                 )}
-                
-                <p className="text-sm text-muted-foreground mt-6 px-4">
-                  You may close this window. The title company will contact you if additional information is needed.
+
+                <p className="text-sm text-gray-400 mt-6 px-4">
+                  You may safely close this page.
                 </p>
               </div>
             </CardContent>
@@ -345,147 +356,135 @@ export default function PartyPortalPage() {
     )
   }
 
-  // Form state
-  const progress = calculateProgress()
-  const canSubmit = progress >= 70 && formData.certified && formData.certification_signature
+  // ─── Main form with stepper ───
+  if (!partyData) return null
 
-  // Determine role display
-  const getRoleDisplay = (role: string) => {
-    switch (role) {
-      case "transferee": return "Buyer"
-      case "transferor": return "Seller"
-      case "beneficial_owner": return "Beneficial Owner"
-      default: return role.replace("_", " ")
-    }
-  }
+  const steps = getSteps()
+  const entityType = (partyData.entity_type || "individual") as "individual" | "entity" | "trust"
+  const partyRole = (partyData.party_role || "transferor") as "transferee" | "transferor" | "beneficial_owner"
 
-  const getTypeDisplay = (type: string) => {
-    switch (type) {
-      case "individual": return "Individual"
-      case "entity": return "Entity/LLC"
-      case "trust": return "Trust"
-      default: return type
+  const renderCurrentStep = () => {
+    switch (currentStep) {
+      case 0:
+        return (
+          <PersonalInfoStep
+            entityType={entityType}
+            partyRole={partyRole}
+            data={formData}
+            onChange={handleFormChange}
+            disabled={submitted}
+            email={partyData.email || undefined}
+          />
+        )
+      case 1:
+        return (
+          <AddressStep
+            entityType={entityType}
+            data={formData}
+            onChange={handleFormChange}
+            disabled={submitted}
+          />
+        )
+      case 2:
+        return (
+          <DocumentsStep
+            entityType={entityType}
+            partyId={partyData.party_id}
+            disabled={submitted}
+          />
+        )
+      case 3:
+        return (
+          <CertificationStep
+            entityType={entityType}
+            partyRole={partyRole}
+            data={formData}
+            onChange={handleFormChange}
+            onSubmit={handleSubmit}
+            isSubmitting={submitting}
+            disabled={submitted}
+          />
+        )
+      default:
+        return null
     }
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
-      <Header />
+    <div className="min-h-screen bg-gray-50">
+      {/* Branded Header */}
+      <BrandedHeader
+        companyName={partyData.company_name || partyData.report_summary.title_company || "FinClear Solutions"}
+        companyLogo={partyData.company_logo}
+        propertyAddress={partyData.report_summary.property_address || "Property Address"}
+        closingDate={partyData.report_summary.closing_date}
+      />
 
-      <div className="container mx-auto px-4 py-8 max-w-2xl">
-        {/* Context Card */}
-        {partyData && (
-          <Card className="mb-6 bg-gradient-to-br from-teal-50/80 to-teal-100/50 border-teal-200 shadow-lg shadow-teal-500/5 rounded-2xl overflow-hidden">
-            <div className="h-1.5 bg-gradient-to-r from-teal-500 via-teal-500 to-teal-400" />
-            <CardContent className="pt-6">
-              <div className="flex items-start gap-4">
-                <div className="p-3 bg-gradient-to-br from-teal-500 to-teal-600 rounded-xl shadow-lg shadow-teal-500/25">
-                  <Building2 className="h-6 w-6 text-white" />
-                </div>
-                <div className="flex-1">
-                  <p className="font-semibold text-lg text-gray-900">
-                    {partyData.report_summary.property_address || "Property Address Pending"}
-                  </p>
-                  <div className="flex flex-wrap items-center gap-2 mt-2">
-                    <Badge className="font-medium bg-teal-100 text-teal-700 border-teal-200">
-                      {getRoleDisplay(partyData.party_role)}
-                    </Badge>
-                    <Badge variant="outline" className="border-teal-200 text-teal-600">
-                      {getTypeDisplay(partyData.entity_type)}
-                    </Badge>
-                    {partyData.report_summary.closing_date && (
-                      <span className="text-sm text-teal-700 flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        Closing: {new Date(partyData.report_summary.closing_date).toLocaleDateString()}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
+      <main className="max-w-4xl mx-auto px-4 py-6 lg:py-8">
         {/* Corrections Banner */}
-        {partyData?.status === "corrections_requested" && (
-          <Card className="mb-6 border-red-200 bg-red-50 rounded-xl">
-            <CardContent className="pt-4 pb-4">
-              <div className="flex items-start gap-3">
-                <div className="p-2 bg-red-100 rounded-lg">
-                  <AlertTriangle className="h-4 w-4 text-red-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-red-900 font-semibold">Corrections Requested</p>
-                  {partyData.party_data?.correction_message && (
-                    <p className="text-sm text-red-700 mt-1 leading-relaxed">
-                      {String(partyData.party_data.correction_message)}
-                    </p>
-                  )}
-                  <p className="text-xs text-red-600 mt-2">
-                    Please review and update your information below, then submit again.
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Why We Need This Info */}
-        <Card className="mb-6 bg-gradient-to-r from-slate-50 to-slate-100/50 border-slate-200 rounded-xl">
-          <CardContent className="pt-4 pb-4">
+        {partyData.status === "corrections_requested" && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl">
             <div className="flex items-start gap-3">
-              <div className="p-2 bg-teal-100 rounded-lg">
-                <Info className="h-4 w-4 text-teal-600" />
+              <div className="p-2 bg-red-100 rounded-lg">
+                <AlertTriangle className="h-4 w-4 text-red-600" />
               </div>
               <div>
-                <p className="text-sm text-gray-900 font-medium">Why is this information needed?</p>
-                <p className="text-sm text-gray-600 mt-1 leading-relaxed">
-                  Federal regulations require us to collect certain information from all parties 
-                  in real estate transactions. Your information is encrypted, secure, and will 
-                  only be used for compliance purposes.
+                <p className="text-sm text-red-900 font-semibold">Corrections Requested</p>
+                {partyData.party_data?.correction_message && (
+                  <p className="text-sm text-red-700 mt-1 leading-relaxed">
+                    {String(partyData.party_data.correction_message)}
+                  </p>
+                )}
+                <p className="text-xs text-red-600 mt-2">
+                  Please review and update your information below, then submit again.
                 </p>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        )}
 
-        {/* Progress */}
-        <div className="mb-6 p-4 bg-white rounded-xl border border-gray-100 shadow-sm">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-gray-900">Form Progress</span>
-            <div className="flex items-center gap-3">
-              {autoSaveStatus === "saving" && (
-                <span className="flex items-center gap-1 text-xs text-gray-500">
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                  Saving...
-                </span>
-              )}
-              {autoSaveStatus === "saved" && (
-                <span className="flex items-center gap-1 text-xs text-teal-600">
-                  <CheckCircle2 className="w-3 h-3" />
-                  Saved
-                </span>
-              )}
-              {autoSaveStatus === "error" && (
-                <span className="flex items-center gap-1 text-xs text-red-500">
-                  <AlertTriangle className="w-3 h-3" />
-                  Save failed
-                </span>
-              )}
-              <span className="text-sm font-semibold text-teal-600">{progress}%</span>
+        {/* Why We Need This Info */}
+        <div className="mb-6 p-4 bg-gradient-to-r from-slate-50 to-slate-100/50 border border-slate-200 rounded-xl">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-teal-100 rounded-lg">
+              <Info className="h-4 w-4 text-teal-600" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-900 font-medium">Why is this information needed?</p>
+              <p className="text-sm text-gray-600 mt-1 leading-relaxed">
+                Federal regulations require us to collect certain information from all parties
+                in real estate transactions. Your information is encrypted, secure, and will
+                only be used for compliance purposes.
+              </p>
             </div>
           </div>
-          <Progress value={progress} className="h-2.5 bg-gray-100" />
-          {progress < 70 && (
-            <p className="text-xs text-gray-500 mt-2">
-              Complete at least 70% and certify to submit
-            </p>
+        </div>
+
+        {/* Autosave status indicator */}
+        <div className="flex items-center justify-end gap-2 mb-4 min-h-[24px]">
+          {autoSaveStatus === "saving" && (
+            <span className="flex items-center gap-1 text-xs text-gray-500 animate-pulse">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              Saving...
+            </span>
+          )}
+          {autoSaveStatus === "saved" && (
+            <span className="flex items-center gap-1 text-xs text-teal-600">
+              <CheckCircle2 className="w-3 h-3" />
+              Progress saved
+            </span>
+          )}
+          {autoSaveStatus === "error" && (
+            <span className="flex items-center gap-1 text-xs text-red-500">
+              <AlertTriangle className="w-3 h-3" />
+              Save failed — will retry
+            </span>
           )}
         </div>
 
         {/* Error Alert */}
         {error && (
-          <div className="flex items-center gap-2 p-4 bg-destructive/10 text-destructive rounded-lg mb-6">
+          <div className="flex items-center gap-2 p-4 bg-red-50 text-red-800 rounded-lg mb-6 border border-red-200">
             <AlertTriangle className="h-5 w-5 shrink-0" />
             <span className="flex-1">{error}</span>
             <Button variant="ghost" size="sm" onClick={() => setError(null)}>
@@ -494,87 +493,69 @@ export default function PartyPortalPage() {
           </div>
         )}
 
-        {/* Dynamic Form */}
-        {partyData && (
-          <DynamicPartyForm
-            partyRole={partyData.party_role as "transferee" | "transferor" | "beneficial_owner"}
-            entityType={partyData.entity_type as "individual" | "entity" | "trust"}
-            data={formData}
-            onChange={handleFormChange}
-            disabled={submitted}
-            email={partyData.email || undefined}
-            purchasePrice={partyData.report_summary.purchase_price}
-            partyId={partyData.id}
-          />
-        )}
+        {/* Stepper + Content */}
+        <VerticalStepper
+          steps={steps}
+          currentStepIndex={currentStep}
+          onStepClick={handleStepClick}
+        >
+          <div className="bg-white rounded-xl shadow-sm border p-6">
+            {renderCurrentStep()}
 
-        {/* Actions */}
-        <div className="flex items-center gap-4 mt-8 sticky bottom-4 bg-white/95 backdrop-blur-md p-5 -mx-4 rounded-2xl shadow-xl border border-gray-100">
-          <Button 
-            variant="outline" 
-            onClick={handleSave} 
-            disabled={saving || submitted}
-            className="min-w-[140px] h-12 rounded-xl border-2 font-medium hover:bg-white hover:border-teal-300"
-          >
-            {saving ? (
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-            ) : saved ? (
-              <CheckCircle2 className="h-4 w-4 mr-2 text-teal-600" />
-            ) : (
-              <Save className="h-4 w-4 mr-2" />
+            {/* Navigation — hide on certification step (has its own submit button) */}
+            {currentStep < 3 && (
+              <div className="flex justify-between mt-8 pt-6 border-t">
+                <Button
+                  variant="outline"
+                  onClick={handlePrevious}
+                  disabled={currentStep === 0 || saving}
+                  className="h-11 px-6 rounded-xl border-2 font-medium"
+                >
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Previous
+                </Button>
+                <Button
+                  onClick={handleSaveAndContinue}
+                  disabled={saving}
+                  className="h-11 px-6 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white font-semibold shadow-lg shadow-teal-500/25"
+                >
+                  {saving ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      Save &amp; Continue
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                    </>
+                  )}
+                </Button>
+              </div>
             )}
-            {saved ? "Saved!" : "Save Progress"}
-          </Button>
-          <Button 
-            onClick={handleSubmit} 
-            disabled={submitting || submitted || !canSubmit} 
-            className="flex-1 h-12 rounded-xl bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white font-semibold shadow-lg shadow-teal-500/25 hover:shadow-xl transition-all"
-          >
-            {submitting ? (
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-            ) : (
-              <Send className="h-4 w-4 mr-2" />
-            )}
-            Submit Information
-          </Button>
-        </div>
+          </div>
+        </VerticalStepper>
 
         {/* Footer */}
-        <div className="mt-8 pb-20 text-center">
-          <div className="flex items-center justify-center gap-2 text-muted-foreground mb-2">
-            <Shield className="h-4 w-4" />
-            <span className="text-sm font-medium">Secure & Encrypted</span>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Your information is protected with industry-standard encryption.
-            <br />
-            By submitting, you certify that all information is accurate.
-          </p>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// Simple header component
-function Header() {
-  return (
-    <header className="border-b border-border bg-white/80 backdrop-blur sticky top-0 z-10">
-      <div className="container mx-auto px-4 py-4">
-        <div className="flex items-center justify-between">
-          <Image 
-            src={BRAND.logo}
-            alt={BRAND.name}
-            width={120}
-            height={36}
-            className="h-9 w-auto"
-          />
-          <div className="text-sm text-muted-foreground flex items-center gap-2">
+        <div className="mt-8 pb-8 text-center text-sm text-gray-500">
+          <div className="flex items-center justify-center gap-2 mb-2">
             <Shield className="h-4 w-4 text-teal-500" />
-            Secure Portal
+            <span className="font-medium">Secure &amp; Encrypted</span>
           </div>
+          <p>Your progress is automatically saved.</p>
+          {partyData.contact_email && (
+            <p className="mt-1">
+              Questions? Contact:{" "}
+              <a
+                href={`mailto:${partyData.contact_email}`}
+                className="text-teal-600 hover:underline"
+              >
+                {partyData.contact_email}
+              </a>
+            </p>
+          )}
         </div>
-      </div>
-    </header>
+      </main>
+    </div>
   )
 }

@@ -76,6 +76,10 @@ export interface PartyData {
   };
   link_expires_at: string;
   is_submitted: boolean;
+  // Company branding
+  company_name?: string | null;
+  company_logo?: string | null;
+  contact_email?: string | null;
 }
 
 export interface MissingItem {

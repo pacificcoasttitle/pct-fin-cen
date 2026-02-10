@@ -208,6 +208,12 @@ def get_party_by_token(
     party_data = party.party_data or {}
     email = party_data.get("email")
     
+    # Company branding
+    company = report.company if report.company_id else None
+    company_name = company.name if company else "FinClear Solutions"
+    company_logo = None  # Logo URL if company has one in the future
+    contact_email = company.billing_email if company else "clear@fincenclear.com"
+    
     return PartyResponse(
         party_id=party.id,
         party_role=party.party_role,
@@ -219,6 +225,9 @@ def get_party_by_token(
         report_summary=report_summary,
         link_expires_at=link.expires_at,
         is_submitted=party.status == "submitted",
+        company_name=company_name,
+        company_logo=company_logo,
+        contact_email=contact_email,
     )
 
 

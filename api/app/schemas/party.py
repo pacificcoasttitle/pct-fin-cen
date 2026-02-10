@@ -63,6 +63,10 @@ class PartyResponse(BaseModel):
     report_summary: ReportSummary
     link_expires_at: datetime
     is_submitted: bool
+    # Company branding
+    company_name: Optional[str] = None
+    company_logo: Optional[str] = None
+    contact_email: Optional[str] = None
 
 
 class PartySave(BaseModel):
