@@ -356,14 +356,11 @@ class SiteXService:
         """Execute address search API call."""
         token = await self.token_manager.get_token()
         
-        # Generate client reference
-        client_ref = hashlib.md5(f"{address}{datetime.utcnow().isoformat()}".encode()).hexdigest()[:12]
-        
         params = {
             "address1": address,
-            "address2": last_line,
-            "clientRef": client_ref,
         }
+        if last_line:
+            params["lastLine"] = last_line
         
         async with httpx.AsyncClient(timeout=self.config.timeout) as client:
             response = await client.get(
