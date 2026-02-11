@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { getReport, Report, downloadCertificatePdf } from "@/lib/api";
-import { Loader2, Download, ArrowLeft, Printer } from "lucide-react";
+import { Loader2, Download, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function CertificatePage() {
@@ -50,7 +50,12 @@ export default function CertificatePage() {
       window.URL.revokeObjectURL(url);
     } catch (err: any) {
       console.error("PDF download failed:", err);
-      setError("Failed to download PDF. Please try again.");
+      const msg = err.message || "Failed to download PDF.";
+      if (msg.includes("temporarily unavailable") || msg.includes("503")) {
+        setError("PDF service is temporarily unavailable. Use the Print button instead.");
+      } else {
+        setError("Failed to download PDF. Please try again.");
+      }
     } finally {
       setIsDownloading(false);
     }
@@ -137,8 +142,7 @@ export default function CertificatePage() {
             size="sm"
             onClick={() => router.push("/app/requests")}
           >
-            <ArrowLeft className="h-4 w-4 mr-1" />
-            Back
+            Done
           </Button>
           <div className="flex items-center gap-2">
             <Button

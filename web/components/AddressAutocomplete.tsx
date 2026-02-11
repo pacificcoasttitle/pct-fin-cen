@@ -356,18 +356,6 @@ export function AddressAutocomplete({
                   <span className="ml-2 font-medium">{propertyData.year_built}</span>
                 </div>
               )}
-              {propertyData.square_feet && (
-                <div>
-                  <span className="text-muted-foreground">Sq Ft:</span>
-                  <span className="ml-2 font-medium">{propertyData.square_feet.toLocaleString()}</span>
-                </div>
-              )}
-              {propertyData.bedrooms !== undefined && propertyData.bathrooms !== undefined && (
-                <div>
-                  <span className="text-muted-foreground">Bed/Bath:</span>
-                  <span className="ml-2 font-medium">{propertyData.bedrooms}/{propertyData.bathrooms}</span>
-                </div>
-              )}
               {propertyData.assessed_value && (
                 <div className="col-span-2">
                   <span className="text-muted-foreground">Assessed Value:</span>

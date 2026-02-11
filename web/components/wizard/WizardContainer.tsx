@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Report, saveWizard } from "@/lib/api";
 import { WizardProgress } from "./WizardProgress";
@@ -8,7 +8,7 @@ import { WizardNavigation } from "./WizardNavigation";
 import { useWizardState } from "./hooks/useWizardState";
 import { useWizardNavigation } from "./hooks/useWizardNavigation";
 import { useAutoSave } from "./hooks/useAutoSave";
-import { WizardState } from "./types";
+import { WizardState, StepId } from "./types";
 
 // Shared components (Step 0)
 import { TransactionReferenceStep } from "./shared";
@@ -40,6 +40,13 @@ interface WizardContainerProps {
 export function WizardContainer({ report, onUpdate }: WizardContainerProps) {
   const router = useRouter();
   
+  // Local report status — allows us to update it after determine() succeeds
+  // without needing to re-fetch the entire report from the server
+  const [reportStatus, setReportStatus] = useState(report.status);
+  
+  // Pending navigation — set a target step to navigate to after visibleSteps re-computes
+  const pendingStepRef = useRef<StepId | null>(null);
+  
   // Initialize state from report's wizard_data
   const { state, updateDetermination, updateCollection } = useWizardState(
     report.wizard_data as Partial<WizardState> | undefined
@@ -58,7 +65,7 @@ export function WizardContainer({ report, onUpdate }: WizardContainerProps) {
     onError: (error) => console.error("Auto-save failed:", error),
   });
   
-  // Navigation logic
+  // Navigation logic — uses local reportStatus so it updates when determine() succeeds
   const {
     currentStep,
     visibleSteps,
@@ -69,7 +76,15 @@ export function WizardContainer({ report, onUpdate }: WizardContainerProps) {
     goBack,
     goNext,
     goToStep,
-  } = useWizardNavigation(state, report.status);
+  } = useWizardNavigation(state, reportStatus);
+  
+  // Navigate to pending step once visibleSteps updates to include it
+  useEffect(() => {
+    if (pendingStepRef.current && visibleSteps.includes(pendingStepRef.current)) {
+      goToStep(pendingStepRef.current);
+      pendingStepRef.current = null;
+    }
+  }, [visibleSteps, goToStep]);
   
   // Local parties state for party setup
   const [parties, setParties] = useState<any[]>([]);
@@ -157,10 +172,12 @@ export function WizardContainer({ report, onUpdate }: WizardContainerProps) {
             determination={state.determination}
             determinationResult={determinationResult}
             reportId={report.id}
+            onFlush={flush}
             onBeginCollection={() => {
-              // Save before transitioning
-              flush();
-              goToStep("party-setup");
+              // Update local status so visibleSteps includes collection steps
+              setReportStatus("determination_complete");
+              // Schedule navigation — will fire after visibleSteps re-computes
+              pendingStepRef.current = "party-setup";
             }}
           />
         );

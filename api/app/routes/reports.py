@@ -1569,10 +1569,13 @@ async def get_certificate_pdf(
                 }
             )
         else:
-            # Fallback: return HTML if PDFShift not configured
-            return Response(
-                content=result.html_content or "PDF generation unavailable",
-                media_type="text/html",
+            # PDFShift not configured or failed — return error, NOT HTML
+            # (returning HTML as "text/html" causes frontend to save a corrupted .pdf)
+            error_detail = result.error or "PDF generation unavailable"
+            logger.warning(f"PDF generation returned no bytes for report {report_id}: {error_detail}")
+            raise HTTPException(
+                status_code=503,
+                detail="PDF generation is temporarily unavailable. Please use the Print button instead."
             )
             
     except Exception as e:

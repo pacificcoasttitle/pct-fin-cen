@@ -19,6 +19,7 @@ interface DeterminationResultStepProps {
   determinationResult: DeterminationResult | null;
   reportId: string;
   onBeginCollection: () => void;
+  onFlush?: () => Promise<void>;
 }
 
 export function DeterminationResultStep({
@@ -26,9 +27,11 @@ export function DeterminationResultStep({
   determinationResult,
   reportId,
   onBeginCollection,
+  onFlush,
 }: DeterminationResultStepProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   
   if (!determinationResult) {
     return (
@@ -47,12 +50,17 @@ export function DeterminationResultStep({
   
   const handleBeginCollection = async () => {
     setIsLoading(true);
+    setError(null);
     try {
-      // Trigger backend to set status
+      // 1. Flush auto-save to ensure DB has latest wizard data
+      if (onFlush) await onFlush();
+      // 2. Trigger backend to set status to determination_complete
       await determine(reportId);
+      // 3. Tell parent to update local status + navigate to collection
       onBeginCollection();
-    } catch (error) {
-      console.error("Failed to trigger determination:", error);
+    } catch (err: any) {
+      console.error("Failed to trigger determination:", err);
+      setError(err?.message || "Failed to begin data collection. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -60,13 +68,17 @@ export function DeterminationResultStep({
   
   const handleViewCertificate = async () => {
     setIsLoading(true);
+    setError(null);
     try {
-      // Trigger backend to set exempt status
+      // 1. Flush auto-save to ensure DB has latest wizard data
+      if (onFlush) await onFlush();
+      // 2. Trigger backend to set exempt status
       await determine(reportId);
-      // Navigate to certificate or show modal
+      // 3. Navigate to certificate page
       router.push(`/app/reports/${reportId}/certificate`);
-    } catch (error) {
-      console.error("Failed:", error);
+    } catch (err: any) {
+      console.error("Failed:", err);
+      setError(err?.message || "Failed to generate certificate. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -102,6 +114,12 @@ export function DeterminationResultStep({
               Reports must be filed within 30 days of closing.
             </p>
           </div>
+          
+          {error && (
+            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2">
+              {error}
+            </p>
+          )}
           
           <div className="flex justify-center gap-4">
             <Button
@@ -153,6 +171,12 @@ export function DeterminationResultStep({
             You can download an exemption certificate for your records.
           </p>
         </div>
+        
+        {error && (
+          <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2">
+            {error}
+          </p>
+        )}
         
         <div className="flex justify-center gap-4">
           <Button
