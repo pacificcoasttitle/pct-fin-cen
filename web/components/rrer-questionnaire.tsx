@@ -84,6 +84,7 @@ import {
   type Address,
   type EntitySubtype,
   type BoiStatus,
+  type ReportingPersonCategory,
   INDIVIDUAL_EXEMPTIONS,
   ENTITY_EXEMPTIONS,
   TRUST_EXEMPTIONS,
@@ -237,6 +238,7 @@ const initialCollection: Partial<CollectionData> = {
   county: "",
   propertyType: "",
   apn: "",
+  legalDescriptionType: "",
   legalDescription: "",
   purchasePrice: 0,
   sellers: [createEmptySeller()],
@@ -1091,7 +1093,7 @@ export function RRERQuestionnaire({
         : !!(collection.buyerTrust?.trust.legalName && (collection.buyerTrust?.trustees || []).length > 0),
       signingIndividuals: (collection.signingIndividuals || []).length > 0 && (collection.signingIndividuals || []).every(s => s.firstName && s.lastName),
       payment: paymentTotal > 0 && Math.abs(paymentRemaining) < 1,
-      reportingPerson: !!(collection.reportingPerson?.companyName && collection.reportingPerson?.isPCTC !== null),
+      reportingPerson: !!(collection.reportingPerson?.companyName && collection.reportingPerson?.category && collection.reportingPerson?.isPCTC !== null),
       certifications: !!(collection.buyerCertification?.agreed && collection.sellerCertification?.agreed),
     }
   }, [collection, paymentTotal, paymentRemaining])
@@ -2426,14 +2428,30 @@ export function RRERQuestionnaire({
                         )}
                       </div>
 
-                      <div className="grid gap-2">
-                        <Label htmlFor="legalDescription">Legal Description</Label>
-                        <Textarea
-                          id="legalDescription"
-                          value={collection.legalDescription || ""}
-                          onChange={(e) => setCollection(prev => ({ ...prev, legalDescription: e.target.value }))}
-                          rows={3}
-                        />
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="grid gap-2">
+                          <Label htmlFor="legalDescriptionType">Legal Description Type</Label>
+                          <select
+                            id="legalDescriptionType"
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                            value={collection.legalDescriptionType || ""}
+                            onChange={(e) => setCollection(prev => ({ ...prev, legalDescriptionType: e.target.value as CollectionData["legalDescriptionType"] }))}
+                          >
+                            <option value="">Select type…</option>
+                            <option value="metes_and_bounds">Metes and Bounds</option>
+                            <option value="lot_block_subdivision">Lot/Block/Subdivision</option>
+                            <option value="other">Other</option>
+                          </select>
+                        </div>
+                        <div className="grid gap-2 md:col-span-2">
+                          <Label htmlFor="legalDescription">Legal Description</Label>
+                          <Textarea
+                            id="legalDescription"
+                            value={collection.legalDescription || ""}
+                            onChange={(e) => setCollection(prev => ({ ...prev, legalDescription: e.target.value }))}
+                            rows={3}
+                          />
+                        </div>
                       </div>
                     </CardContent>
                   </>
@@ -4432,8 +4450,31 @@ export function RRERQuestionnaire({
                         </ol>
                       </div>
 
+                      <div className="grid gap-2">
+                        <Label>Your Role (Reporting Person Category) *</Label>
+                        <select
+                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                          value={collection.reportingPerson?.category || ""}
+                          onChange={(e) => {
+                            setCollection(prev => ({
+                              ...prev,
+                              reportingPerson: { ...createEmptyReportingPerson(), ...prev.reportingPerson, category: e.target.value as ReportingPersonCategory }
+                            }))
+                          }}
+                        >
+                          <option value="">Select your role…</option>
+                          <option value="closing_settlement_agent">1. Closing/Settlement Agent</option>
+                          <option value="closing_statement_preparer">2. Preparer of Closing Statement (HUD-1/CD)</option>
+                          <option value="deed_filer">3. Person Who Files Deed</option>
+                          <option value="title_insurer">4. Title Insurance Underwriter/Agent</option>
+                          <option value="disbursing_escrow_agent">5. Disbursing Escrow Agent</option>
+                          <option value="title_evaluator">6. Title Evaluator</option>
+                          <option value="deed_preparer">7. Deed Preparer</option>
+                        </select>
+                      </div>
+
                       <div className="p-4 border rounded-lg space-y-4">
-                        <h4 className="font-medium">Closing/Settlement Agent</h4>
+                        <h4 className="font-medium">Reporting Person Details</h4>
                         <div className="grid gap-4 md:grid-cols-2">
                           <div className="grid gap-2">
                             <Label>Company Name *</Label>

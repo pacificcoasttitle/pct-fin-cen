@@ -173,6 +173,7 @@ def build_rerx_xml(
     
     property_address = collection.get("propertyAddress", {})
     legal_description = collection.get("legalDescription", "")
+    legal_description_type = collection.get("legalDescriptionType", "")
     
     if not property_address.get("street"):
         errors.append("Property address is required for AssetsAttribute")
@@ -272,7 +273,7 @@ def build_rerx_xml(
     _add_transmitter_contact_party(activity, contact_name, next_seq)
     
     # H) AssetsAttribute (property)
-    _add_assets_attribute(activity, property_address, legal_description, next_seq, debug_summary)
+    _add_assets_attribute(activity, property_address, legal_description, legal_description_type, next_seq, debug_summary)
     
     # I) ValueTransferActivity (payments + closing)
     _add_value_transfer_activity(activity, payment_sources, purchase_price, 
@@ -323,6 +324,20 @@ def build_rerx_xml(
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+def _map_reporting_person_category(category: str) -> str:
+    """Map frontend category to RERX ReportingPersonTypeCode per 31 CFR 1031.320."""
+    mapping = {
+        "closing_settlement_agent": "1",
+        "closing_statement_preparer": "2",
+        "deed_filer": "3",
+        "title_insurer": "4",
+        "disbursing_escrow_agent": "5",
+        "title_evaluator": "6",
+        "deed_preparer": "7",
+    }
+    return mapping.get(category, "1")  # Default to closing/settlement agent
+
+
 def _add_reporting_person_party(
     activity: Element,
     rp_data: dict,
@@ -338,6 +353,14 @@ def _add_reporting_person_party(
     party = SubElement(activity, "fc2:Party")
     party.set("SeqNum", next_seq())
     SubElement(party, "fc2:ActivityPartyTypeCode").text = "31"
+    
+    # Reporting person category/type code (per cascade priority)
+    category = rp_data.get("category", "")
+    if category:
+        SubElement(party, "fc2:ReportingPersonTypeCode").text = _map_reporting_person_category(category)
+    else:
+        # Default to "1" (closing/settlement agent) — title companies are typically this
+        SubElement(party, "fc2:ReportingPersonTypeCode").text = "1"
     
     # Party name
     party_name = SubElement(party, "fc2:PartyName")
@@ -657,10 +680,21 @@ def _add_transmitter_contact_party(
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+def _map_legal_description_type(desc_type: str) -> str:
+    """Map frontend legal description type to RERX code."""
+    mapping = {
+        "metes_and_bounds": "1",
+        "lot_block_subdivision": "2",
+        "other": "3",
+    }
+    return mapping.get(desc_type, "")
+
+
 def _add_assets_attribute(
     activity: Element,
     property_address: dict,
     legal_description: str,
+    legal_description_type: str,
     next_seq,
     debug: dict,
 ) -> None:
@@ -695,7 +729,13 @@ def _add_assets_attribute(
     country = country_to_iso2(property_address.get("country", "US"))
     SubElement(addr, "fc2:CountryCodeText").text = country
     
-    # Legal description
+    # Legal description type code
+    if legal_description_type:
+        type_code = _map_legal_description_type(legal_description_type)
+        if type_code:
+            SubElement(assets, "fc2:LegalDescriptionTypeCode").text = type_code
+    
+    # Legal description text
     if legal_description:
         SubElement(assets, "fc2:LegalDescriptionText").text = legal_description[:4000]
     

@@ -205,9 +205,21 @@ export interface BuyerTrustData {
 }
 
 // Reporting Person
+// Reporting Person Category per 31 CFR 1031.320 cascade priority
+export type ReportingPersonCategory =
+  | "closing_settlement_agent"   // 1 - Closing or settlement agent
+  | "closing_statement_preparer" // 2 - Preparer of closing statement (HUD-1/CD)
+  | "deed_filer"                 // 3 - Person who files deed
+  | "title_insurer"              // 4 - Title insurance underwriter/agent
+  | "disbursing_escrow_agent"    // 5 - Disbursing escrow agent
+  | "title_evaluator"            // 6 - Title evaluator
+  | "deed_preparer"              // 7 - Deed preparer
+  | ""
+
 export interface ReportingPerson {
   companyName: string
   contactName: string
+  category: ReportingPersonCategory
   licenseNumber?: string
   address: Address
   phone: string
@@ -266,6 +278,7 @@ export interface CollectionData {
   county: string
   propertyType: string
   apn?: string
+  legalDescriptionType?: "metes_and_bounds" | "lot_block_subdivision" | "other" | ""
   legalDescription?: string
   purchasePrice: number
   
@@ -765,6 +778,7 @@ export function createEmptyReportingPerson(): ReportingPerson {
   return {
     companyName: "",
     contactName: "",
+    category: "",
     licenseNumber: "",
     address: createEmptyAddress(),
     phone: "",
