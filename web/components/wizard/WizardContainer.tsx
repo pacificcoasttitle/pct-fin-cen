@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Report, saveWizard } from "@/lib/api";
 import { WizardProgress } from "./WizardProgress";
 import { WizardNavigation } from "./WizardNavigation";
@@ -39,6 +39,8 @@ interface WizardContainerProps {
 
 export function WizardContainer({ report, onUpdate }: WizardContainerProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialStepParam = searchParams.get("step") as StepId | null;
   
   // Local report status — allows us to update it after determine() succeeds
   // without needing to re-fetch the entire report from the server
@@ -52,9 +54,12 @@ export function WizardContainer({ report, onUpdate }: WizardContainerProps) {
     report.wizard_data as Partial<WizardState> | undefined
   );
   
+  // Track current step index for auto-save
+  const currentStepIndexRef = useRef(0);
+  
   // Auto-save callback
   const handleSave = useCallback(async (reportId: string, wizardData: WizardState) => {
-    await saveWizard(reportId, 0, wizardData as unknown as Record<string, unknown>);
+    await saveWizard(reportId, currentStepIndexRef.current, wizardData as unknown as Record<string, unknown>);
   }, []);
 
   // Auto-save on changes
@@ -68,6 +73,7 @@ export function WizardContainer({ report, onUpdate }: WizardContainerProps) {
   // Navigation logic — uses local reportStatus so it updates when determine() succeeds
   const {
     currentStep,
+    currentStepIndex,
     visibleSteps,
     phase,
     determinationResult,
@@ -76,7 +82,12 @@ export function WizardContainer({ report, onUpdate }: WizardContainerProps) {
     goBack,
     goNext,
     goToStep,
-  } = useWizardNavigation(state, reportStatus);
+  } = useWizardNavigation(state, reportStatus, initialStepParam || undefined);
+  
+  // Keep step index ref in sync for auto-save
+  useEffect(() => {
+    currentStepIndexRef.current = currentStepIndex;
+  }, [currentStepIndex]);
   
   // Navigate to pending step once visibleSteps updates to include it
   useEffect(() => {

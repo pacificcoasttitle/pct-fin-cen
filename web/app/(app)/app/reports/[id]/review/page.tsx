@@ -33,7 +33,11 @@ import {
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import Link from "next/link";
+import { toast } from "sonner";
+import { certifyReport, fileReport } from "@/lib/api";
 import { RequestCorrectionsDialog } from "@/components/RequestCorrectionsDialog";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
@@ -554,30 +558,29 @@ export default function ReviewPage() {
   const [data, setData] = useState<ReportPartiesResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [reviewCertified, setReviewCertified] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [filingSuccess, setFilingSuccess] = useState(false);
+  const [filingResult, setFilingResult] = useState<{ status: string; receipt_id?: string; message?: string } | null>(null);
   
-  useEffect(() => {
-    async function fetchParties() {
-      try {
-        const response = await fetch(
-          `${API_BASE_URL}/reports/${reportId}/parties`
-        );
-        if (!response.ok) throw new Error("Failed to fetch party data");
-        const result = await response.json();
-        setData(result);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "An error occurred");
-      } finally {
-        setLoading(false);
-      }
-    }
-    
-    fetchParties();
-  }, [reportId]);
+  // Certification state — maps to backend required checkboxes
+  const [certifications, setCertifications] = useState({
+    reviewed_transaction: false,
+    reviewed_parties: false,
+    reviewed_payment: false,
+    accuracy_confirmed: false,
+  });
+  const [signatureName, setSignatureName] = useState("");
+  const [signatureEmail, setSignatureEmail] = useState("");
   
-  const handleRefresh = async () => {
-    setLoading(true);
-    setError(null);
+  const canSubmit = 
+    certifications.reviewed_transaction && 
+    certifications.reviewed_parties && 
+    certifications.reviewed_payment && 
+    certifications.accuracy_confirmed && 
+    signatureName.trim().length > 0 &&
+    signatureEmail.trim().length > 0;
+  
+  const loadParties = async () => {
     try {
       const response = await fetch(
         `${API_BASE_URL}/reports/${reportId}/parties`
@@ -585,10 +588,49 @@ export default function ReviewPage() {
       if (!response.ok) throw new Error("Failed to fetch party data");
       const result = await response.json();
       setData(result);
+      setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setLoading(false);
+    }
+  };
+  
+  useEffect(() => {
+    loadParties();
+  }, [reportId]);
+  
+  const handleRefresh = async () => {
+    setLoading(true);
+    setError(null);
+    await loadParties();
+  };
+  
+  const handleSubmitFiling = async () => {
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      // Step 1: Certify the report
+      await certifyReport(reportId, {
+        certified_by_name: signatureName.trim(),
+        certified_by_email: signatureEmail.trim(),
+        certification_checkboxes: certifications,
+      });
+      
+      // Step 2: File the report
+      const result = await fileReport(reportId);
+      
+      setFilingResult({
+        status: result.status,
+        receipt_id: result.receipt_id,
+        message: result.message,
+      });
+      setFilingSuccess(true);
+    } catch (err: any) {
+      console.error("Filing failed:", err);
+      setError(err?.message || "Failed to submit filing. Please try again.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
   
@@ -764,80 +806,183 @@ export default function ReviewPage() {
         </div>
       )}
       
-      {/* Staff Certification */}
-      {data.parties.length > 0 && (
+      {/* Filing Success */}
+      {filingSuccess && filingResult && (
+        <Card className="mb-8 border-green-200 bg-green-50">
+          <CardContent className="pt-6">
+            <div className="text-center py-4">
+              <CheckCircle2 className="h-12 w-12 text-green-600 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-green-900 mb-2">Filing Submitted Successfully</h3>
+              <p className="text-green-700 mb-2">{filingResult.message}</p>
+              {filingResult.receipt_id && (
+                <p className="text-sm font-mono text-green-800 bg-green-100 inline-block px-3 py-1 rounded">
+                  BSA ID: {filingResult.receipt_id}
+                </p>
+              )}
+              <div className="mt-6">
+                <Button onClick={() => router.push("/app/requests")}>
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Return to Requests
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Per-party corrections — only show for submitted parties */}
+      {!filingSuccess && data.parties.filter(p => p.status === "submitted").length > 0 && (
+        <div className="mb-8 flex gap-2 flex-wrap">
+          {data.parties
+            .filter(p => p.status === "submitted")
+            .map(p => (
+              <RequestCorrectionsDialog
+                key={p.id}
+                partyId={p.id}
+                partyName={p.display_name || "Party"}
+                onSuccess={() => handleRefresh()}
+              />
+            ))}
+        </div>
+      )}
+
+      {/* Certification & Signature */}
+      {!filingSuccess && data.parties.length > 0 && (
         <Card className="mb-8 border-primary/20">
           <CardHeader>
-            <CardTitle className="text-lg">Staff Review Certification</CardTitle>
+            <CardTitle className="text-lg">Certification & Electronic Signature</CardTitle>
             <CardDescription>
-              Confirm you have reviewed all party submissions before proceeding to file.
+              Review and certify all information before submitting to FinCEN. All checkboxes and signature are required.
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="flex items-start gap-3">
-              <Checkbox
-                id="review-cert"
-                checked={reviewCertified}
-                onCheckedChange={(checked) => setReviewCertified(checked as boolean)}
-                disabled={!data.summary.all_complete}
-              />
-              <label 
-                htmlFor="review-cert" 
-                className={cn(
-                  "text-sm leading-relaxed cursor-pointer",
-                  !data.summary.all_complete && "text-muted-foreground"
-                )}
-              >
-                I have reviewed all party submissions and confirm the information appears 
-                complete and accurate to the best of my knowledge. I understand that any 
-                errors or omissions may result in filing rejection or penalties.
+          <CardContent className="space-y-5">
+            {!data.summary.all_complete && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-2 text-amber-700">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                <span className="text-sm">All parties must submit before you can certify and file.</span>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <Checkbox
+                  checked={certifications.reviewed_transaction}
+                  onCheckedChange={(c) => setCertifications(prev => ({ ...prev, reviewed_transaction: !!c }))}
+                  disabled={!data.summary.all_complete}
+                />
+                <span className={cn("text-sm leading-relaxed", !data.summary.all_complete && "text-muted-foreground")}>
+                  I have reviewed all transaction details including property address, purchase price, and closing date, and confirm they are accurate.
+                </span>
+              </label>
+              
+              <label className="flex items-start gap-3 cursor-pointer">
+                <Checkbox
+                  checked={certifications.reviewed_parties}
+                  onCheckedChange={(c) => setCertifications(prev => ({ ...prev, reviewed_parties: !!c }))}
+                  disabled={!data.summary.all_complete}
+                />
+                <span className={cn("text-sm leading-relaxed", !data.summary.all_complete && "text-muted-foreground")}>
+                  I have reviewed all party submissions (buyers, sellers, and beneficial owners) and confirm the information appears complete.
+                </span>
+              </label>
+              
+              <label className="flex items-start gap-3 cursor-pointer">
+                <Checkbox
+                  checked={certifications.reviewed_payment}
+                  onCheckedChange={(c) => setCertifications(prev => ({ ...prev, reviewed_payment: !!c }))}
+                  disabled={!data.summary.all_complete}
+                />
+                <span className={cn("text-sm leading-relaxed", !data.summary.all_complete && "text-muted-foreground")}>
+                  I have reviewed all payment source information and confirm it is consistent with the transaction records.
+                </span>
+              </label>
+              
+              <label className="flex items-start gap-3 cursor-pointer">
+                <Checkbox
+                  checked={certifications.accuracy_confirmed}
+                  onCheckedChange={(c) => setCertifications(prev => ({ ...prev, accuracy_confirmed: !!c }))}
+                  disabled={!data.summary.all_complete}
+                />
+                <span className={cn("text-sm leading-relaxed", !data.summary.all_complete && "text-muted-foreground")}>
+                  I understand this filing will be submitted to FinCEN and cannot be altered after submission. I am authorized to submit this filing on behalf of my organization.
+                </span>
               </label>
             </div>
-            {!data.summary.all_complete && (
-              <p className="text-sm text-amber-600 mt-3 flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4" />
-                All parties must submit before you can certify and proceed.
-              </p>
+            
+            {/* Electronic Signature */}
+            <div className="pt-4 border-t space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="signature-name" className="text-sm font-medium">
+                  Electronic Signature — Type Your Full Name
+                </Label>
+                <Input
+                  id="signature-name"
+                  value={signatureName}
+                  onChange={(e) => setSignatureName(e.target.value)}
+                  placeholder="e.g., Jennifer Walsh"
+                  className="font-serif text-lg italic"
+                  disabled={!data.summary.all_complete}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="signature-email" className="text-sm font-medium">
+                  Your Email Address
+                </Label>
+                <Input
+                  id="signature-email"
+                  type="email"
+                  value={signatureEmail}
+                  onChange={(e) => setSignatureEmail(e.target.value)}
+                  placeholder="e.g., jennifer@company.com"
+                  disabled={!data.summary.all_complete}
+                />
+              </div>
+              {signatureName && (
+                <p className="text-xs text-muted-foreground">
+                  Signing electronically on {new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
+                </p>
+              )}
+            </div>
+
+            {/* Error display */}
+            {error && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                <span className="text-sm">{error}</span>
+              </div>
             )}
           </CardContent>
         </Card>
       )}
       
       {/* Action Buttons */}
-      <div className="flex justify-between">
-        <Button variant="outline" onClick={() => router.back()}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Wizard
-        </Button>
-        
-        <div className="flex gap-3">
-          {/* Per-party corrections — only show for submitted parties */}
-          {data.parties.filter(p => p.status === "submitted").length > 0 && (
-            <div className="flex gap-2 flex-wrap">
-              {data.parties
-                .filter(p => p.status === "submitted")
-                .map(p => (
-                  <RequestCorrectionsDialog
-                    key={p.id}
-                    partyId={p.id}
-                    partyName={p.display_name || "Party"}
-                    onSuccess={() => fetchData()}
-                  />
-                ))}
-            </div>
-          )}
+      {!filingSuccess && (
+        <div className="flex justify-between items-center">
+          <Button variant="outline" onClick={() => router.push("/app/requests")}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Requests
+          </Button>
           
-          <Button 
-            disabled={!data.summary.all_complete || !reviewCertified}
-            asChild
+          <Button
+            size="lg"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground px-8"
+            disabled={!canSubmit || !data?.summary.all_complete || isSubmitting}
+            onClick={handleSubmitFiling}
           >
-            <Link href={`/app/reports/${reportId}/wizard`}>
-              <FileText className="h-4 w-4 mr-2" />
-              Proceed to File
-            </Link>
+            {isSubmitting ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Submitting to FinCEN...
+              </>
+            ) : (
+              <>
+                <Send className="h-4 w-4 mr-2" />
+                Submit Filing to FinCEN
+              </>
+            )}
           </Button>
         </div>
-      </div>
+      )}
     </div>
   );
 }

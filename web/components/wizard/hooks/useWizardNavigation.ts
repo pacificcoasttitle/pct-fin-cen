@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import type { WizardState, StepId, DeterminationState, DeterminationResult } from "../types";
 
 // ============================================================
@@ -7,8 +7,13 @@ import type { WizardState, StepId, DeterminationState, DeterminationResult } fro
 // based on determination answers (FinCEN decision tree)
 // ============================================================
 
-export function useWizardNavigation(state: WizardState, reportStatus: string) {
+export function useWizardNavigation(
+  state: WizardState,
+  reportStatus: string,
+  initialStep?: StepId,
+) {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const initialStepApplied = useRef(false);
 
   // Compute the determination result
   const determinationResult = useMemo((): DeterminationResult | null => {
@@ -142,6 +147,17 @@ export function useWizardNavigation(state: WizardState, reportStatus: string) {
 
     return steps;
   }, [state.determination, state.collection, reportStatus]);
+
+  // Apply initial step once on mount (for ?step= deep linking)
+  useEffect(() => {
+    if (!initialStepApplied.current && initialStep && visibleSteps.length > 0) {
+      const idx = visibleSteps.indexOf(initialStep);
+      if (idx !== -1) {
+        setCurrentStepIndex(idx);
+      }
+      initialStepApplied.current = true;
+    }
+  }, [initialStep, visibleSteps]);
 
   // Current step
   const currentStep = visibleSteps[currentStepIndex] || visibleSteps[0];

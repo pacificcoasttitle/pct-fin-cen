@@ -1,19 +1,22 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Plus,
   FileText,
   Clock,
   CheckCircle,
+  CheckCircle2,
   AlertCircle,
   ArrowRight,
   Bell,
   Shield,
   RefreshCw,
+  Users,
 } from "lucide-react";
 import { useDemo } from "@/hooks/use-demo";
 import {
@@ -24,6 +27,7 @@ import {
 } from "@/lib/api";
 
 export default function DashboardPage() {
+  const router = useRouter();
   const { user } = useDemo();
   const [stats, setStats] = useState<SubmissionStats | null>(null);
   const [recentReports, setRecentReports] = useState<ReportWithParties[]>([]);
@@ -149,7 +153,7 @@ export default function DashboardPage() {
           >
             <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
           </Button>
-          <Button asChild className="bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700">
+          <Button asChild size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground px-6">
             <Link href="/app/reports/new">
               <Plus className="w-4 h-4 mr-2" />
               New Request
@@ -186,68 +190,91 @@ export default function DashboardPage() {
       {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Link href="/app/requests">
-          <Card className="hover:shadow-md transition cursor-pointer h-full">
-            <CardContent className="p-4 text-center">
-              <p className="text-3xl font-bold text-gray-900">
-                {(stats?.pending ?? 0) + (stats?.in_progress ?? 0)}
-              </p>
-              <p className="text-sm text-gray-500 mt-1">Active</p>
+          <Card className="hover:shadow-md transition cursor-pointer h-full border-l-4 border-l-blue-500">
+            <CardHeader className="flex flex-row items-center justify-between pb-2 px-4 pt-4">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Active</CardTitle>
+              <Clock className="h-5 w-5 text-blue-500" />
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              <p className="text-3xl font-bold">{(stats?.pending ?? 0) + (stats?.in_progress ?? 0)}</p>
+              <p className="text-xs text-muted-foreground mt-1">Pending review</p>
             </CardContent>
           </Card>
         </Link>
         <Link href="/app/requests">
-          <Card className="hover:shadow-md transition cursor-pointer border-amber-200 h-full">
-            <CardContent className="p-4 text-center">
-              <p className="text-3xl font-bold text-amber-600">{stats?.in_progress ?? 0}</p>
-              <p className="text-sm text-gray-500 mt-1">Awaiting Parties</p>
+          <Card className="hover:shadow-md transition cursor-pointer h-full border-l-4 border-l-amber-500">
+            <CardHeader className="flex flex-row items-center justify-between pb-2 px-4 pt-4">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Awaiting Parties</CardTitle>
+              <Users className="h-5 w-5 text-amber-500" />
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              <p className="text-3xl font-bold">{stats?.in_progress ?? 0}</p>
+              <p className="text-xs text-muted-foreground mt-1">Collecting party data</p>
             </CardContent>
           </Card>
         </Link>
         <Link href="/app/requests">
-          <Card className="hover:shadow-md transition cursor-pointer border-green-200 h-full">
-            <CardContent className="p-4 text-center">
-              <p className="text-3xl font-bold text-green-600">{stats?.completed ?? 0}</p>
-              <p className="text-sm text-gray-500 mt-1">Filed</p>
+          <Card className="hover:shadow-md transition cursor-pointer h-full border-l-4 border-l-green-500">
+            <CardHeader className="flex flex-row items-center justify-between pb-2 px-4 pt-4">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Filed</CardTitle>
+              <CheckCircle2 className="h-5 w-5 text-green-500" />
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              <p className="text-3xl font-bold">{stats?.completed ?? 0}</p>
+              <p className="text-xs text-muted-foreground mt-1">Submitted to FinCEN</p>
             </CardContent>
           </Card>
         </Link>
-        <Card className="border-purple-200">
-          <CardContent className="p-4 text-center">
-            <p className="text-3xl font-bold text-purple-600">{stats?.exempt ?? 0}</p>
-            <p className="text-sm text-gray-500 mt-1">Exempt</p>
-          </CardContent>
-        </Card>
+        <Link href="/app/requests">
+          <Card className="hover:shadow-md transition cursor-pointer h-full border-l-4 border-l-purple-500">
+            <CardHeader className="flex flex-row items-center justify-between pb-2 px-4 pt-4">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Exempt</CardTitle>
+              <Shield className="h-5 w-5 text-purple-500" />
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              <p className="text-3xl font-bold">{stats?.exempt ?? 0}</p>
+              <p className="text-xs text-muted-foreground mt-1">No filing required</p>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
 
       {/* Recent Activity */}
       <div>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-gray-900">Recent Activity</h2>
-          <Link href="/app/requests" className="text-sm text-teal-600 hover:text-teal-700">
+          <Link href="/app/requests" className="text-sm text-primary hover:text-primary/80">
             View all →
           </Link>
         </div>
 
         {recentReports.length > 0 ? (
           <div className="space-y-2">
-            {recentReports.map((report) => (
-              <Link
-                key={report.id}
-                href={`/app/reports/${report.id}/wizard`}
-                className="flex items-center justify-between p-4 bg-white border rounded-xl hover:border-teal-300 hover:shadow-sm transition"
-              >
-                <div className="flex items-center gap-3">
-                  {getStatusIcon(report.status)}
-                  <div>
-                    <p className="font-medium text-gray-900">
-                      {report.property_address_text || "No address"}
-                    </p>
-                    <p className="text-sm text-gray-500">{formatStatus(report)}</p>
+            {recentReports.map((report) => {
+              const getReportHref = () => {
+                if (report.status === "ready_to_file" || report.status === "filed") return `/app/reports/${report.id}/review`;
+                if (report.status === "exempt") return `/app/reports/${report.id}/certificate`;
+                return `/app/reports/${report.id}/wizard`;
+              };
+              return (
+                <div
+                  key={report.id}
+                  onClick={() => router.push(getReportHref())}
+                  className="flex items-center justify-between p-4 bg-white border rounded-xl hover:border-primary/30 hover:shadow-sm transition cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    {getStatusIcon(report.status)}
+                    <div>
+                      <p className="font-medium text-gray-900">
+                        {report.property_address_text || (report.status === "draft" ? "New report" : "Address not entered")}
+                      </p>
+                      <p className="text-sm text-gray-500">{formatStatus(report)}</p>
+                    </div>
                   </div>
+                  <ArrowRight className="w-4 h-4 text-gray-400" />
                 </div>
-                <ArrowRight className="w-4 h-4 text-gray-400" />
-              </Link>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <Card>

@@ -55,9 +55,15 @@ export default function WizardPage() {
     );
   }
   
-  // If report is already filed, redirect
+  // If report is already filed, redirect to review
   if (report.status === "filed") {
-    router.push(`/app/reports/${reportId}`);
+    router.push(`/app/reports/${reportId}/review`);
+    return null;
+  }
+  
+  // If report is exempt, redirect to certificate
+  if (report.status === "exempt") {
+    router.push(`/app/reports/${reportId}/certificate`);
     return null;
   }
   

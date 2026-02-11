@@ -629,6 +629,27 @@ def update_wizard(
     report.wizard_data = existing_data
     report.updated_at = datetime.utcnow()
     
+    # Sync top-level fields from wizard_data for display/search
+    collection = existing_data.get("collection", {})
+    prop_addr = collection.get("propertyAddress", {})
+    
+    if prop_addr.get("street"):
+        parts = [prop_addr.get("street", "")]
+        if prop_addr.get("unit"):
+            parts.append(prop_addr["unit"])
+        parts.append(f"{prop_addr.get('city', '')}, {prop_addr.get('state', '')} {prop_addr.get('zip', '')}")
+        report.property_address_text = ", ".join(p for p in parts if p.strip())
+    
+    if collection.get("closingDate"):
+        try:
+            from datetime import datetime as dt
+            report.closing_date = dt.strptime(collection["closingDate"], "%Y-%m-%d").date()
+        except (ValueError, TypeError):
+            pass
+    
+    if collection.get("escrowNumber"):
+        report.escrow_number = collection["escrowNumber"]
+    
     db.commit()
     db.refresh(report)
     

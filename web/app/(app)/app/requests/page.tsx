@@ -29,6 +29,9 @@ import {
   Loader2,
   Search,
   ArrowRight,
+  ChevronUp,
+  ChevronDown,
+  ChevronsUpDown,
 } from "lucide-react";
 import {
   getReportsWithParties,
@@ -90,7 +93,7 @@ const TAB_CONFIG: { key: TabKey; label: string; statuses: string[]; icon: React.
   {
     key: "active",
     label: "Active",
-    statuses: ["collecting", "determination_complete"],
+    statuses: ["collecting", "determination_complete", "awaiting_parties"],
     icon: <Clock className="h-4 w-4" />,
     emptyMessage: "No active requests — start a new request to begin.",
   },
@@ -138,7 +141,7 @@ export default function UnifiedRequestsPage() {
     try {
       setLoading(true);
       const data = await getReportsWithParties({
-        statuses: "draft,determination_complete,collecting,ready_to_file,filed,exempt",
+        statuses: "draft,determination_complete,collecting,awaiting_parties,ready_to_file,filed,exempt",
         limit: 100,
       });
       setReports(data.reports || []);
@@ -194,7 +197,7 @@ export default function UnifiedRequestsPage() {
   const getActionButton = (report: ReportWithParties) => {
     const { status, party_summary, id } = report;
 
-    if (status === "draft" || status === "determination_complete") {
+    if (status === "draft") {
       return (
         <Button
           variant="default"
@@ -205,7 +208,18 @@ export default function UnifiedRequestsPage() {
         </Button>
       );
     }
-    if (status === "collecting") {
+    if (status === "determination_complete") {
+      return (
+        <Button
+          variant="default"
+          size="sm"
+          onClick={(e) => { e.stopPropagation(); router.push(`/app/reports/${id}/wizard?step=party-setup`); }}
+        >
+          <Play className="mr-1 h-3 w-3" /> Continue
+        </Button>
+      );
+    }
+    if (status === "collecting" || status === "awaiting_parties") {
       if (!party_summary || party_summary.total === 0) {
         return (
           <Button
@@ -221,7 +235,7 @@ export default function UnifiedRequestsPage() {
         <Button
           variant="outline"
           size="sm"
-          onClick={(e) => { e.stopPropagation(); router.push(`/app/reports/${id}/wizard?step=monitor-progress`); }}
+          onClick={(e) => { e.stopPropagation(); router.push(`/app/reports/${id}/wizard?step=party-status`); }}
         >
           <Eye className="mr-1 h-3 w-3" /> Track
         </Button>
@@ -232,9 +246,9 @@ export default function UnifiedRequestsPage() {
         <Button
           variant="default"
           size="sm"
-          onClick={(e) => { e.stopPropagation(); router.push(`/app/reports/${id}/wizard?step=file-report`); }}
+          onClick={(e) => { e.stopPropagation(); router.push(`/app/reports/${id}/review`); }}
         >
-          <Send className="mr-1 h-3 w-3" /> File Now
+          <Send className="mr-1 h-3 w-3" /> Review & File
         </Button>
       );
     }
@@ -243,9 +257,9 @@ export default function UnifiedRequestsPage() {
         <Button
           variant="outline"
           size="sm"
-          onClick={(e) => { e.stopPropagation(); router.push(`/app/reports/${id}/wizard`); }}
+          onClick={(e) => { e.stopPropagation(); router.push(`/app/reports/${id}/review`); }}
         >
-          <CheckCircle className="mr-1 h-3 w-3" /> View
+          <CheckCircle className="mr-1 h-3 w-3" /> View Filing
         </Button>
       );
     }
@@ -254,7 +268,7 @@ export default function UnifiedRequestsPage() {
         <Button
           variant="outline"
           size="sm"
-          onClick={(e) => { e.stopPropagation(); router.push(`/app/reports/${id}/wizard`); }}
+          onClick={(e) => { e.stopPropagation(); router.push(`/app/reports/${id}/certificate`); }}
         >
           <Shield className="mr-1 h-3 w-3" /> View Certificate
         </Button>
@@ -295,7 +309,8 @@ export default function UnifiedRequestsPage() {
           </Button>
           <Button
             asChild
-            className="bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700"
+            size="lg"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground px-6"
           >
             <Link href="/app/reports/new">
               <Plus className="w-4 h-4 mr-2" />
@@ -353,7 +368,8 @@ export default function UnifiedRequestsPage() {
             </p>
             <Button
               asChild
-              className="bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700"
+              size="lg"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground px-6"
             >
               <Link href="/app/reports/new">
                 <PlusCircle className="h-4 w-4 mr-2" />
@@ -417,6 +433,73 @@ function RequestTable({
   getActionButton: (r: ReportWithParties) => React.ReactNode;
   router: ReturnType<typeof useRouter>;
 }) {
+  const [sortField, setSortField] = useState<string>("created_at");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+  };
+
+  const sortedReports = useMemo(() => {
+    if (!reports) return [];
+    return [...reports].sort((a, b) => {
+      let aVal: any, bVal: any;
+
+      switch (sortField) {
+        case "address":
+          aVal = a.property_address_text || "";
+          bVal = b.property_address_text || "";
+          break;
+        case "status":
+          aVal = a.status || "";
+          bVal = b.status || "";
+          break;
+        case "created_at":
+          aVal = a.created_at || "";
+          bVal = b.created_at || "";
+          break;
+        case "filing_status":
+          aVal = a.filing_status || a.receipt_id || "";
+          bVal = b.filing_status || b.receipt_id || "";
+          break;
+        default:
+          aVal = "";
+          bVal = "";
+      }
+
+      if (typeof aVal === "string") {
+        const cmp = aVal.localeCompare(bVal);
+        return sortDirection === "asc" ? cmp : -cmp;
+      }
+      return sortDirection === "asc" ? aVal - bVal : bVal - aVal;
+    });
+  }, [reports, sortField, sortDirection]);
+
+  const SortHeader = ({ field, label }: { field: string; label: string }) => (
+    <th
+      className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer hover:text-foreground select-none"
+      onClick={() => handleSort(field)}
+    >
+      <div className="flex items-center gap-1">
+        {label}
+        {sortField === field ? (
+          sortDirection === "asc" ? (
+            <ChevronUp className="h-3.5 w-3.5" />
+          ) : (
+            <ChevronDown className="h-3.5 w-3.5" />
+          )
+        ) : (
+          <ChevronsUpDown className="h-3.5 w-3.5 opacity-30" />
+        )}
+      </div>
+    </th>
+  );
+
   if (reports.length === 0) {
     return (
       <Card>
@@ -434,24 +517,32 @@ function RequestTable({
         <table className="w-full">
           <thead className="border-b bg-gray-50/80">
             <tr>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Property</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Status</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Parties</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Filing</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Created</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Actions</th>
+              <SortHeader field="address" label="Property" />
+              <SortHeader field="status" label="Status" />
+              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Parties</th>
+              <SortHeader field="filing_status" label="Filing" />
+              <SortHeader field="created_at" label="Created" />
+              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y">
-            {reports.map((report) => (
+            {sortedReports.map((report) => (
               <tr
                 key={report.id}
                 className="hover:bg-gray-50/60 cursor-pointer transition"
-                onClick={() => router.push(`/app/reports/${report.id}/wizard`)}
+                onClick={() => {
+                  if (report.status === "ready_to_file" || report.status === "filed") {
+                    router.push(`/app/reports/${report.id}/review`);
+                  } else if (report.status === "exempt") {
+                    router.push(`/app/reports/${report.id}/certificate`);
+                  } else {
+                    router.push(`/app/reports/${report.id}/wizard`);
+                  }
+                }}
               >
                 <td className="px-4 py-3">
                   <div className="max-w-xs truncate text-sm font-medium text-gray-900">
-                    {report.property_address_text || "Address pending"}
+                    {report.property_address_text || (report.status === "draft" ? "New report" : "Address not entered")}
                   </div>
                   {report.escrow_number && (
                     <div className="text-xs text-gray-500">#{report.escrow_number}</div>
