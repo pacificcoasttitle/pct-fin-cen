@@ -61,5 +61,10 @@ export {
   DeterminationResultStep,
 } from "./determination";
 
-// Collection steps (Day 3)
-// export * from "./collection";
+// Collection Steps
+export {
+  PartySetupStep,
+  PartyStatusStep,
+  ReportingPersonStep,
+  ReviewAndFileStep,
+} from "./collection";
