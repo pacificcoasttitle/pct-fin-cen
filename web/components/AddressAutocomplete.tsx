@@ -37,7 +37,7 @@ export function AddressAutocomplete({
   className = "",
   inputClassName = "",
   countries = ["us"],
-  propertyEndpoint = "/property/lookup",
+  propertyEndpoint = "/api/property/lookup",
   showPropertyCard = false,
   label,
   required = false,

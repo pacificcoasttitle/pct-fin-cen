@@ -174,7 +174,7 @@ class ReportDetailResponse(BaseModel):
 
 class WizardUpdate(BaseModel):
     """Schema for wizard autosave."""
-    wizard_step: int = Field(..., ge=1, le=10)
+    wizard_step: int = Field(..., ge=0, le=10)
     wizard_data: Dict[str, Any]
 
 
