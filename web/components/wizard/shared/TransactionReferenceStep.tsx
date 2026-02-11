@@ -17,6 +17,29 @@ import { AddressAutocomplete } from "@/components/AddressAutocomplete";
 import { LEGAL_DESCRIPTION_TYPE_OPTIONS } from "../constants";
 import type { LegalDescriptionType } from "../types";
 
+// Auto-detect legal description type from SiteX property data
+function detectLegalDescriptionType(
+  propertyData: any,
+): LegalDescriptionType {
+  // If lot/subdivision data exists → Lot/Block/Subdivision
+  if (propertyData?.lot_number || propertyData?.subdivision_name) {
+    return "lot_block_subdivision";
+  }
+
+  // If description contains metes and bounds indicators
+  const desc = (propertyData?.legal_description || "").toLowerCase();
+  if (
+    desc.includes("beginning at") ||
+    desc.includes("thence") ||
+    desc.includes("metes and bounds")
+  ) {
+    return "metes_and_bounds";
+  }
+
+  // Default to other
+  return "other";
+}
+
 // US States for manual entry
 const US_STATES = [
   { value: "AL", label: "Alabama" },
@@ -115,7 +138,7 @@ export function TransactionReferenceStep({
     selectedAddress: { street: string; city: string; state: string; zip: string; county?: string },
     propertyData?: any,
   ) => {
-    onChange({
+    const updates: Partial<TransactionReferenceData> = {
       propertyAddress: {
         street: selectedAddress.street,
         city: selectedAddress.city,
@@ -124,8 +147,16 @@ export function TransactionReferenceStep({
         county: selectedAddress.county || propertyData?.county || "",
       },
       apn: propertyData?.apn || value.apn,
-      siteXData: propertyData,
-    });
+      siteXData: propertyData || null,
+    };
+
+    // Auto-fill legal description from SiteX if available
+    if (propertyData?.legal_description) {
+      updates.legalDescription = propertyData.legal_description;
+      updates.legalDescriptionType = detectLegalDescriptionType(propertyData);
+    }
+
+    onChange(updates);
   };
 
   const handleAddressChange = (field: string, fieldValue: string) => {
@@ -157,12 +188,47 @@ export function TransactionReferenceStep({
           </div>
 
           {!showManualAddress ? (
-            <AddressAutocomplete
-              onSelect={handleAddressSelect}
-              fetchPropertyData={true}
-              showPropertyCard={true}
-              placeholder="Start typing property address..."
-            />
+            <>
+              <AddressAutocomplete
+                onSelect={handleAddressSelect}
+                fetchPropertyData={true}
+                showPropertyCard={true}
+                placeholder="Start typing property address..."
+                defaultValue={
+                  address.street
+                    ? `${address.street}, ${address.city}, ${address.state} ${address.zip}`
+                    : ""
+                }
+              />
+
+              {/* Parsed address verification */}
+              {address.street && (
+                <div className="grid grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg mt-3">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Street</Label>
+                    <p className="text-sm">{address.street}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">City</Label>
+                    <p className="text-sm">{address.city}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">State</Label>
+                    <p className="text-sm">{address.state}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">ZIP</Label>
+                    <p className="text-sm">{address.zip}</p>
+                  </div>
+                  {address.county && (
+                    <div>
+                      <Label className="text-xs text-muted-foreground">County</Label>
+                      <p className="text-sm">{address.county}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
           ) : (
             <div className="grid gap-4">
               <div className="grid grid-cols-3 gap-4">
@@ -309,7 +375,12 @@ export function TransactionReferenceStep({
 
           <div className="space-y-3">
             <div>
-              <Label htmlFor="txn-legalDescriptionType">Description Type *</Label>
+              <div className="flex items-center gap-2 mb-1">
+                <Label htmlFor="txn-legalDescriptionType">Description Type *</Label>
+                {value.siteXData?.legal_description && value.legalDescriptionType && (
+                  <Badge variant="secondary" className="text-xs">Auto-detected</Badge>
+                )}
+              </div>
               <Select
                 value={value.legalDescriptionType || undefined}
                 onValueChange={(v) => onChange({ legalDescriptionType: v as LegalDescriptionType })}
@@ -331,7 +402,12 @@ export function TransactionReferenceStep({
             </div>
 
             <div>
-              <Label htmlFor="txn-legalDescription">Legal Description *</Label>
+              <div className="flex items-center gap-2 mb-1">
+                <Label htmlFor="txn-legalDescription">Legal Description *</Label>
+                {value.siteXData?.legal_description && value.legalDescription && (
+                  <Badge variant="secondary" className="text-xs">From title plant</Badge>
+                )}
+              </div>
               <Textarea
                 id="txn-legalDescription"
                 value={value.legalDescription || ""}
