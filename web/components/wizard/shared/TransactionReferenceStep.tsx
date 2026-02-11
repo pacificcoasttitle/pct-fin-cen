@@ -171,11 +171,11 @@ export function TransactionReferenceStep({
   return (
     <StepCard
       title="Transaction Reference"
-      description="Enter the property and transaction details. This information will appear on the exemption certificate or FinCEN report."
+      description="Enter the property and transaction details for the exemption certificate or FinCEN report."
     >
       <div className="space-y-6">
-        {/* Property Address */}
-        <div className="space-y-4">
+        {/* ===== SECTION 1: Property Address (full width) ===== */}
+        <div className="space-y-3">
           <div className="flex items-center justify-between">
             <Label className="text-base font-medium">Property Address *</Label>
             <button
@@ -188,183 +188,165 @@ export function TransactionReferenceStep({
           </div>
 
           {!showManualAddress ? (
-            <>
-              <AddressAutocomplete
-                onSelect={handleAddressSelect}
-                fetchPropertyData={true}
-                showPropertyCard={true}
-                placeholder="Start typing property address..."
-                defaultValue={
-                  address.street
-                    ? `${address.street}, ${address.city}, ${address.state} ${address.zip}`
-                    : ""
-                }
-              />
-
-              {/* Parsed address verification */}
-              {address.street && (
-                <div className="grid grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg mt-3">
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Street</Label>
-                    <p className="text-sm">{address.street}</p>
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground">City</Label>
-                    <p className="text-sm">{address.city}</p>
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground">State</Label>
-                    <p className="text-sm">{address.state}</p>
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground">ZIP</Label>
-                    <p className="text-sm">{address.zip}</p>
-                  </div>
-                  {address.county && (
-                    <div>
-                      <Label className="text-xs text-muted-foreground">County</Label>
-                      <p className="text-sm">{address.county}</p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </>
+            <AddressAutocomplete
+              onSelect={handleAddressSelect}
+              fetchPropertyData={true}
+              showPropertyCard={true}
+              placeholder="Start typing property address..."
+              defaultValue={
+                address.street
+                  ? `${address.street}, ${address.city}, ${address.state} ${address.zip}`
+                  : ""
+              }
+            />
           ) : (
             <div className="grid gap-4">
-              <div className="grid grid-cols-3 gap-4">
-                <div className="col-span-2">
-                  <Label htmlFor="txn-street">Street Address</Label>
+              <div className="grid grid-cols-4 gap-4">
+                <div className="col-span-3">
+                  <Label htmlFor="street">Street Address</Label>
                   <Input
-                    id="txn-street"
+                    id="street"
                     value={address.street}
                     onChange={(e) => handleAddressChange("street", e.target.value)}
                     placeholder="123 Main St"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="txn-unit">Unit</Label>
+                  <Label htmlFor="unit">Unit</Label>
                   <Input
-                    id="txn-unit"
+                    id="unit"
                     value={address.unit || ""}
                     onChange={(e) => handleAddressChange("unit", e.target.value)}
                     placeholder="Apt 4B"
                   />
                 </div>
               </div>
-
-              <div className="grid grid-cols-6 gap-4">
-                <div className="col-span-2">
-                  <Label htmlFor="txn-city">City</Label>
+              
+              <div className="grid grid-cols-4 gap-4">
+                <div>
+                  <Label htmlFor="city">City</Label>
                   <Input
-                    id="txn-city"
+                    id="city"
                     value={address.city}
                     onChange={(e) => handleAddressChange("city", e.target.value)}
                   />
                 </div>
-                <div className="col-span-2">
-                  <Label htmlFor="txn-state">State</Label>
+                <div>
+                  <Label htmlFor="state">State</Label>
                   <Select
                     value={address.state}
                     onValueChange={(v) => handleAddressChange("state", v)}
                   >
-                    <SelectTrigger id="txn-state">
+                    <SelectTrigger id="state">
                       <SelectValue placeholder="Select" />
                     </SelectTrigger>
                     <SelectContent>
-                      {US_STATES.map((st) => (
-                        <SelectItem key={st.value} value={st.value}>
-                          {st.label}
+                      {US_STATES.map((state) => (
+                        <SelectItem key={state.value} value={state.value}>
+                          {state.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="col-span-2">
-                  <Label htmlFor="txn-zip">ZIP Code</Label>
+                <div>
+                  <Label htmlFor="zip">ZIP Code</Label>
                   <Input
-                    id="txn-zip"
+                    id="zip"
                     value={address.zip}
                     onChange={(e) => handleAddressChange("zip", e.target.value)}
                     placeholder="90210"
                   />
                 </div>
-              </div>
-
-              <div>
-                <Label htmlFor="txn-county">County</Label>
-                <Input
-                  id="txn-county"
-                  value={address.county || ""}
-                  onChange={(e) => handleAddressChange("county", e.target.value)}
-                  placeholder="Los Angeles"
-                />
+                <div>
+                  <Label htmlFor="county">County</Label>
+                  <Input
+                    id="county"
+                    value={address.county || ""}
+                    onChange={(e) => handleAddressChange("county", e.target.value)}
+                    placeholder="Los Angeles"
+                  />
+                </div>
               </div>
             </div>
           )}
 
-          {/* Auto-filled APN from SiteX */}
-          {value.apn && (
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary" className="text-xs">
-                APN: {value.apn}
-              </Badge>
+          {/* Auto-filled badges */}
+          {(value.apn || value.siteXData?.county) && (
+            <div className="flex items-center gap-3 flex-wrap">
+              {value.apn && (
+                <Badge variant="secondary" className="text-xs">
+                  APN: {value.apn}
+                </Badge>
+              )}
+              {value.siteXData?.county && (
+                <Badge variant="secondary" className="text-xs">
+                  County: {value.siteXData.county}
+                </Badge>
+              )}
               <span className="text-xs text-muted-foreground">Auto-filled from title plant</span>
             </div>
           )}
         </div>
 
-        {/* Escrow Number */}
-        <div className="space-y-2">
-          <Label htmlFor="txn-escrowNumber">Escrow / File Number *</Label>
-          <Input
-            id="txn-escrowNumber"
-            value={value.escrowNumber || ""}
-            onChange={(e) => onChange({ escrowNumber: e.target.value })}
-            placeholder="2026-001234"
-          />
-          <p className="text-xs text-muted-foreground">
-            Your internal reference number for this transaction
-          </p>
-        </div>
-
-        {/* Purchase Price */}
-        <div className="space-y-2">
-          <Label htmlFor="txn-purchasePrice">Purchase Price *</Label>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-              $
-            </span>
-            <Input
-              id="txn-purchasePrice"
-              type="text"
-              className="pl-7"
-              value={value.purchasePrice ? value.purchasePrice.toLocaleString() : ""}
-              onChange={(e) => {
-                const numValue = parseInt(e.target.value.replace(/[^0-9]/g, ""), 10);
-                onChange({ purchasePrice: isNaN(numValue) ? null : numValue });
-              }}
-              placeholder="500,000"
-            />
+        {/* ===== SECTION 2: Transaction Details (3-column grid) ===== */}
+        <div className="border-t pt-6">
+          <Label className="text-base font-medium mb-4 block">Transaction Details</Label>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Escrow Number */}
+            <div className="space-y-1.5">
+              <Label htmlFor="escrowNumber">Escrow / File Number *</Label>
+              <Input
+                id="escrowNumber"
+                value={value.escrowNumber || ""}
+                onChange={(e) => onChange({ escrowNumber: e.target.value })}
+                placeholder="2026-001234"
+              />
+              <p className="text-xs text-muted-foreground">
+                Your internal reference number
+              </p>
+            </div>
+            
+            {/* Purchase Price */}
+            <div className="space-y-1.5">
+              <Label htmlFor="purchasePrice">Purchase Price *</Label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                  $
+                </span>
+                <Input
+                  id="purchasePrice"
+                  type="text"
+                  className="pl-7"
+                  value={value.purchasePrice ? value.purchasePrice.toLocaleString() : ""}
+                  onChange={(e) => {
+                    const numValue = parseInt(e.target.value.replace(/[^0-9]/g, ""), 10);
+                    onChange({ purchasePrice: isNaN(numValue) ? null : numValue });
+                  }}
+                  placeholder="500,000"
+                />
+              </div>
+            </div>
+            
+            {/* Closing Date */}
+            <div className="space-y-1.5">
+              <Label htmlFor="closingDate">Closing Date *</Label>
+              <Input
+                id="closingDate"
+                type="date"
+                value={value.closingDate || ""}
+                onChange={(e) => onChange({ closingDate: e.target.value })}
+              />
+              <p className="text-xs text-muted-foreground">
+                Filed within 30 days of close
+              </p>
+            </div>
           </div>
         </div>
 
-        {/* Closing Date */}
-        <div className="space-y-2">
-          <Label htmlFor="txn-closingDate">Closing Date *</Label>
-          <Input
-            id="txn-closingDate"
-            type="date"
-            value={value.closingDate || ""}
-            onChange={(e) => onChange({ closingDate: e.target.value })}
-          />
-          <p className="text-xs text-muted-foreground">
-            FinCEN reports must be filed within 30 days of closing
-          </p>
-        </div>
-
-        {/* Legal Description - Required for FinCEN filing */}
-        <div className="space-y-4 pt-4 border-t">
-          <div className="flex items-center justify-between">
+        {/* ===== SECTION 3: Legal Description (1 + 2 column) ===== */}
+        <div className="border-t pt-6">
+          <div className="flex items-center justify-between mb-4">
             <Label className="text-base font-medium">Legal Description</Label>
             {value.siteXData?.legal_description && (
               <Badge variant="secondary" className="text-xs">
@@ -372,20 +354,16 @@ export function TransactionReferenceStep({
               </Badge>
             )}
           </div>
-
-          <div className="space-y-3">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <Label htmlFor="txn-legalDescriptionType">Description Type *</Label>
-                {value.siteXData?.legal_description && value.legalDescriptionType && (
-                  <Badge variant="secondary" className="text-xs">Auto-detected</Badge>
-                )}
-              </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Description Type — takes 1 column */}
+            <div className="space-y-1.5">
+              <Label htmlFor="legalDescriptionType">Description Type *</Label>
               <Select
                 value={value.legalDescriptionType || undefined}
                 onValueChange={(v) => onChange({ legalDescriptionType: v as LegalDescriptionType })}
               >
-                <SelectTrigger id="txn-legalDescriptionType">
+                <SelectTrigger id="legalDescriptionType">
                   <SelectValue placeholder="Select type..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -396,31 +374,26 @@ export function TransactionReferenceStep({
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground mt-1">
-                Select the format of the legal description
+              <p className="text-xs text-muted-foreground">
+                Format of the legal description
               </p>
             </div>
-
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <Label htmlFor="txn-legalDescription">Legal Description *</Label>
-                {value.siteXData?.legal_description && value.legalDescription && (
-                  <Badge variant="secondary" className="text-xs">From title plant</Badge>
-                )}
-              </div>
+            
+            {/* Description Text — takes 2 columns */}
+            <div className="md:col-span-2 space-y-1.5">
+              <Label htmlFor="legalDescription">Legal Description *</Label>
               <Textarea
-                id="txn-legalDescription"
+                id="legalDescription"
                 value={value.legalDescription || ""}
                 onChange={(e) => {
-                  // Truncate to 1000 chars (FinCEN limit)
                   const text = e.target.value.slice(0, 1000);
                   onChange({ legalDescription: text });
                 }}
                 placeholder="Enter the legal description from the deed or title report..."
                 rows={3}
               />
-              <p className="text-xs text-muted-foreground mt-1">
-                {value.legalDescription?.length || 0} / 1,000 characters
+              <p className="text-xs text-muted-foreground">
+                {(value.legalDescription?.length || 0)} / 1,000 characters
               </p>
             </div>
           </div>

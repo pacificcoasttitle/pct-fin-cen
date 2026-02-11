@@ -339,8 +339,13 @@ def generate_certificate_html(
     exemption_reasons: list,
     determination_timestamp: str,
     determination_method: str,
+    # Additional fields from wizard Step 0
+    county: Optional[str] = None,
+    apn: Optional[str] = None,
+    legal_description: Optional[str] = None,
+    closing_date: Optional[str] = None,
 ) -> str:
-    """Generate HTML for FinCEN exemption certificate PDF."""
+    """Generate HTML for FinCEN exemption certificate PDF with FinClear branding."""
     
     def fmt_currency(amount: float) -> str:
         return f"${amount:,.0f}"
@@ -348,29 +353,23 @@ def generate_certificate_html(
     def fmt_date(date_str: str) -> str:
         try:
             dt = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
-            return dt.strftime("%B %d, %Y at %I:%M %p %Z")
+            return dt.strftime("%B %d, %Y")
         except:
             return date_str
     
+    # Build exemption reasons HTML
     reasons_html = ""
     for reason in exemption_reasons:
         display = reason if isinstance(reason, str) else reason.get("display", str(reason))
         reasons_html += f"""
-        <tr>
-            <td style="padding: 10px 16px; border-bottom: 1px solid #d1fae5; font-size: 14px; color: #065f46;">
-                ✓ {display}
-            </td>
-        </tr>
-        """
+                        <li style="font-size: 14px; color: #334155; margin-bottom: 6px;">
+                            {display}
+                        </li>"""
     
-    escrow_html = ""
-    if escrow_number:
-        escrow_html = f"""
-        <tr>
-            <td style="padding: 6px 0; color: #6b7280; font-size: 13px;">Escrow Number</td>
-            <td style="padding: 6px 0; font-weight: 500; font-size: 14px;">{escrow_number}</td>
-        </tr>
-        """
+    # Legal description — truncate if very long
+    legal_desc_display = ""
+    if legal_description:
+        legal_desc_display = legal_description if len(legal_description) <= 80 else legal_description[:80] + "..."
     
     method_display = "Automated Client Submission Form" if determination_method == "auto_client_form" else determination_method
     
@@ -385,92 +384,145 @@ def generate_certificate_html(
         body {{ 
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             line-height: 1.5;
-            color: #1f2937;
+            color: #334155;
             background-color: #ffffff;
         }}
         @page {{ size: A4; margin: 0; }}
     </style>
 </head>
 <body>
-    <div style="max-width: 800px; margin: 0 auto; padding: 40px;">
+    <div style="max-width: 800px; margin: 0 auto;">
         
-        <!-- Header -->
-        <div style="text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 3px solid #059669;">
-            <div style="width: 60px; height: 60px; border-radius: 50%; background: #059669; margin: 0 auto 12px; display: flex; align-items: center; justify-content: center;">
-                <span style="font-size: 28px; color: white;">&#128737;</span>
-            </div>
-            <h1 style="font-size: 24px; font-weight: 700; color: #065f46; margin-bottom: 4px;">
-                FinCEN Reporting Exemption Certificate
-            </h1>
-            <p style="font-size: 13px; color: #6b7280;">
-                Real Estate Report (RRER) — 31 CFR 1031
-            </p>
-        </div>
-        
-        <!-- Certificate ID -->
-        <div style="text-align: center; padding: 16px; background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; margin-bottom: 30px;">
-            <p style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #6b7280; margin-bottom: 4px;">Certificate Number</p>
-            <p style="font-size: 22px; font-family: monospace; font-weight: 700; color: #059669; letter-spacing: 2px;">
-                {certificate_id}
-            </p>
-        </div>
-        
-        <!-- Transaction Details -->
-        <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
-            <tr>
-                <td style="padding: 6px 0; color: #6b7280; font-size: 13px; width: 160px;">Property Address</td>
-                <td style="padding: 6px 0; font-weight: 500; font-size: 14px;">{property_address}</td>
-            </tr>
-            <tr>
-                <td style="padding: 6px 0; color: #6b7280; font-size: 13px;">Purchase Price</td>
-                <td style="padding: 6px 0; font-weight: 500; font-size: 14px;">{fmt_currency(purchase_price)}</td>
-            </tr>
-            <tr>
-                <td style="padding: 6px 0; color: #6b7280; font-size: 13px;">Buyer</td>
-                <td style="padding: 6px 0; font-weight: 500; font-size: 14px;">{buyer_name}</td>
-            </tr>
-            {escrow_html}
-        </table>
-        
-        <hr style="border: none; border-top: 1px solid #e5e7eb; margin-bottom: 30px;">
-        
-        <!-- Exemption Statement -->
-        <div style="background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 20px; margin-bottom: 30px;">
-            <h3 style="font-size: 16px; font-weight: 600; color: #065f46; margin-bottom: 10px;">
-                ✓ Exemption Determination
-            </h3>
-            <p style="font-size: 14px; color: #047857; margin-bottom: 16px;">
-                Based on the information provided, this transaction is 
-                <strong style="color: #065f46;">EXEMPT</strong> from FinCEN 
-                Real Estate Report filing requirements under 31 CFR 1031.
-            </p>
-            <p style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #059669; font-weight: 600; margin-bottom: 8px;">
-                Applicable Exemption(s):
-            </p>
+        <!-- FinClear Header -->
+        <div style="background-color: #0f172a; color: #ffffff; padding: 24px 40px;">
             <table style="width: 100%; border-collapse: collapse;">
-                {reasons_html}
+                <tr>
+                    <td style="vertical-align: middle;">
+                        <h1 style="font-size: 24px; font-weight: 700; letter-spacing: -0.5px; margin: 0;">
+                            {BRAND_NAME}
+                        </h1>
+                        <p style="font-size: 13px; color: #94a3b8; margin-top: 4px;">FinCEN Compliance Solutions</p>
+                    </td>
+                    <td style="text-align: right; vertical-align: middle;">
+                        <p style="font-size: 13px; color: #94a3b8;">Exemption Certificate</p>
+                        <p style="font-size: 11px; color: #64748b; margin-top: 4px;">
+                            ID: {certificate_id}
+                        </p>
+                    </td>
+                </tr>
             </table>
         </div>
         
-        <hr style="border: none; border-top: 1px solid #e5e7eb; margin-bottom: 30px;">
-        
-        <!-- Footer -->
-        <div style="text-align: center; font-size: 12px; color: #9ca3af; space-y: 4px;">
-            <p style="margin-bottom: 4px;">
-                <strong>Determined:</strong> {fmt_date(determination_timestamp)}
-            </p>
-            <p style="margin-bottom: 12px;">
-                <strong>Method:</strong> {method_display}
-            </p>
-            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 16px 0;">
-            <p style="color: #9ca3af;">
-                This certificate should be retained with transaction records for a minimum of 5 years.
-            </p>
-            <p style="font-weight: 500; color: #374151; margin-top: 12px;">
-                {BRAND_NAME} • {BRAND_WEBSITE}
-            </p>
+        <div style="padding: 40px;">
+            
+            <!-- Status Banner -->
+            <div style="background-color: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 16px 24px; text-align: center; margin-bottom: 32px;">
+                <p style="font-size: 18px; font-weight: 600; color: #92400e; margin: 0;">
+                    Transaction Exempt from FinCEN Reporting
+                </p>
+                <p style="font-size: 13px; color: #b45309; margin-top: 4px;">
+                    Per 31 CFR Part 1031 — Real Estate Reporting Rule
+                </p>
+            </div>
+            
+            <!-- Property Information -->
+            <div style="margin-bottom: 28px;">
+                <p style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #64748b; margin-bottom: 12px;">
+                    Property Information
+                </p>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td style="padding: 6px 0; width: 50%; vertical-align: top;">
+                            <p style="font-size: 11px; color: #94a3b8; margin-bottom: 2px;">Property Address</p>
+                            <p style="font-size: 14px; font-weight: 500; color: #334155;">{property_address or '—'}</p>
+                        </td>
+                        <td style="padding: 6px 0; width: 50%; vertical-align: top;">
+                            <p style="font-size: 11px; color: #94a3b8; margin-bottom: 2px;">County</p>
+                            <p style="font-size: 14px; font-weight: 500; color: #334155;">{county or '—'}</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 6px 0; vertical-align: top;">
+                            <p style="font-size: 11px; color: #94a3b8; margin-bottom: 2px;">APN</p>
+                            <p style="font-size: 14px; font-weight: 500; color: #334155;">{apn or '—'}</p>
+                        </td>
+                        <td style="padding: 6px 0; vertical-align: top;">
+                            <p style="font-size: 11px; color: #94a3b8; margin-bottom: 2px;">Legal Description</p>
+                            <p style="font-size: 14px; font-weight: 500; color: #334155;" title="{legal_description or ''}">{legal_desc_display or '—'}</p>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+            
+            <!-- Transaction Details -->
+            <div style="margin-bottom: 28px;">
+                <p style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #64748b; margin-bottom: 12px;">
+                    Transaction Details
+                </p>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td style="padding: 6px 0; width: 33%; vertical-align: top;">
+                            <p style="font-size: 11px; color: #94a3b8; margin-bottom: 2px;">Escrow / File Number</p>
+                            <p style="font-size: 14px; font-weight: 500; color: #334155;">{escrow_number or '—'}</p>
+                        </td>
+                        <td style="padding: 6px 0; width: 33%; vertical-align: top;">
+                            <p style="font-size: 11px; color: #94a3b8; margin-bottom: 2px;">Purchase Price</p>
+                            <p style="font-size: 14px; font-weight: 500; color: #334155;">{fmt_currency(purchase_price) if purchase_price else '—'}</p>
+                        </td>
+                        <td style="padding: 6px 0; width: 33%; vertical-align: top;">
+                            <p style="font-size: 11px; color: #94a3b8; margin-bottom: 2px;">Closing Date</p>
+                            <p style="font-size: 14px; font-weight: 500; color: #334155;">{closing_date or '—'}</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 6px 0; vertical-align: top;" colspan="3">
+                            <p style="font-size: 11px; color: #94a3b8; margin-bottom: 2px;">Buyer</p>
+                            <p style="font-size: 14px; font-weight: 500; color: #334155;">{buyer_name or '—'}</p>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+            
+            <!-- Exemption Determination -->
+            <div style="margin-bottom: 28px;">
+                <p style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #64748b; margin-bottom: 12px;">
+                    Exemption Determination
+                </p>
+                <div style="background-color: #f8fafc; border-radius: 8px; padding: 16px 24px;">
+                    <p style="font-size: 14px; font-weight: 500; color: #334155; margin-bottom: 8px;">Reason(s):</p>
+                    <ul style="padding-left: 20px; margin: 0;">
+                        {reasons_html}
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- Certification Statement -->
+            <div style="border-top: 1px solid #e2e8f0; padding-top: 24px; margin-bottom: 24px;">
+                <p style="font-size: 13px; color: #64748b; line-height: 1.7;">
+                    This certificate confirms that the above transaction was evaluated using the FinClear
+                    compliance wizard on
+                    <strong style="color: #334155;">{fmt_date(determination_timestamp)}</strong>
+                    and determined to be exempt from FinCEN Real Estate Transaction reporting
+                    requirements under 31 CFR Part 1031. This certificate should be retained with 
+                    transaction records for a minimum of 5 years.
+                </p>
+            </div>
+            
+            <!-- Footer -->
+            <div style="border-top: 1px solid #e2e8f0; padding-top: 16px;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td style="font-size: 11px; color: #94a3b8;">
+                            Generated by {BRAND_NAME} — {BRAND_WEBSITE}
+                        </td>
+                        <td style="font-size: 11px; color: #94a3b8; text-align: right;">
+                            Certificate ID: {certificate_id}
+                        </td>
+                    </tr>
+                </table>
+            </div>
+            
         </div>
-        
     </div>
 </body>
 </html>"""
@@ -485,6 +537,10 @@ async def generate_certificate_pdf(
     exemption_reasons: list,
     determination_timestamp: str,
     determination_method: str,
+    county: Optional[str] = None,
+    apn: Optional[str] = None,
+    legal_description: Optional[str] = None,
+    closing_date: Optional[str] = None,
 ) -> PDFResult:
     """Generate a complete exemption certificate PDF."""
     html_content = generate_certificate_html(
@@ -496,6 +552,10 @@ async def generate_certificate_pdf(
         exemption_reasons=exemption_reasons,
         determination_timestamp=determination_timestamp,
         determination_method=determination_method,
+        county=county,
+        apn=apn,
+        legal_description=legal_description,
+        closing_date=closing_date,
     )
     return await generate_pdf(html_content)
 

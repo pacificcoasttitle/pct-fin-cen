@@ -10,18 +10,18 @@ interface StepCardProps {
 
 export function StepCard({ title, description, children, footer }: StepCardProps) {
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="text-xl">{title}</CardTitle>
+    <Card className="w-full shadow-sm">
+      <CardHeader className="pb-4">
+        <CardTitle className="text-xl font-semibold">{title}</CardTitle>
         {description && (
-          <CardDescription>{description}</CardDescription>
+          <CardDescription className="text-sm">{description}</CardDescription>
         )}
       </CardHeader>
       <CardContent className="space-y-6">
         {children}
       </CardContent>
       {footer && (
-        <div className="border-t px-6 py-4 bg-muted/50">
+        <div className="border-t px-6 py-4 bg-muted/30">
           {footer}
         </div>
       )}

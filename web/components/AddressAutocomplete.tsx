@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, MapPin, Building2, Home, Check, AlertTriangle } from "lucide-react";
+import { Loader2, MapPin, Building2, Home, Check, AlertTriangle, CheckCircle2, AlertCircle } from "lucide-react";
 
 export function AddressAutocomplete({
   onSelect,
@@ -52,6 +52,7 @@ export function AddressAutocomplete({
   const [error, setError] = useState<string | null>(null);
   const [propertyData, setPropertyData] = useState<PropertyData | null>(null);
   const [multiMatches, setMultiMatches] = useState<PropertyMatch[] | null>(null);
+  const [lookupStatus, setLookupStatus] = useState<"idle" | "loading" | "found" | "not_found" | "error">("idle");
 
   // ---------------------------------------------------------------------------
   // Load Google Maps
@@ -124,27 +125,38 @@ export function AddressAutocomplete({
 
       // Fetch property data
       setLoading(true);
+      setLookupStatus("loading");
       try {
         const result = await lookupProperty(address, propertyEndpoint);
         
         if (result.status === "success" && result.property) {
           setPropertyData(result.property);
+          setLookupStatus("found");
           onSelect(address, result.property);
+          setTimeout(() => setLookupStatus("idle"), 3000);
         } else if (result.status === "multi_match" && result.matches) {
           setMultiMatches(result.matches);
+          setLookupStatus("found");
           onMultiMatch?.(result.matches);
           onSelect(address, undefined); // Still return address
+          setTimeout(() => setLookupStatus("idle"), 3000);
         } else if (result.status === "not_configured") {
           // SiteX not configured - just use Google address
           console.warn("SiteX not configured");
+          setLookupStatus("not_found");
           onSelect(address, undefined);
+          setTimeout(() => setLookupStatus("idle"), 3000);
         } else {
           // not_found or error - still return address
+          setLookupStatus("not_found");
           onSelect(address, undefined);
+          setTimeout(() => setLookupStatus("idle"), 3000);
         }
       } catch (err) {
         console.error("Property lookup failed:", err);
+        setLookupStatus("error");
         onSelect(address, undefined);
+        setTimeout(() => setLookupStatus("idle"), 3000);
       } finally {
         setLoading(false);
       }
@@ -234,6 +246,32 @@ export function AddressAutocomplete({
           </div>
         )}
       </div>
+      
+      {/* SiteX Lookup Status */}
+      {lookupStatus === "loading" && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground animate-in fade-in">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          <span>Looking up property records...</span>
+        </div>
+      )}
+      {lookupStatus === "found" && (
+        <div className="flex items-center gap-2 text-sm text-green-600 animate-in fade-in">
+          <CheckCircle2 className="h-3.5 w-3.5" />
+          <span>Property found — auto-filling details</span>
+        </div>
+      )}
+      {lookupStatus === "not_found" && (
+        <div className="flex items-center gap-2 text-sm text-amber-600 animate-in fade-in">
+          <AlertCircle className="h-3.5 w-3.5" />
+          <span>No property records found — enter details manually</span>
+        </div>
+      )}
+      {lookupStatus === "error" && (
+        <div className="flex items-center gap-2 text-sm text-red-500 animate-in fade-in">
+          <AlertCircle className="h-3.5 w-3.5" />
+          <span>Property lookup unavailable — enter details manually</span>
+        </div>
+      )}
       
       {/* Error */}
       {error && (

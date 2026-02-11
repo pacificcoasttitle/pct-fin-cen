@@ -1531,6 +1531,13 @@ async def get_certificate_pdf(
     )
     determination_method = determination.get("method", "Automated Analysis")
     
+    # Extract additional fields from wizard data for enhanced certificate
+    property_addr = collection.get("propertyAddress", {})
+    county = property_addr.get("county", "")
+    apn = collection.get("apn", "")
+    legal_description = collection.get("legalDescription", "")
+    closing_date = collection.get("closingDate", "")
+    
     # Generate PDF
     try:
         from app.services.pdf_service import generate_certificate_pdf as gen_cert_pdf
@@ -1544,6 +1551,10 @@ async def get_certificate_pdf(
             exemption_reasons=exemption_reasons,
             determination_timestamp=determination_timestamp,
             determination_method=determination_method,
+            county=county,
+            apn=apn,
+            legal_description=legal_description,
+            closing_date=closing_date,
         )
         
         if result.pdf_bytes:

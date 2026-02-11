@@ -210,8 +210,8 @@ export function WizardContainer({ report, onUpdate }: WizardContainerProps) {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header with Progress */}
-      <div className="sticky top-0 z-10 border-b bg-card">
-        <div className="container max-w-3xl py-4 px-4">
+      <div className="sticky top-0 z-10 border-b bg-card shadow-sm">
+        <div className="container max-w-5xl py-4 px-6">
           <WizardProgress
             phase={phase}
             currentStep={currentStep}
@@ -222,14 +222,14 @@ export function WizardContainer({ report, onUpdate }: WizardContainerProps) {
       </div>
       
       {/* Step Content */}
-      <div className="flex-1 container max-w-2xl py-8 px-4">
+      <div className="flex-1 container max-w-4xl py-8 px-6">
         {renderStep()}
       </div>
       
       {/* Bottom Navigation */}
       {showBottomNav && (
         <div className="sticky bottom-0 border-t bg-card">
-          <div className="container max-w-2xl py-4 px-4">
+          <div className="container max-w-4xl py-4 px-6">
             <WizardNavigation
               canGoBack={canGoBack}
               canGoNext={canGoNext}
