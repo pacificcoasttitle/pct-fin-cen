@@ -91,7 +91,7 @@ class SiteXConfig:
     
     @property
     def search_url(self) -> str:
-        return f"{self.base_url}/ls/publicsearch/v1/{self.feed_id}/property"
+        return f"{self.base_url}/realestatedata/search"
     
     def is_configured(self) -> bool:
         return all([self.client_id, self.client_secret, self.feed_id])
@@ -357,10 +357,50 @@ class SiteXService:
         token = await self.token_manager.get_token()
         
         params = {
-            "address1": address,
+            "addr": address,
+            "feedId": self.config.feed_id,
+            "clientReference": "fincen_wizard",
+            "options": "search_exclude_nonres=Y|search_strict=Y",
         }
         if last_line:
             params["lastLine"] = last_line
+        
+        search_url = self.config.search_url
+        logger.info(f"SiteX search: url={search_url}, params={params}")
+        
+        async with httpx.AsyncClient(timeout=self.config.timeout) as client:
+            response = await client.get(
+                search_url,
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Accept": "application/json",
+                },
+                params=params,
+            )
+            
+            if response.status_code == 401:
+                self.token_manager.invalidate()
+                raise SiteXAuthError("Token expired or invalid", 401)
+            
+            if response.status_code == 429:
+                raise SiteXRateLimitError("Rate limit exceeded", 429)
+            
+            if self.config.debug:
+                logger.info(f"SiteX raw response: {response.text[:2000]}")
+            
+            response.raise_for_status()
+            return response.json()
+    
+    async def _search_apn(self, apn: str, fips: str) -> dict:
+        """Execute APN search API call."""
+        token = await self.token_manager.get_token()
+        
+        params = {
+            "apn": apn,
+            "fips": fips,
+            "feedId": self.config.feed_id,
+            "clientReference": "fincen_wizard",
+        }
         
         async with httpx.AsyncClient(timeout=self.config.timeout) as client:
             response = await client.get(
@@ -376,37 +416,18 @@ class SiteXService:
                 self.token_manager.invalidate()
                 raise SiteXAuthError("Token expired or invalid", 401)
             
-            if response.status_code == 429:
-                raise SiteXRateLimitError("Rate limit exceeded", 429)
-            
-            response.raise_for_status()
-            return response.json()
-    
-    async def _search_apn(self, apn: str, fips: str) -> dict:
-        """Execute APN search API call."""
-        token = await self.token_manager.get_token()
-        
-        params = {
-            "apn": apn,
-            "fips": fips,
-        }
-        
-        async with httpx.AsyncClient(timeout=self.config.timeout) as client:
-            response = await client.get(
-                self.config.search_url,
-                headers={
-                    "Authorization": f"Bearer {token}",
-                    "Accept": "application/json",
-                },
-                params=params,
-            )
-            
             response.raise_for_status()
             return response.json()
     
     def _is_multi_match(self, response: dict) -> bool:
         """Check if response indicates multiple matches."""
+        # SiteX MatchCode-based detection
+        if response.get("MatchCode") in ("M", "MULTI"):
+            return True
+        # Fallback checks
         if "multiMatch" in response:
+            return True
+        if "Locations" in response and len(response.get("Locations", [])) > 1:
             return True
         if "candidates" in response and len(response.get("candidates", [])) > 1:
             return True
@@ -416,77 +437,216 @@ class SiteXService:
     
     def _is_no_match(self, response: dict) -> bool:
         """Check if response indicates no matches."""
+        # SiteX MatchCode-based detection
+        if response.get("MatchCode") in ("N", "0", "NONE"):
+            return True
+        # Fallback checks
         if response.get("matchCount", 1) == 0:
             return True
         if response.get("status") == "not_found":
             return True
-        if not response.get("property") and not response.get("data"):
+        # Check for absence of data in all known response structures
+        if (not response.get("property") 
+            and not response.get("data") 
+            and not response.get("Feed")):
             return True
         return False
     
     def _extract_matches(self, response: dict) -> List[PropertyMatch]:
         """Extract match candidates from multi-match response."""
         matches = []
-        candidates = response.get("candidates", response.get("matches", []))
+        
+        # SiteX returns multi-match candidates in Locations[]
+        candidates = (
+            response.get("Locations", [])
+            or response.get("candidates", [])
+            or response.get("matches", [])
+        )
         
         for candidate in candidates:
             matches.append(PropertyMatch(
-                address=self._get_nested(candidate, ["address", "streetAddress", "Address1"], ""),
-                city=self._get_nested(candidate, ["city", "City", "SiteCity"], ""),
-                state=self._get_nested(candidate, ["state", "State", "SiteState"], "CA"),
-                zip_code=self._get_nested(candidate, ["zip", "zipCode", "Zip", "PostalCode"], ""),
-                apn=self._get_nested(candidate, ["apn", "APN", "ParcelNumber"], ""),
-                fips=self._get_nested(candidate, ["fips", "FIPS", "CountyFIPS"], ""),
-                owner_name=self._get_nested(candidate, ["ownerName", "Owner", "OwnerName"], ""),
+                address=self._get_nested(candidate, [
+                    "SiteAddress", "Address1", "address", "streetAddress",
+                ], ""),
+                city=self._get_nested(candidate, [
+                    "SiteCity", "City", "city",
+                ], ""),
+                state=self._get_nested(candidate, [
+                    "SiteState", "State", "state",
+                ], "CA"),
+                zip_code=self._get_nested(candidate, [
+                    "SiteZip", "Zip", "PostalCode", "zip", "zipCode",
+                ], ""),
+                apn=self._get_nested(candidate, [
+                    "APN", "ParcelNumber", "apn",
+                ], ""),
+                fips=self._get_nested(candidate, [
+                    "FIPS", "CountyFIPS", "fips",
+                ], ""),
+                owner_name=self._get_nested(candidate, [
+                    "OwnerName", "Owner", "ownerName",
+                ], ""),
             ))
         
         return matches
     
-    def _parse_response(self, response: dict, original_address: str) -> PropertyData:
-        """Parse API response into PropertyData model."""
-        prop = response.get("property", response.get("data", response))
+    def _find_property_object(self, response: dict) -> dict:
+        """
+        Navigate the SiteX response structure to find the property data object.
         
-        # Extract primary owner
-        primary_owner = PropertyOwner(
-            full_name=self._get_nested(prop, [
-                "ownerName", "Owner1Name", "PrimaryOwner", "owner.name"
-            ], ""),
-            first_name=self._get_nested(prop, ["ownerFirstName", "Owner1FirstName"], ""),
-            last_name=self._get_nested(prop, ["ownerLastName", "Owner1LastName"], ""),
-            mailing_address=self._get_nested(prop, [
-                "mailingAddress", "OwnerMailingAddress", "mailAddress.full"
-            ], ""),
+        SiteX nests data under Feed.PropertyProfile. Falls back to other
+        common structures for compatibility.
+        """
+        # SiteX canonical path: Feed → PropertyProfile
+        if "Feed" in response:
+            feed = response["Feed"]
+            if isinstance(feed, dict) and "PropertyProfile" in feed:
+                return feed["PropertyProfile"]
+            # Feed might be the data itself
+            if isinstance(feed, dict):
+                return feed
+        
+        # Fallback paths
+        if "property" in response:
+            return response["property"]
+        if "data" in response:
+            return response["data"]
+        
+        # Response IS the property object
+        return response
+    
+    def _extract_owners(self, prop: dict) -> Tuple[PropertyOwner, Optional[PropertyOwner]]:
+        """
+        Extract primary and secondary owners from property data.
+        
+        SiteX nests owner info under OwnerInformation.
+        """
+        owner_info = prop.get("OwnerInformation", {})
+        
+        # Primary owner — try nested OwnerInformation first, then top-level
+        primary_name = (
+            self._get_nested(prop, ["PrimaryOwnerName", "OwnerName"], None)
+            or self._get_nested(owner_info, ["OwnerFullName", "Owner1FullName"], None)
+            or ""
         )
         
-        # Extract secondary owner if present
+        primary_first = (
+            self._get_nested(owner_info, ["Owner1FirstName"], None)
+            or self._get_nested(prop, ["ownerFirstName", "Owner1FirstName"], None)
+            or ""
+        )
+        primary_last = (
+            self._get_nested(owner_info, ["Owner1LastName"], None)
+            or self._get_nested(prop, ["ownerLastName", "Owner1LastName"], None)
+            or ""
+        )
+        
+        # Build full name from parts if empty
+        if not primary_name and (primary_first or primary_last):
+            primary_name = f"{primary_first} {primary_last}".strip()
+        
+        primary_mailing = (
+            self._get_nested(owner_info, ["MailingAddress", "OwnerMailingAddress"], None)
+            or self._get_nested(prop, ["mailingAddress", "OwnerMailingAddress"], None)
+            or ""
+        )
+        
+        primary_owner = PropertyOwner(
+            full_name=primary_name,
+            first_name=primary_first,
+            last_name=primary_last,
+            mailing_address=primary_mailing,
+        )
+        
+        # Secondary owner
+        secondary_name = (
+            self._get_nested(owner_info, ["Owner2FullName"], None)
+            or self._get_nested(prop, ["Owner2Name", "SecondaryOwner"], None)
+        )
         secondary_owner = None
-        secondary_name = self._get_nested(prop, ["Owner2Name", "SecondaryOwner"], None)
         if secondary_name:
+            secondary_first = (
+                self._get_nested(owner_info, ["Owner2FirstName"], None)
+                or self._get_nested(prop, ["Owner2FirstName"], None)
+                or ""
+            )
+            secondary_last = (
+                self._get_nested(owner_info, ["Owner2LastName"], None)
+                or self._get_nested(prop, ["Owner2LastName"], None)
+                or ""
+            )
             secondary_owner = PropertyOwner(
                 full_name=secondary_name,
-                first_name=self._get_nested(prop, ["Owner2FirstName"], ""),
-                last_name=self._get_nested(prop, ["Owner2LastName"], ""),
+                first_name=secondary_first,
+                last_name=secondary_last,
             )
+        
+        return primary_owner, secondary_owner
+    
+    def _extract_legal_description(self, prop: dict) -> Tuple[str, str, str, str]:
+        """
+        Extract legal description fields from property data.
+        
+        SiteX nests legal info under LegalDescriptionInfo.
+        Returns (legal_description, subdivision_name, tract_number, lot_number).
+        """
+        legal_info = prop.get("LegalDescriptionInfo", {})
+        
+        legal_desc = (
+            self._get_nested(legal_info, ["LegalBriefDescription", "LegalDescription"], None)
+            or self._get_nested(prop, ["legalDescription", "LegalDesc", "Legal", "BriefLegal"], None)
+            or ""
+        )
+        
+        subdivision = (
+            self._get_nested(legal_info, ["SubdivisionName"], None)
+            or self._get_nested(prop, ["subdivisionName", "Subdivision"], None)
+            or ""
+        )
+        
+        tract = (
+            self._get_nested(legal_info, ["TractNumber", "Tract"], None)
+            or self._get_nested(prop, ["tractNumber", "Tract", "TractNo"], None)
+            or ""
+        )
+        
+        lot = (
+            self._get_nested(legal_info, ["LotNumber", "Lot"], None)
+            or self._get_nested(prop, ["lotNumber", "Lot", "LotNo"], None)
+            or ""
+        )
+        
+        return legal_desc, subdivision, tract, lot
+    
+    def _parse_response(self, response: dict, original_address: str) -> PropertyData:
+        """Parse API response into PropertyData model."""
+        prop = self._find_property_object(response)
+        
+        # Extract owners (handles OwnerInformation nesting)
+        primary_owner, secondary_owner = self._extract_owners(prop)
+        
+        # Extract legal description (handles LegalDescriptionInfo nesting)
+        legal_desc, subdivision, tract, lot = self._extract_legal_description(prop)
         
         return PropertyData(
             # Address
             street_address=self._get_nested(prop, [
-                "streetAddress", "SiteAddress", "Address1", "address.street"
+                "SiteAddress", "Address1", "streetAddress", "address.street",
             ], original_address),
-            city=self._get_nested(prop, ["city", "SiteCity", "City"], ""),
-            state=self._get_nested(prop, ["state", "SiteState", "State"], "CA"),
-            zip_code=self._get_nested(prop, ["zipCode", "SiteZip", "Zip", "PostalCode"], ""),
-            county=self._get_nested(prop, ["county", "CountyName", "County"], ""),
+            city=self._get_nested(prop, ["SiteCity", "City", "city"], ""),
+            state=self._get_nested(prop, ["SiteState", "State", "state"], "CA"),
+            zip_code=self._get_nested(prop, ["SiteZip", "Zip", "PostalCode", "zipCode"], ""),
+            county=self._get_nested(prop, ["CountyName", "County", "county"], ""),
             
             # Identifiers
-            apn=self._get_nested(prop, ["apn", "APN", "ParcelNumber", "assessorParcelNumber"], ""),
-            fips=self._get_nested(prop, ["fips", "FIPS", "CountyFIPS"], ""),
+            apn=self._get_nested(prop, ["APN", "ParcelNumber", "apn", "assessorParcelNumber"], ""),
+            fips=self._get_nested(prop, ["FIPS", "CountyFIPS", "fips"], ""),
             
             # Legal description
-            legal_description=self._get_nested(prop, ["legalDescription", "LegalDesc", "Legal"], ""),
-            subdivision_name=self._get_nested(prop, ["subdivisionName", "Subdivision"], ""),
-            tract_number=self._get_nested(prop, ["tractNumber", "Tract", "TractNo"], ""),
-            lot_number=self._get_nested(prop, ["lotNumber", "Lot", "LotNo"], ""),
+            legal_description=legal_desc,
+            subdivision_name=subdivision,
+            tract_number=tract,
+            lot_number=lot,
             
             # Ownership
             primary_owner=primary_owner,
@@ -494,18 +654,22 @@ class SiteXService:
             vesting_type=self._get_nested(prop, ["vestingType", "Vesting", "OwnershipType"], ""),
             
             # Property details
-            property_type=self._get_nested(prop, ["propertyType", "UseCode", "PropertyUseType"], ""),
-            bedrooms=self._safe_int(self._get_nested(prop, ["bedrooms", "Beds", "BedroomCount"], None)),
-            bathrooms=self._safe_float(self._get_nested(prop, ["bathrooms", "Baths", "BathroomCount"], None)),
-            square_feet=self._safe_int(self._get_nested(prop, ["squareFeet", "LivingArea", "SqFt", "GLA"], None)),
-            year_built=self._safe_int(self._get_nested(prop, ["yearBuilt", "YearBuilt", "BuiltYear"], None)),
+            property_type=self._get_nested(prop, [
+                "PropertyUseType", "UseCode", "propertyType",
+            ], ""),
+            bedrooms=self._safe_int(self._get_nested(prop, ["Beds", "BedroomCount", "bedrooms"], None)),
+            bathrooms=self._safe_float(self._get_nested(prop, ["Baths", "BathroomCount", "bathrooms"], None)),
+            square_feet=self._safe_int(self._get_nested(prop, [
+                "LivingArea", "GLA", "SqFt", "squareFeet",
+            ], None)),
+            year_built=self._safe_int(self._get_nested(prop, ["YearBuilt", "BuiltYear", "yearBuilt"], None)),
             
             # Valuation
             assessed_value=self._safe_int(self._get_nested(prop, [
-                "assessedValue", "TotalAssessedValue", "AssessedTotal"
+                "TotalAssessedValue", "AssessedTotal", "assessedValue",
             ], None)),
             market_value=self._safe_int(self._get_nested(prop, [
-                "marketValue", "EstimatedValue", "AVM"
+                "EstimatedValue", "AVM", "marketValue",
             ], None)),
             
             # Metadata
