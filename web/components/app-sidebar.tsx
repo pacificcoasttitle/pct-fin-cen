@@ -112,9 +112,9 @@ export function AppSidebar() {
           <Image 
             src={BRAND.logoIcon}
             alt={BRAND.name}
-            width={32}
+            width={120}
             height={32}
-            className="h-8 w-8"
+            className="h-8 w-auto object-contain shrink-0"
           />
           <div className="flex flex-col">
             <span className="text-sm font-semibold text-white">{BRAND.name}</span>

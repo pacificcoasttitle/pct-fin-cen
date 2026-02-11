@@ -162,35 +162,10 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Action Required Banner */}
-      {actionItems.length > 0 && (
-        <Card className="border-amber-200 bg-amber-50">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Bell className="w-5 h-5 text-amber-600" />
-              <span className="font-semibold text-amber-900">Action Required</span>
-            </div>
-            <ul className="space-y-2">
-              {actionItems.map((item, i) => (
-                <li key={i}>
-                  <Link
-                    href={item.href}
-                    className="text-amber-800 hover:text-amber-900 flex items-center gap-2 group"
-                  >
-                    <span>• {item.message}</span>
-                    <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition" />
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Link href="/app/requests">
-          <Card className="hover:shadow-md transition cursor-pointer h-full border-l-4 border-l-blue-500">
+          <Card className="hover:shadow-md transition cursor-pointer h-full">
             <CardHeader className="flex flex-row items-center justify-between pb-2 px-4 pt-4">
               <CardTitle className="text-sm font-medium text-muted-foreground">Active</CardTitle>
               <Clock className="h-5 w-5 text-blue-500" />
@@ -202,7 +177,7 @@ export default function DashboardPage() {
           </Card>
         </Link>
         <Link href="/app/requests">
-          <Card className="hover:shadow-md transition cursor-pointer h-full border-l-4 border-l-amber-500">
+          <Card className="hover:shadow-md transition cursor-pointer h-full">
             <CardHeader className="flex flex-row items-center justify-between pb-2 px-4 pt-4">
               <CardTitle className="text-sm font-medium text-muted-foreground">Awaiting Parties</CardTitle>
               <Users className="h-5 w-5 text-amber-500" />
@@ -214,7 +189,7 @@ export default function DashboardPage() {
           </Card>
         </Link>
         <Link href="/app/requests">
-          <Card className="hover:shadow-md transition cursor-pointer h-full border-l-4 border-l-green-500">
+          <Card className="hover:shadow-md transition cursor-pointer h-full">
             <CardHeader className="flex flex-row items-center justify-between pb-2 px-4 pt-4">
               <CardTitle className="text-sm font-medium text-muted-foreground">Filed</CardTitle>
               <CheckCircle2 className="h-5 w-5 text-green-500" />
@@ -226,7 +201,7 @@ export default function DashboardPage() {
           </Card>
         </Link>
         <Link href="/app/requests">
-          <Card className="hover:shadow-md transition cursor-pointer h-full border-l-4 border-l-purple-500">
+          <Card className="hover:shadow-md transition cursor-pointer h-full">
             <CardHeader className="flex flex-row items-center justify-between pb-2 px-4 pt-4">
               <CardTitle className="text-sm font-medium text-muted-foreground">Exempt</CardTitle>
               <Shield className="h-5 w-5 text-purple-500" />
@@ -241,7 +216,7 @@ export default function DashboardPage() {
 
       {/* Recent Activity */}
       <div>
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold text-gray-900">Recent Activity</h2>
           <Link href="/app/requests" className="text-sm text-primary hover:text-primary/80">
             View all →
@@ -249,8 +224,8 @@ export default function DashboardPage() {
         </div>
 
         {recentReports.length > 0 ? (
-          <div className="space-y-2">
-            {recentReports.map((report) => {
+          <div className="space-y-1">
+            {recentReports.slice(0, 5).map((report) => {
               const getReportHref = () => {
                 if (report.status === "ready_to_file" || report.status === "filed") return `/app/reports/${report.id}/review`;
                 if (report.status === "exempt") return `/app/reports/${report.id}/certificate`;
@@ -260,18 +235,18 @@ export default function DashboardPage() {
                 <div
                   key={report.id}
                   onClick={() => router.push(getReportHref())}
-                  className="flex items-center justify-between p-4 bg-white border rounded-xl hover:border-primary/30 hover:shadow-sm transition cursor-pointer"
+                  className="flex items-center justify-between px-3 py-2 bg-white border rounded-lg hover:border-primary/30 hover:shadow-sm transition cursor-pointer"
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 min-w-0">
                     {getStatusIcon(report.status)}
-                    <div>
-                      <p className="font-medium text-gray-900">
-                        {report.property_address_text || (report.status === "draft" ? "New report" : "Address not entered")}
-                      </p>
-                      <p className="text-sm text-gray-500">{formatStatus(report)}</p>
-                    </div>
+                    <span className="text-sm font-medium text-gray-900 truncate">
+                      {report.property_address_text || (report.status === "draft" ? "New report" : "Address not entered")}
+                    </span>
                   </div>
-                  <ArrowRight className="w-4 h-4 text-gray-400" />
+                  <div className="flex items-center gap-3 shrink-0 ml-3">
+                    <span className="text-xs text-gray-500">{formatStatus(report)}</span>
+                    <ArrowRight className="w-3.5 h-3.5 text-gray-400" />
+                  </div>
                 </div>
               );
             })}
@@ -288,6 +263,29 @@ export default function DashboardPage() {
           </Card>
         )}
       </div>
+
+      {/* Action Required */}
+      {actionItems.length > 0 && (
+        <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Bell className="w-4 h-4 text-emerald-600" />
+            <span className="text-sm font-semibold text-emerald-900">Action Needed</span>
+          </div>
+          <ul className="space-y-1.5">
+            {actionItems.map((item, i) => (
+              <li key={i}>
+                <Link
+                  href={item.href}
+                  className="text-sm text-emerald-800 hover:text-emerald-900 flex items-center gap-2 group"
+                >
+                  <span>• {item.message}</span>
+                  <ArrowRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
