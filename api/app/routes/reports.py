@@ -14,6 +14,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Header, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy import case
 
 from app.database import get_db
@@ -669,8 +670,8 @@ def determine_report(
     wizard_data = report.wizard_data or {}
     determination_data = wizard_data.get("determination", {})
     
-    # Use frontend-aligned determination logic (same field names the wizard writes)
-    is_exempt, exemption_reason = _check_frontend_determination(determination_data)
+    # Use frontend-aligned determination logic (all 6 FinCEN checks)
+    is_exempt, exemption_reason = _evaluate_determination(determination_data)
     is_reportable = not is_exempt
     
     # Build determination details for storage
@@ -694,6 +695,11 @@ def determine_report(
         reasoning.append(f"Transaction is EXEMPT: {exemption_reason}")
         logger.info(f"Report {report_id} determined EXEMPT: {exemption_reason}")
         
+        # Store exemption reason in wizard_data for certificate display
+        wizard_data["exemptionReason"] = exemption_reason
+        report.wizard_data = wizard_data
+        flag_modified(report, "wizard_data")
+        
         # Generate & persist exemption certificate data
         from app.services.early_determination import generate_exemption_certificate_id
         certificate_id = generate_exemption_certificate_id()
@@ -704,7 +710,7 @@ def determine_report(
             determination["exemption_reason"] = exemption_reason
         
         # Extract detailed exemption reasons from wizard_data
-        for key in ("individualExemptions", "entityExemptions", "trustExemptions"):
+        for key in ("transferExemptions", "entityExemptions", "trustExemptions"):
             if isinstance(determination_data, dict):
                 exs = determination_data.get(key, [])
                 if isinstance(exs, list):
@@ -761,66 +767,73 @@ def determine_report(
     )
 
 
-def _check_frontend_determination(determination: dict) -> tuple:
+def _evaluate_determination(determination: dict) -> tuple:
     """
-    Check if the frontend's determination indicates exemption.
+    Evaluate determination using FinCEN RRE decision logic.
     
     Returns (is_exempt: bool, reason: str | None)
     
-    This mirrors the frontend's determinationResult useMemo logic exactly:
-    - isResidential="no" + hasIntentToBuild="no" → EXEMPT
-    - lenderHasAml="yes" → EXEMPT
-    - buyerType="individual" + individualExemptions has real items → EXEMPT
-    - buyerType="entity" + entityExemptions has real items → EXEMPT
-    - buyerType="trust" + trustExemptions has real items → EXEMPT
-    - Any *Exemptions includes "none" → REPORTABLE
-    - Otherwise → incomplete (error)
+    Decision order (per FinCEN spec):
+    1. Transfer-level exemptions (asked first)
+    2. Non-residential with no intent to build
+    3. Lender has AML program
+    4. Individual buyer (immediate exit)
+    5. Entity exemptions (also for statutory trusts)
+    6. Trust exemptions (non-statutory trusts)
     """
     
-    # Check 1: Non-residential with no intent to build
-    is_residential = determination.get("isResidential")
-    has_intent_to_build = determination.get("hasIntentToBuild")
+    # CHECK 1: Transfer-level exemptions
+    transfer_exemptions = determination.get("transferExemptions", [])
+    if transfer_exemptions and "none" not in transfer_exemptions:
+        reasons = [e for e in transfer_exemptions if e != "none"]
+        if reasons:
+            return True, f"Transfer exempt: {', '.join(reasons)}"
     
-    if is_residential == "no" and has_intent_to_build == "no":
+    # CHECK 2: Non-residential with no intent to build
+    is_residential = determination.get("isResidential")
+    has_intent = determination.get("hasIntentToBuild")
+    
+    if is_residential == "no" and has_intent == "no":
         return True, "Non-residential property with no intent to build residential"
     
-    # Check 2: Lender has AML program
+    # CHECK 3: Lender has AML program
     lender_has_aml = determination.get("lenderHasAml")
     if lender_has_aml == "yes":
-        return True, "Lender has AML program - reporting handled by lender"
+        return True, "Financing by AML-covered lender — lender handles reporting"
     
-    # Check 3: Buyer type exemptions
+    # CHECK 4: Individual buyer = NOT REPORTABLE (immediate)
     buyer_type = determination.get("buyerType")
-    
     if buyer_type == "individual":
-        exemptions = determination.get("individualExemptions", [])
-        real_exemptions = [e for e in exemptions if e and e != "none"]
-        if real_exemptions:
-            return True, f"Individual buyer exemption: {', '.join(real_exemptions)}"
-        if "none" in exemptions:
+        return True, "Individual buyer — not reportable under RRE rule"
+    
+    # CHECK 5: Entity exemptions (also for statutory trusts)
+    is_statutory_trust = determination.get("isStatutoryTrust")
+    
+    if buyer_type == "entity" or (buyer_type == "trust" and is_statutory_trust):
+        entity_exemptions = determination.get("entityExemptions", [])
+        if entity_exemptions and "none" not in entity_exemptions:
+            reasons = [e for e in entity_exemptions if e != "none"]
+            if reasons:
+                exempt_type = "statutory trust" if is_statutory_trust else "entity"
+                return True, f"Exempt {exempt_type}: {', '.join(reasons)}"
+        if "none" in entity_exemptions:
             return False, None  # REPORTABLE
     
-    elif buyer_type == "entity":
-        exemptions = determination.get("entityExemptions", [])
-        real_exemptions = [e for e in exemptions if e and e != "none"]
-        if real_exemptions:
-            return True, f"Entity buyer exemption: {', '.join(real_exemptions)}"
-        if "none" in exemptions:
+    # CHECK 6: Trust exemptions (non-statutory trusts)
+    if buyer_type == "trust" and not is_statutory_trust:
+        trust_exemptions = determination.get("trustExemptions", [])
+        if trust_exemptions and "none" not in trust_exemptions:
+            reasons = [e for e in trust_exemptions if e != "none"]
+            if reasons:
+                return True, f"Exempt trust: {', '.join(reasons)}"
+        if "none" in trust_exemptions:
             return False, None  # REPORTABLE
     
-    elif buyer_type == "trust":
-        exemptions = determination.get("trustExemptions", [])
-        real_exemptions = [e for e in exemptions if e and e != "none"]
-        if real_exemptions:
-            return True, f"Trust buyer exemption: {', '.join(real_exemptions)}"
-        if "none" in exemptions:
-            return False, None  # REPORTABLE
-    
-    # If we get here, determination is incomplete — don't guess
+    # If we get here, determination is incomplete
     logger.warning(f"Incomplete determination data: {determination}")
     raise HTTPException(
         status_code=400,
-        detail="Determination incomplete. Please complete all determination steps in the wizard."
+        detail="Determination incomplete. Please complete all determination steps."
     )
 
 

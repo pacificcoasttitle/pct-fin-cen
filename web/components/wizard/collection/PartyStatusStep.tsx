@@ -14,7 +14,7 @@ import {
   Building2,
   Loader2
 } from "lucide-react";
-import { getReportParties, type PartyStatusItem } from "@/lib/api";
+import { getReportParties, resendPartyLink, type PartyStatusItem } from "@/lib/api";
 import { toast } from "sonner";
 
 interface PartyStatusStepProps {
@@ -52,8 +52,12 @@ export function PartyStatusStep({ reportId }: PartyStatusStepProps) {
   };
   
   const handleResend = async (partyId: string) => {
-    // Note: resendPartyLink API not yet available — placeholder
-    toast.info("Resend functionality coming soon");
+    try {
+      await resendPartyLink(reportId, partyId);
+      toast.success("Link resent successfully");
+    } catch (error) {
+      toast.error("Failed to resend link");
+    }
   };
   
   const buyers = parties.filter((p) => p.party_role === "transferee");

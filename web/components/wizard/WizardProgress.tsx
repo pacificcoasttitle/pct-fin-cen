@@ -1,119 +1,110 @@
-"use client"
+"use client";
 
-import { cn } from "@/lib/utils"
-import { Check, FileSearch, ClipboardList, FileCheck } from "lucide-react"
-
-interface WizardPhase {
-  id: string
-  title: string
-  shortTitle: string
-  icon: React.ComponentType<{ className?: string }>
-  isComplete: boolean
-  isActive: boolean
-  isAccessible: boolean
-}
+import { StepId } from "./types";
+import { DETERMINATION_STEPS, COLLECTION_STEPS } from "./constants";
+import { cn } from "@/lib/utils";
+import { CheckCircle2 } from "lucide-react";
 
 interface WizardProgressProps {
-  phases: WizardPhase[]
-  onPhaseClick: (phaseId: string) => void
-  className?: string
+  phase: "determination" | "collection";
+  currentStep: StepId;
+  visibleSteps: StepId[];
+  onStepClick?: (step: StepId) => void;
 }
 
-/**
- * Modern visual step progress indicator for the wizard
- * Matches the FinClear website theme (teal gradients, rounded corners, shadows)
- */
-export function WizardProgress({ phases, onPhaseClick, className }: WizardProgressProps) {
-  const currentIndex = phases.findIndex(p => p.isActive)
+export function WizardProgress({
+  phase,
+  currentStep,
+  visibleSteps,
+  onStepClick,
+}: WizardProgressProps) {
+  const currentIndex = visibleSteps.indexOf(currentStep);
+  
+  // Calculate progress percentage
+  const progress = visibleSteps.length > 1 
+    ? (currentIndex / (visibleSteps.length - 1)) * 100 
+    : 100;
+  
+  // Get phase-specific steps
+  const phaseSteps = phase === "determination" 
+    ? DETERMINATION_STEPS 
+    : COLLECTION_STEPS;
+  
+  // Filter to only visible steps in current phase
+  const displaySteps = phaseSteps.filter(s => visibleSteps.includes(s.id));
   
   return (
-    <div className={cn("relative py-6", className)}>
-      {/* Background progress track */}
-      <div className="absolute top-1/2 left-8 right-8 h-1 bg-gray-200 rounded-full -translate-y-1/2" />
+    <div className="space-y-4">
+      {/* Phase Indicator */}
+      <div className="flex items-center gap-2">
+        <div className={cn(
+          "px-3 py-1 rounded-full text-xs font-medium",
+          phase === "determination" 
+            ? "bg-blue-100 text-blue-700" 
+            : "bg-green-100 text-green-700"
+        )}>
+          {phase === "determination" ? "Step 1: Determination" : "Step 2: Data Collection"}
+        </div>
+      </div>
       
-      {/* Active progress fill */}
-      <div 
-        className="absolute top-1/2 left-8 h-1 bg-gradient-to-r from-teal-500 to-teal-600 rounded-full -translate-y-1/2 transition-all duration-500 ease-out"
-        style={{ 
-          width: currentIndex >= 0 
-            ? `calc(${(currentIndex / Math.max(phases.length - 1, 1)) * 100}% - 4rem + ${currentIndex === phases.length - 1 ? '4rem' : '0px'})` 
-            : '0%' 
-        }}
-      />
+      {/* Progress Bar */}
+      <div className="relative">
+        <div className="h-2 bg-muted rounded-full overflow-hidden">
+          <div 
+            className="h-full bg-primary transition-all duration-300 ease-out"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      </div>
       
-      {/* Step indicators */}
-      <div className="relative flex justify-between items-center">
-        {phases.map((phase, index) => {
-          const Icon = phase.icon
-          const isComplete = phase.isComplete
-          const isActive = phase.isActive
-          const isAccessible = phase.isAccessible
+      {/* Step Indicators (horizontal on large screens) */}
+      <div className="hidden md:flex items-center justify-between">
+        {displaySteps.map((step, idx) => {
+          const stepIndex = visibleSteps.indexOf(step.id);
+          const isComplete = stepIndex < currentIndex;
+          const isCurrent = step.id === currentStep;
+          const isClickable = stepIndex <= currentIndex && onStepClick;
           
           return (
             <button
-              key={phase.id}
-              onClick={() => isAccessible && onPhaseClick(phase.id)}
-              disabled={!isAccessible}
+              key={step.id}
+              onClick={() => isClickable && onStepClick?.(step.id)}
+              disabled={!isClickable}
               className={cn(
-                "flex flex-col items-center gap-2 group transition-all duration-200",
-                isAccessible ? "cursor-pointer" : "cursor-not-allowed"
+                "flex flex-col items-center gap-1 text-xs transition-colors",
+                isClickable ? "cursor-pointer" : "cursor-default",
+                isCurrent ? "text-primary font-medium" : 
+                isComplete ? "text-primary/70" : "text-muted-foreground"
               )}
             >
-              {/* Circle indicator */}
               <div className={cn(
-                "w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 border-2",
-                isComplete && "bg-gradient-to-br from-teal-500 to-teal-600 border-teal-500 text-white shadow-lg shadow-teal-500/30",
-                isActive && !isComplete && "bg-white border-teal-500 text-teal-600 ring-4 ring-teal-100 shadow-lg",
-                !isComplete && !isActive && isAccessible && "bg-white border-gray-200 text-gray-400 group-hover:border-teal-300 group-hover:text-teal-500",
-                !isComplete && !isActive && !isAccessible && "bg-gray-50 border-gray-200 text-gray-300"
+                "h-8 w-8 rounded-full flex items-center justify-center border-2 transition-colors",
+                isCurrent ? "border-primary bg-primary text-primary-foreground" :
+                isComplete ? "border-primary bg-primary/10" : "border-muted"
               )}>
                 {isComplete ? (
-                  <Check className="w-5 h-5" strokeWidth={3} />
+                  <CheckCircle2 className="h-4 w-4" />
                 ) : (
-                  <Icon className="w-5 h-5" />
+                  <span>{idx + 1}</span>
                 )}
               </div>
-              
-              {/* Label */}
-              <div className="flex flex-col items-center">
-                <span className={cn(
-                  "text-xs font-semibold transition-colors",
-                  isActive ? "text-teal-600" : isComplete ? "text-teal-600" : "text-gray-500"
-                )}>
-                  {phase.shortTitle}
-                </span>
-                {isActive && (
-                  <span className="text-[10px] text-teal-500 font-medium mt-0.5">Current</span>
-                )}
-              </div>
+              <span className="max-w-[80px] text-center truncate">
+                {step.title}
+              </span>
             </button>
-          )
+          );
         })}
       </div>
+      
+      {/* Current Step Title (mobile) */}
+      <div className="md:hidden text-center">
+        <p className="text-sm font-medium">
+          {displaySteps.find(s => s.id === currentStep)?.title}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Step {currentIndex + 1} of {visibleSteps.length}
+        </p>
+      </div>
     </div>
-  )
+  );
 }
-
-// Pre-configured phases for the RRER wizard
-export const WIZARD_PHASES = [
-  {
-    id: "determination",
-    title: "Filing Determination",
-    shortTitle: "Determination",
-    icon: FileSearch,
-  },
-  {
-    id: "collection",
-    title: "Data Collection",
-    shortTitle: "Collection",
-    icon: ClipboardList,
-  },
-  {
-    id: "summary",
-    title: "Review & File",
-    shortTitle: "Review",
-    icon: FileCheck,
-  },
-] as const
-
-export type WizardPhaseId = typeof WIZARD_PHASES[number]["id"]
