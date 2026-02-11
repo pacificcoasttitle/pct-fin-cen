@@ -138,7 +138,7 @@ export default function CertificatePage() {
       <div className="sticky top-0 z-10 border-b bg-card">
         <div className="container max-w-4xl py-3 px-4 flex items-center justify-between">
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
             onClick={() => router.push("/app/requests")}
           >

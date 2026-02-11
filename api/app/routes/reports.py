@@ -1578,6 +1578,9 @@ async def get_certificate_pdf(
                 detail="PDF generation is temporarily unavailable. Please use the Print button instead."
             )
             
+    except HTTPException:
+        # Re-raise HTTP exceptions (including the 503 above) without swallowing them
+        raise
     except Exception as e:
         logger.error(f"PDF generation failed for report {report_id}: {e}")
         raise HTTPException(
