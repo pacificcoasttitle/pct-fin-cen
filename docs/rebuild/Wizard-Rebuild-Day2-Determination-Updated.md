@@ -19,7 +19,7 @@ Step 1: Transfer Exemptions → ANY checked (except "none") = EXEMPT
 Step 2: Residential? → NO + no intent to build = EXEMPT
                     ↓ YES (or intent to build)
 Step 3: Non-financed? → NO + lender has AML = EXEMPT
-                     ↓ YES (or lender no/unknown AML)
+                     ↓ YES (or lender AML = "no" or "unknown")
 Step 4: Buyer Type → INDIVIDUAL = EXEMPT (immediate, no questions)
                   ↓ ENTITY or TRUST
 Step 5: Entity Exemptions → ANY checked = EXEMPT
@@ -30,6 +30,13 @@ Step 6: Trust Exemptions → ANY checked = EXEMPT
                         ↓ "none" checked = REPORTABLE
 Step 7: Result → Show outcome, next action
 ```
+
+**IMPORTANT: AML "Unknown" Handling**
+- `lenderHasAml === "yes"` → EXEMPT (lender handles reporting)
+- `lenderHasAml === "no"` → Continue (may be reportable)
+- `lenderHasAml === "unknown"` → **Show warning, then continue** (NOT exempt)
+
+The "unknown" case shows a warning but does NOT grant an exemption. We assume no AML coverage and proceed to buyer type.
 
 **NOTE:** Step 0 (Transaction Reference) is built in Day 1 as a shared component.
 It's used in WizardContainer (Day 4). Day 2 focuses on Steps 1-7.
@@ -220,8 +227,8 @@ export function PropertyTypeStep({
 
 import { StepCard, YesNoQuestion, YesNoUnknownQuestion, ExemptionAlert } from "../shared";
 import { YesNo, YesNoUnknown } from "../types";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { InfoIcon } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { InfoIcon, AlertCircle } from "lucide-react";
 
 interface FinancingStepProps {
   isNonFinanced: YesNo;
@@ -235,7 +242,11 @@ export function FinancingStep({
   onChange,
 }: FinancingStepProps) {
   const showLenderQuestion = isNonFinanced === "no";
+  
+  // ONLY exempt if lender definitively HAS AML
+  // "unknown" is NOT an exemption - we warn and proceed
   const isExempt = isNonFinanced === "no" && lenderHasAml === "yes";
+  const isUnknownAml = isNonFinanced === "no" && lenderHasAml === "unknown";
   
   return (
     <StepCard
@@ -271,11 +282,30 @@ export function FinancingStep({
           </div>
         )}
         
+        {/* EXEMPT: Lender definitively has AML */}
         {isExempt && (
           <ExemptionAlert
             type="exempt"
             description="When a lender with an AML program finances the purchase, the lender handles FinCEN reporting. No separate report is required."
           />
+        )}
+        
+        {/* WARNING: AML status unknown - NOT an exemption */}
+        {isUnknownAml && (
+          <Alert className="border-amber-200 bg-amber-50">
+            <AlertCircle className="h-4 w-4 text-amber-600" />
+            <AlertTitle className="text-amber-800">Verify Lender AML Coverage</AlertTitle>
+            <AlertDescription className="text-amber-700">
+              You indicated the lender's AML/SAR status is unknown. We recommend confirming 
+              with the lender before proceeding. 
+              <br /><br />
+              <strong>If the lender has an AML program:</strong> No FinCEN report is required.
+              <br />
+              <strong>If the lender does NOT have an AML program:</strong> The transaction may be reportable.
+              <br /><br />
+              <em>Proceeding assumes the lender does NOT have AML coverage.</em>
+            </AlertDescription>
+          </Alert>
         )}
       </div>
     </StepCard>
@@ -604,7 +634,7 @@ import {
   FileText,
   Home 
 } from "lucide-react";
-import { triggerDetermination } from "@/lib/api";
+import { determine } from "@/lib/api";
 import { useState } from "react";
 
 interface DeterminationResultStepProps {
@@ -642,7 +672,7 @@ export function DeterminationResultStep({
     setIsLoading(true);
     try {
       // Trigger backend to set status
-      await triggerDetermination(reportId);
+      await determine(reportId);
       onBeginCollection();
     } catch (error) {
       console.error("Failed to trigger determination:", error);
@@ -655,7 +685,7 @@ export function DeterminationResultStep({
     setIsLoading(true);
     try {
       // Trigger backend to set exempt status
-      await triggerDetermination(reportId);
+      await determine(reportId);
       // Navigate to certificate or show modal
       router.push(`/app/reports/${reportId}/certificate`);
     } catch (error) {
@@ -843,16 +873,19 @@ import {
 
 Test these scenarios manually or with a test component:
 
-| Scenario | Steps Shown | Result |
-|----------|-------------|--------|
-| Select "1031 Exchange" in Step 1 | 1 → 7 | EXEMPT |
-| Residential = No, Intent = No | 1 → 2 → 7 | EXEMPT |
-| Non-financed = No, Lender AML = Yes | 1 → 2 → 3 → 7 | EXEMPT |
-| Buyer = Individual | 1 → 2 → 3 → 4 → 7 | EXEMPT |
-| Entity, select "Bank" | 1 → 2 → 3 → 4 → 5 → 7 | EXEMPT |
-| Entity, select "None" | 1 → 2 → 3 → 4 → 5 → 7 | REPORTABLE |
-| Trust (statutory), select "None" | 1 → 2 → 3 → 4 → 5 → 7 | REPORTABLE |
-| Trust (regular), select "None" | 1 → 2 → 3 → 4 → 6 → 7 | REPORTABLE |
+| # | Scenario | Steps Shown | Result |
+|---|----------|-------------|--------|
+| 1 | Select "1031 Exchange" in Step 1 | 1 → 7 | EXEMPT |
+| 2 | Residential = No, Intent = No | 1 → 2 → 7 | EXEMPT |
+| 3 | Non-financed = No, Lender AML = Yes | 1 → 2 → 3 → 7 | EXEMPT |
+| 4 | Non-financed = No, Lender AML = **Unknown** | 1 → 2 → 3 → 4 → ... | ⚠️ WARNING shown, then **continues** (NOT exempt) |
+| 5 | Buyer = Individual | 1 → 2 → 3 → 4 → 7 | EXEMPT |
+| 6 | Entity, select "Bank" | 1 → 2 → 3 → 4 → 5 → 7 | EXEMPT |
+| 7 | Entity, select "None" | 1 → 2 → 3 → 4 → 5 → 7 | REPORTABLE |
+| 8 | Trust (statutory), select "None" | 1 → 2 → 3 → 4 → 5 → 7 | REPORTABLE |
+| 9 | Trust (regular), select "None" | 1 → 2 → 3 → 4 → 6 → 7 | REPORTABLE |
+
+**CRITICAL: Scenario #4** - AML "Unknown" must show amber warning but proceed to Step 4 (Buyer Type). It does NOT exempt.
 
 ### 4. Checkbox Logic
 
@@ -873,7 +906,8 @@ Test these scenarios manually or with a test component:
 
 ✅ All 7 determination steps created  
 ✅ TypeScript compiles  
-✅ All 8 test scenarios produce correct results  
+✅ All 9 test scenarios produce correct results  
+✅ **Scenario #4 (AML Unknown) shows warning but does NOT exempt**  
 ✅ Checkbox mutual exclusion works  
 ✅ Styling matches app design  
 
