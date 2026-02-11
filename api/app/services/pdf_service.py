@@ -295,7 +295,7 @@ async def generate_pdf(html_content: str) -> PDFResult:
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
                 "https://api.pdfshift.io/v3/convert/pdf",
-                auth=(settings.PDFSHIFT_API_KEY, ""),
+                auth=("api", settings.PDFSHIFT_API_KEY),
                 json={
                     "source": html_content,
                     "landscape": False,

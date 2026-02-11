@@ -631,7 +631,7 @@ def update_wizard(
     
     # Sync top-level fields from wizard_data for display/search
     collection = existing_data.get("collection", {})
-    prop_addr = collection.get("propertyAddress", {})
+    prop_addr = collection.get("propertyAddress") or {}
     
     if prop_addr.get("street"):
         parts = [prop_addr.get("street", "")]
