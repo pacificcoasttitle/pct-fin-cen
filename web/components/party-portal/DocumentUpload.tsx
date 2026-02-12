@@ -288,6 +288,10 @@ export function DocumentUpload({
 
       const { document_id, upload_url } = await urlResponse.json();
 
+      // Debug: log the URL structure (signature truncated)
+      const urlPath = upload_url.split('?')[0];
+      console.log(`[DocumentUpload] PUT URL path: ${urlPath}`);
+
       setUploadingFiles(prev =>
         prev.map(uf =>
           uf.id === uploadId ? { ...uf, progress: 30, documentId: document_id } : uf

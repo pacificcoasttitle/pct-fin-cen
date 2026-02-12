@@ -109,6 +109,10 @@ class R2StorageService:
                 ExpiresIn=expires_in
             )
             
+            # Log URL structure (truncate signature for security)
+            url_path = presigned_url.split('?')[0] if '?' in presigned_url else presigned_url
+            logger.info(f"Generated presigned PUT URL: {url_path}?X-Amz-... (key={key})")
+            
             return {
                 'upload_url': presigned_url,
                 'fields': {},  # No fields needed for PUT-based upload
