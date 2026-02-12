@@ -44,7 +44,7 @@ import logging
 logger = logging.getLogger(__name__)
 from app.services.notifications import log_notification, send_party_invite_notification
 from app.services.audit import log_event
-from app.services.email_service import FRONTEND_URL
+from app.services.email_service import FRONTEND_URL, send_exempt_notification, send_links_sent_confirmation
 from app.services.filing_lifecycle import (
     enqueue_submission,
     perform_mock_submit,
@@ -777,6 +777,57 @@ def determine_report(
     db.commit()
     db.refresh(report)
     
+    # ═══════════════════════════════════════════════════════════════════════════
+    # FIX 1: Send exempt determination email to escrow officer
+    # ═══════════════════════════════════════════════════════════════════════════
+    if is_exempt and report.initiated_by_user_id:
+        try:
+            initiator = db.query(User).filter(User.id == report.initiated_by_user_id).first()
+            if initiator and initiator.email:
+                # Generate company logo pre-signed URL
+                exempt_logo_url = None
+                if report.company_id:
+                    from app.models.company import Company as CompanyModel
+                    from app.services.storage import storage_service as r2_storage
+                    exempt_company = db.query(CompanyModel).filter(CompanyModel.id == report.company_id).first()
+                    if exempt_company and exempt_company.logo_url:
+                        exempt_logo_url = r2_storage.generate_download_url(
+                            key=exempt_company.logo_url,
+                            expires_in=604800,
+                        )
+                
+                report_url = f"{FRONTEND_URL}/app/reports/{report.id}/review"
+                determination_date = report.determination_completed_at.strftime('%B %d, %Y') if report.determination_completed_at else datetime.utcnow().strftime('%B %d, %Y')
+                
+                send_exempt_notification(
+                    to_email=initiator.email,
+                    recipient_name=initiator.name or initiator.email,
+                    property_address=report.property_address_text or "Property",
+                    determination_date=determination_date,
+                    exemption_reasons=exemption_reasons_list or [],
+                    certificate_id=certificate_id or "N/A",
+                    report_url=report_url,
+                    company_logo_url=exempt_logo_url,
+                )
+                
+                # Log to notification outbox
+                log_notification(
+                    db,
+                    type="exempt_complete",
+                    report_id=report.id,
+                    to_email=initiator.email,
+                    subject=f"Exempt Determination — {report.property_address_text or 'Property'}",
+                    body_preview="Transaction has been determined EXEMPT from FinCEN reporting.",
+                    meta={
+                        "certificate_id": certificate_id,
+                        "exemption_reasons": exemption_reasons_list,
+                    },
+                )
+                db.commit()
+                logger.info(f"[EXEMPT_NOTIFY] Sent exempt email to {initiator.email} for report {report.id}")
+        except Exception as e:
+            logger.warning(f"[EXEMPT_NOTIFY] Failed to send exempt notification: {e}")
+    
     return DeterminationResponse(
         report_id=report.id,
         is_reportable=is_reportable,
@@ -1007,6 +1058,50 @@ def create_party_links(
     )
     db.add(audit)
     db.commit()
+    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # FIX 2: Send links-sent confirmation to escrow officer
+    # ═══════════════════════════════════════════════════════════════════════════
+    if report.initiated_by_user_id and links_created:
+        try:
+            initiator = db.query(User).filter(User.id == report.initiated_by_user_id).first()
+            if initiator and initiator.email:
+                parties_summary = [
+                    {
+                        "name": lc.display_name or "Unnamed",
+                        "role": lc.party_role,
+                        "email": lc.email,
+                    }
+                    for lc in links_created
+                ]
+                
+                report_url = f"{FRONTEND_URL}/app/reports/{report.id}/wizard?step=party-status"
+                
+                send_links_sent_confirmation(
+                    to_email=initiator.email,
+                    recipient_name=initiator.name or initiator.email,
+                    property_address=property_address,
+                    parties=parties_summary,
+                    report_url=report_url,
+                    company_logo_url=company_logo_url_for_email,
+                )
+                
+                log_notification(
+                    db,
+                    type="links_sent_confirmation",
+                    report_id=report.id,
+                    to_email=initiator.email,
+                    subject=f"Party Links Sent — {property_address}",
+                    body_preview=f"Portal invitation links have been sent to {len(links_created)} parties.",
+                    meta={
+                        "parties_count": len(links_created),
+                        "emails_sent": sum(1 for lc in links_created if lc.email_sent),
+                    },
+                )
+                db.commit()
+                logger.info(f"[LINKS_CONFIRM] Sent links confirmation to {initiator.email} for report {report.id}")
+        except Exception as e:
+            logger.warning(f"[LINKS_CONFIRM] Failed to send links confirmation: {e}")
     
     return PartyLinkResponse(
         report_id=report.id,

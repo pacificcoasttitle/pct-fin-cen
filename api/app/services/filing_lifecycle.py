@@ -77,6 +77,21 @@ async def send_filing_notifications(
     report_url = f"{FRONTEND_URL}/app/reports/{report.id}"
     admin_report_url = f"{FRONTEND_URL}/app/admin/reports/{report.id}"
     
+    # FIX 5: Fetch company logo pre-signed URL for email branding
+    company_logo_url = None
+    if report.company_id:
+        try:
+            from app.models.company import Company as CompanyModel
+            from app.services.storage import storage_service as r2_storage
+            report_company = db.query(CompanyModel).filter(CompanyModel.id == report.company_id).first()
+            if report_company and report_company.logo_url:
+                company_logo_url = r2_storage.generate_download_url(
+                    key=report_company.logo_url,
+                    expires_in=604800,  # 7 days
+                )
+        except Exception as e:
+            logger.warning(f"Could not generate logo URL for filing notifications: {e}")
+    
     try:
         if status == "submitted":
             # Notify initiator
@@ -86,6 +101,7 @@ async def send_filing_notifications(
                     recipient_name=report.initiated_by.name,
                     property_address=property_address,
                     report_url=report_url,
+                    company_logo_url=company_logo_url,
                 )
             
             # Log notification
@@ -109,6 +125,7 @@ async def send_filing_notifications(
                     bsa_id=receipt_id or "N/A",
                     filed_at_str=filed_at_str,
                     report_url=report_url,
+                    company_logo_url=company_logo_url,
                 )
             
             # Notify company admin if different from initiator
@@ -122,6 +139,7 @@ async def send_filing_notifications(
                         bsa_id=receipt_id or "N/A",
                         filed_at_str=filed_at_str,
                         report_url=report_url,
+                        company_logo_url=company_logo_url,
                     )
             
             # Notify staff
@@ -133,6 +151,7 @@ async def send_filing_notifications(
                     bsa_id=receipt_id or "N/A",
                     filed_at_str=filed_at_str,
                     report_url=admin_report_url,
+                    company_logo_url=company_logo_url,
                 )
         
         elif status == "rejected":
@@ -145,6 +164,7 @@ async def send_filing_notifications(
                     rejection_code=rejection_code or "UNKNOWN",
                     rejection_message=rejection_message or "Filing was rejected",
                     report_url=report_url,
+                    company_logo_url=company_logo_url,
                 )
             
             # Notify staff immediately
@@ -156,6 +176,7 @@ async def send_filing_notifications(
                     rejection_code=rejection_code or "UNKNOWN",
                     rejection_message=rejection_message or "Filing was rejected",
                     report_url=admin_report_url,
+                    company_logo_url=company_logo_url,
                 )
             
             # Notify admin
@@ -167,6 +188,7 @@ async def send_filing_notifications(
                     rejection_code=rejection_code or "UNKNOWN",
                     rejection_message=rejection_message or "Filing was rejected",
                     report_url=admin_report_url,
+                    company_logo_url=company_logo_url,
                 )
         
         elif status == "needs_review":
@@ -178,6 +200,7 @@ async def send_filing_notifications(
                     property_address=property_address,
                     reason=reason or "Manual review required",
                     report_url=report_url,
+                    company_logo_url=company_logo_url,
                 )
             
             # Notify staff
@@ -188,6 +211,7 @@ async def send_filing_notifications(
                     property_address=property_address,
                     reason=reason or "Manual review required",
                     report_url=admin_report_url,
+                    company_logo_url=company_logo_url,
                 )
     
     except Exception as e:

@@ -56,6 +56,21 @@ def _send_party_submitted_notifications(
     # Get role display
     role_display = "Buyer" if party_role == "transferee" else "Seller"
     
+    # FIX 5: Fetch company logo pre-signed URL for email branding
+    company_logo_url = None
+    if report.company_id:
+        try:
+            from app.models.company import Company as CompanyModel
+            from app.services.storage import storage_service as r2_storage
+            report_company = db.query(CompanyModel).filter(CompanyModel.id == report.company_id).first()
+            if report_company and report_company.logo_url:
+                company_logo_url = r2_storage.generate_download_url(
+                    key=report_company.logo_url,
+                    expires_in=604800,  # 7 days
+                )
+        except Exception as e:
+            logger.warning(f"[PARTY_NOTIFY] Could not generate logo URL: {e}")
+    
     # 1. Notify the escrow officer who initiated the report
     if config.get("notify_initiator", True) and report.initiated_by_user_id:
         initiator = db.query(User).filter(User.id == report.initiated_by_user_id).first()
@@ -68,6 +83,7 @@ def _send_party_submitted_notifications(
                     property_address=property_address,
                     report_id=str(report.id),
                     all_complete=all_complete,
+                    company_logo_url=company_logo_url,
                 )
                 logger.info(f"[PARTY_NOTIFY] Sent to initiator: {initiator.email}")
             except Exception as e:
@@ -92,6 +108,7 @@ def _send_party_submitted_notifications(
                         property_address=property_address,
                         report_id=str(report.id),
                         all_complete=all_complete,
+                        company_logo_url=company_logo_url,
                     )
                     logger.info(f"[PARTY_NOTIFY] Sent to company admin: {company_admin.email}")
                 except Exception as e:
@@ -111,6 +128,7 @@ def _send_party_submitted_notifications(
                     property_address=property_address,
                     report_id=str(report.id),
                     all_complete=all_complete,
+                    company_logo_url=company_logo_url,
                 )
                 logger.info(f"[PARTY_NOTIFY] Sent to staff: {settings.STAFF_NOTIFICATION_EMAIL}")
             except Exception as e:
@@ -211,8 +229,19 @@ def get_party_by_token(
     # Company branding
     company = report.company if report.company_id else None
     company_name = company.name if company else "FinClear Solutions"
-    company_logo = None  # Logo URL if company has one in the future
     contact_email = company.billing_email if company else "clear@fincenclear.com"
+    
+    # Generate pre-signed R2 URL for company logo (FIX 4)
+    company_logo = None
+    if company and company.logo_url:
+        try:
+            from app.services.storage import storage_service as r2_storage
+            company_logo = r2_storage.generate_download_url(
+                key=company.logo_url,
+                expires_in=604800,  # 7 days
+            )
+        except Exception as e:
+            logger.warning(f"[PARTY_PORTAL] Could not generate logo URL: {e}")
     
     return PartyResponse(
         party_id=party.id,
@@ -543,6 +572,22 @@ def resend_party_link(
         # Resend existing link
         link_url = f"{_get_portal_base_url()}/p/{existing_link.token}"
         
+        # FIX 6: Actually send the invitation email
+        party_email = (party.party_data or {}).get("email")
+        if party_email:
+            try:
+                _send_resend_invite_email(
+                    db=db,
+                    report=report,
+                    party=party,
+                    party_email=party_email,
+                    link_url=link_url,
+                    token=existing_link.token,
+                    notification_type="party_invite_resend",
+                )
+            except Exception as e:
+                logger.warning(f"[RESEND_LINK] Email send failed (non-fatal): {e}")
+        
         logger.info(f"[RESEND_LINK] Reusing existing link for party {party_id}")
         
         return ResendLinkResponse(
@@ -550,7 +595,7 @@ def resend_party_link(
             existing_token=existing_link.token,
             link_url=link_url,
             expires_at=existing_link.expires_at,
-            message="Existing link is still valid. Email can be resent.",
+            message="Existing link resent via email.",
         )
     
     # Generate new link
@@ -596,12 +641,28 @@ def resend_party_link(
     
     link_url = f"{_get_portal_base_url()}/p/{new_token}"
     
+    # FIX 6: Actually send the invitation email with the new link
+    party_email = (party.party_data or {}).get("email")
+    if party_email:
+        try:
+            _send_resend_invite_email(
+                db=db,
+                report=report,
+                party=party,
+                party_email=party_email,
+                link_url=link_url,
+                token=new_token,
+                notification_type="party_invite",
+            )
+        except Exception as e:
+            logger.warning(f"[RESEND_LINK] Email send failed (non-fatal): {e}")
+    
     return ResendLinkResponse(
         party_id=str(party.id),
         new_token=new_token,
         link_url=link_url,
         expires_at=expires_at,
-        message="New link generated. Old link revoked." + 
+        message="New link generated and emailed. Old link revoked." + 
                 (" Party can resubmit." if request_body.allow_resubmission else ""),
     )
 
@@ -765,7 +826,19 @@ def client_resend_party_link(
     if existing_link:
         link_url = f"{_get_portal_base_url()}/p/{existing_link.token}"
         
-        # TODO: Send email with existing link in production
+        # FIX 6: Actually send the invitation email
+        try:
+            _send_resend_invite_email(
+                db=db,
+                report=report,
+                party=party,
+                party_email=party_email,
+                link_url=link_url,
+                token=existing_link.token,
+                notification_type="party_invite_resend",
+            )
+        except Exception as e:
+            logger.warning(f"[RESEND_LINK] Email send failed (non-fatal): {e}")
         
         return ClientResendResponse(
             message="Portal link resent successfully",
@@ -803,13 +876,80 @@ def client_resend_party_link(
     
     link_url = f"{_get_portal_base_url()}/p/{new_token}"
     
-    # TODO: Send email with new link in production
+    # FIX 6: Actually send the invitation email with the new link
+    try:
+        _send_resend_invite_email(
+            db=db,
+            report=report,
+            party=party,
+            party_email=party_email,
+            link_url=link_url,
+            token=new_token,
+            notification_type="party_invite",
+        )
+    except Exception as e:
+        logger.warning(f"[RESEND_LINK] Email send failed (non-fatal): {e}")
     
     return ClientResendResponse(
         message="New portal link generated and sent",
         sent_to=party_email,
         link_url=link_url,
     )
+
+
+def _send_resend_invite_email(
+    db: Session,
+    report: Report,
+    party: ReportParty,
+    party_email: str,
+    link_url: str,
+    token: str,
+    notification_type: str = "party_invite_resend",
+):
+    """
+    Send (or re-send) a party invitation email.
+    
+    Shared helper for both staff and client resend endpoints.
+    Fetches company branding and calls the standard invite notification flow.
+    """
+    from app.services.notifications import send_party_invite_notification
+    from app.services.email_service import FRONTEND_URL
+    
+    # Fetch company branding
+    company_name_for_email = "FinClear Solutions"
+    company_logo_url_for_email = None
+    if report.company_id:
+        try:
+            from app.models.company import Company as CompanyModel
+            from app.services.storage import storage_service as r2_storage
+            report_company = db.query(CompanyModel).filter(CompanyModel.id == report.company_id).first()
+            if report_company:
+                company_name_for_email = report_company.name
+                if report_company.logo_url:
+                    company_logo_url_for_email = r2_storage.generate_download_url(
+                        key=report_company.logo_url,
+                        expires_in=604800,  # 7 days
+                    )
+        except Exception as e:
+            logger.warning(f"[RESEND_LINK] Could not generate logo URL: {e}")
+    
+    property_address = report.property_address_text or "Property"
+    
+    send_party_invite_notification(
+        db=db,
+        report_id=report.id,
+        party_id=party.id,
+        party_token=token,
+        to_email=party_email,
+        party_name=party.display_name or "",
+        party_role=party.party_role or "party",
+        property_address=property_address,
+        portal_link=link_url,
+        company_name=company_name_for_email,
+        company_logo_url=company_logo_url_for_email,
+    )
+    
+    logger.info(f"[RESEND_LINK] Email sent to {party_email} for party {party.id}")
 
 
 def _get_portal_base_url() -> str:

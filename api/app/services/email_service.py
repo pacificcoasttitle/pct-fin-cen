@@ -500,8 +500,10 @@ def get_invoice_email_html(
     period_start: str,
     period_end: str,
     view_link: str,
+    company_logo_url: Optional[str] = None,
 ) -> str:
     """Generate HTML for invoice email."""
+    logo_block = _build_company_logo_block(company_logo_url)
     
     return f"""
 <!DOCTYPE html>
@@ -535,7 +537,7 @@ def get_invoice_email_html(
                     <!-- Body -->
                     <tr>
                         <td style="padding: 40px;">
-                            
+                            {logo_block}
                             <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
                                 Dear {company_name},
                             </p>
@@ -688,6 +690,7 @@ def send_invoice_email(
     period_start: str,
     period_end: str,
     view_link: str,
+    company_logo_url: Optional[str] = None,
 ) -> EmailResult:
     """
     Send invoice email to company billing contact.
@@ -715,6 +718,7 @@ def send_invoice_email(
         period_start=period_start,
         period_end=period_end,
         view_link=view_link,
+        company_logo_url=company_logo_url,
     )
     
     text_content = get_invoice_email_text(
@@ -772,6 +776,7 @@ def send_party_submitted_notification(
     property_address: str,
     report_id: str,
     all_complete: bool = False,
+    company_logo_url: Optional[str] = None,
 ) -> EmailResult:
     """
     Notify staff when a party submits their portal form.
@@ -810,6 +815,7 @@ def send_party_submitted_notification(
         </div>
         
         <div style="background: #fff; padding: 30px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px;">
+            {_build_company_logo_block(company_logo_url)}
             <p style="font-size: 16px; margin-bottom: 20px;">
                 <strong>{party_name}</strong> ({role_display}) has submitted their information for:
             </p>
@@ -860,6 +866,7 @@ def send_filing_submitted_notification(
     recipient_name: str,
     property_address: str,
     report_url: str,
+    company_logo_url: Optional[str] = None,
 ) -> EmailResult:
     """
     Notify when filing is submitted to FinCEN (pending acceptance).
@@ -888,6 +895,7 @@ def send_filing_submitted_notification(
                         </tr>
                         <tr>
                             <td style="padding: 30px;">
+                                {_build_company_logo_block(company_logo_url)}
                                 <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
                                     Hi {recipient_name},
                                 </p>
@@ -938,6 +946,7 @@ def send_filing_accepted_notification(
     bsa_id: str,
     filed_at_str: str,
     report_url: str,
+    company_logo_url: Optional[str] = None,
 ) -> EmailResult:
     """
     Notify when filing is accepted by FinCEN with BSA ID.
@@ -963,6 +972,7 @@ def send_filing_accepted_notification(
                         </tr>
                         <tr>
                             <td style="padding: 30px;">
+                                {_build_company_logo_block(company_logo_url)}
                                 <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
                                     Hi {recipient_name},
                                 </p>
@@ -1009,6 +1019,476 @@ def send_filing_accepted_notification(
     return send_email(to_email, subject, html_content)
 
 
+# ============================================================================
+# FIX 1: EXEMPT DETERMINATION NOTIFICATION
+# ============================================================================
+
+def get_exempt_notification_html(
+    recipient_name: str,
+    property_address: str,
+    determination_date: str,
+    exemption_reasons: list,
+    certificate_id: str,
+    report_url: str,
+    company_logo_url: Optional[str] = None,
+) -> str:
+    """Generate HTML for exempt determination notification email."""
+    logo_block = _build_company_logo_block(company_logo_url)
+    
+    reasons_html = ""
+    if exemption_reasons:
+        items = "".join(
+            f'<li style="margin-bottom: 6px; color: #065f46;">{r}</li>'
+            for r in exemption_reasons if r
+        )
+        reasons_html = f'<ul style="margin: 10px 0; padding-left: 20px;">{items}</ul>'
+    else:
+        reasons_html = '<p style="margin: 10px 0; color: #065f46;">Transaction qualifies for exemption under FinCEN regulations.</p>'
+    
+    return f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f4f4f5;">
+        <table width="100%" cellspacing="0" cellpadding="0" style="background-color: #f4f4f5;">
+            <tr>
+                <td align="center" style="padding: 40px 20px;">
+                    <table width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden;">
+                        <tr>
+                            <td style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); padding: 30px; text-align: center;">
+                                <h1 style="color: #ffffff; margin: 0; font-size: 24px;">✅ Transaction Exempt</h1>
+                                <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0; font-size: 14px;">No FinCEN Filing Required</p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 30px;">
+                                {logo_block}
+                                <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
+                                    Hi {recipient_name},
+                                </p>
+                                <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
+                                    The real estate transaction below has been determined <strong>EXEMPT</strong> from FinCEN reporting requirements.
+                                </p>
+                                <div style="background: #ecfdf5; border-left: 4px solid #10b981; padding: 16px; margin: 20px 0; border-radius: 0 8px 8px 0;">
+                                    <p style="margin: 0 0 8px; color: #065f46;"><strong>Property:</strong> {property_address}</p>
+                                    <p style="margin: 0 0 8px; color: #065f46;"><strong>Determination Date:</strong> {determination_date}</p>
+                                    <p style="margin: 0 0 8px; color: #065f46;"><strong>Certificate ID:</strong> <code style="background: #d1fae5; padding: 2px 8px; border-radius: 4px; font-family: monospace;">{certificate_id}</code></p>
+                                    <p style="margin: 0; color: #065f46;"><strong>Exemption Reason(s):</strong></p>
+                                    {reasons_html}
+                                </div>
+                                <p style="margin: 20px 0; color: #374151; font-size: 16px;">
+                                    <strong>No further action is required for this transaction.</strong>
+                                </p>
+                                <table width="100%" cellspacing="0" cellpadding="0" style="margin: 20px 0;">
+                                    <tr>
+                                        <td align="center">
+                                            <a href="{report_url}" style="display: inline-block; background: #059669; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600;">
+                                                View Exemption Certificate →
+                                            </a>
+                                        </td>
+                                    </tr>
+                                </table>
+                                <p style="margin: 20px 0 0; color: #6b7280; font-size: 14px;">
+                                    This exemption certificate is stored securely and can be accessed at any time from your dashboard.
+                                </p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="background: #1e293b; padding: 20px; text-align: center;">
+                                <p style="margin: 0; color: #94a3b8; font-size: 12px;">
+                                    {BRAND_NAME} — {BRAND_TAGLINE}
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </body>
+    </html>
+    """
+
+
+def get_exempt_notification_text(
+    recipient_name: str,
+    property_address: str,
+    determination_date: str,
+    exemption_reasons: list,
+    certificate_id: str,
+    report_url: str,
+) -> str:
+    """Generate plain text for exempt determination notification email."""
+    reasons_text = "\n".join(f"  - {r}" for r in exemption_reasons if r) if exemption_reasons else "  - Transaction qualifies for exemption under FinCEN regulations."
+    
+    return f"""
+TRANSACTION EXEMPT — No FinCEN Filing Required
+
+Hi {recipient_name},
+
+The real estate transaction below has been determined EXEMPT from FinCEN reporting requirements.
+
+Property: {property_address}
+Determination Date: {determination_date}
+Certificate ID: {certificate_id}
+
+Exemption Reason(s):
+{reasons_text}
+
+No further action is required for this transaction.
+
+View Exemption Certificate: {report_url}
+
+---
+{BRAND_NAME} — {BRAND_TAGLINE}
+"""
+
+
+def send_exempt_notification(
+    to_email: str,
+    recipient_name: str,
+    property_address: str,
+    determination_date: str,
+    exemption_reasons: list,
+    certificate_id: str,
+    report_url: str,
+    company_logo_url: Optional[str] = None,
+) -> EmailResult:
+    """Send exempt determination notification to escrow officer."""
+    subject = f"✅ Exempt Determination — {property_address}"
+    
+    html_content = get_exempt_notification_html(
+        recipient_name=recipient_name,
+        property_address=property_address,
+        determination_date=determination_date,
+        exemption_reasons=exemption_reasons,
+        certificate_id=certificate_id,
+        report_url=report_url,
+        company_logo_url=company_logo_url,
+    )
+    
+    text_content = get_exempt_notification_text(
+        recipient_name=recipient_name,
+        property_address=property_address,
+        determination_date=determination_date,
+        exemption_reasons=exemption_reasons,
+        certificate_id=certificate_id,
+        report_url=report_url,
+    )
+    
+    return send_email(to_email, subject, html_content, text_content)
+
+
+# ============================================================================
+# FIX 2: LINKS SENT CONFIRMATION TO ESCROW OFFICER
+# ============================================================================
+
+def get_links_sent_confirmation_html(
+    recipient_name: str,
+    property_address: str,
+    parties: list,
+    report_url: str,
+    company_logo_url: Optional[str] = None,
+) -> str:
+    """Generate HTML for links-sent confirmation email to escrow officer."""
+    logo_block = _build_company_logo_block(company_logo_url)
+    
+    # Build party list table rows
+    party_rows = ""
+    for p in parties:
+        role_display = "Buyer" if p.get("role") == "transferee" else "Seller" if p.get("role") == "transferor" else p.get("role", "Party").replace("_", " ").title()
+        email_display = p.get("email", "No email")
+        name_display = p.get("name", "Unnamed")
+        email_sent_badge = '<span style="color: #059669; font-weight: 600;">✓ Sent</span>' if p.get("email") else '<span style="color: #d97706;">⚠ No email</span>'
+        party_rows += f"""
+                                    <tr>
+                                        <td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb;">{name_display}</td>
+                                        <td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb;">{role_display}</td>
+                                        <td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb;">{email_display}</td>
+                                        <td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; text-align: center;">{email_sent_badge}</td>
+                                    </tr>"""
+    
+    return f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f4f4f5;">
+        <table width="100%" cellspacing="0" cellpadding="0" style="background-color: #f4f4f5;">
+            <tr>
+                <td align="center" style="padding: 40px 20px;">
+                    <table width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden;">
+                        <tr>
+                            <td style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); padding: 30px; text-align: center;">
+                                <h1 style="color: #ffffff; margin: 0; font-size: 24px;">📧 Party Links Sent</h1>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 30px;">
+                                {logo_block}
+                                <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
+                                    Hi {recipient_name},
+                                </p>
+                                <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
+                                    Portal invitation links have been sent to the following parties for:
+                                </p>
+                                <div style="background: #f0f9ff; border-left: 4px solid #3b82f6; padding: 16px; margin: 20px 0; border-radius: 0 8px 8px 0;">
+                                    <p style="margin: 0; color: #1e3a8a; font-weight: 600;">{property_address}</p>
+                                </div>
+                                
+                                <table width="100%" cellspacing="0" cellpadding="0" style="margin: 20px 0; font-size: 14px; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+                                    <tr style="background: #f8fafc;">
+                                        <th style="padding: 10px 12px; text-align: left; color: #475569; font-weight: 600; border-bottom: 2px solid #e5e7eb;">Name</th>
+                                        <th style="padding: 10px 12px; text-align: left; color: #475569; font-weight: 600; border-bottom: 2px solid #e5e7eb;">Role</th>
+                                        <th style="padding: 10px 12px; text-align: left; color: #475569; font-weight: 600; border-bottom: 2px solid #e5e7eb;">Email</th>
+                                        <th style="padding: 10px 12px; text-align: center; color: #475569; font-weight: 600; border-bottom: 2px solid #e5e7eb;">Status</th>
+                                    </tr>
+                                    {party_rows}
+                                </table>
+                                
+                                <p style="margin: 20px 0; color: #374151; font-size: 16px;">
+                                    You will be notified when each party submits their information. You can also monitor progress from your dashboard.
+                                </p>
+                                <table width="100%" cellspacing="0" cellpadding="0" style="margin: 20px 0;">
+                                    <tr>
+                                        <td align="center">
+                                            <a href="{report_url}" style="display: inline-block; background: #2563eb; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600;">
+                                                View Party Status →
+                                            </a>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="background: #1e293b; padding: 20px; text-align: center;">
+                                <p style="margin: 0; color: #94a3b8; font-size: 12px;">
+                                    {BRAND_NAME} — {BRAND_TAGLINE}
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </body>
+    </html>
+    """
+
+
+def get_links_sent_confirmation_text(
+    recipient_name: str,
+    property_address: str,
+    parties: list,
+    report_url: str,
+) -> str:
+    """Generate plain text for links-sent confirmation email."""
+    party_lines = ""
+    for p in parties:
+        role = "Buyer" if p.get("role") == "transferee" else "Seller" if p.get("role") == "transferor" else p.get("role", "Party")
+        party_lines += f"  - {p.get('name', 'Unnamed')} ({role}) — {p.get('email', 'No email')}\n"
+    
+    return f"""
+PARTY LINKS SENT — {property_address}
+
+Hi {recipient_name},
+
+Portal invitation links have been sent to the following parties:
+
+{party_lines}
+You will be notified when each party submits their information.
+
+View party status: {report_url}
+
+---
+{BRAND_NAME} — {BRAND_TAGLINE}
+"""
+
+
+def send_links_sent_confirmation(
+    to_email: str,
+    recipient_name: str,
+    property_address: str,
+    parties: list,
+    report_url: str,
+    company_logo_url: Optional[str] = None,
+) -> EmailResult:
+    """Send links-sent confirmation to escrow officer."""
+    subject = f"📧 Party Links Sent — {property_address}"
+    
+    html_content = get_links_sent_confirmation_html(
+        recipient_name=recipient_name,
+        property_address=property_address,
+        parties=parties,
+        report_url=report_url,
+        company_logo_url=company_logo_url,
+    )
+    
+    text_content = get_links_sent_confirmation_text(
+        recipient_name=recipient_name,
+        property_address=property_address,
+        parties=parties,
+        report_url=report_url,
+    )
+    
+    return send_email(to_email, subject, html_content, text_content)
+
+
+# ============================================================================
+# FIX 3: PARTY NUDGE (7-DAY REMINDER)
+# ============================================================================
+
+def get_party_nudge_html(
+    party_name: str,
+    party_role: str,
+    property_address: str,
+    portal_url: str,
+    company_logo_url: Optional[str] = None,
+) -> str:
+    """Generate HTML for party nudge reminder email."""
+    logo_block = _build_company_logo_block(company_logo_url)
+    role_display = party_role.replace("_", " ").title()
+    greeting = party_name if party_name else "Property Transaction Party"
+    
+    return f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f4f4f5;">
+        <table width="100%" cellspacing="0" cellpadding="0" style="background-color: #f4f4f5;">
+            <tr>
+                <td align="center" style="padding: 40px 20px;">
+                    <table width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden;">
+                        <tr>
+                            <td style="background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%); padding: 30px; text-align: center;">
+                                <h1 style="color: #ffffff; margin: 0; font-size: 24px;">⏰ Friendly Reminder</h1>
+                                <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0; font-size: 14px;">Your Information is Still Needed</p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 30px;">
+                                {logo_block}
+                                <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
+                                    Dear {greeting},
+                                </p>
+                                <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
+                                    This is a friendly reminder that we still need your information for a real estate transaction. You were previously sent a secure portal link, but we haven't received your submission yet.
+                                </p>
+                                <div style="background: #fffbeb; border-left: 4px solid #f59e0b; padding: 16px; margin: 20px 0; border-radius: 0 8px 8px 0;">
+                                    <p style="margin: 0 0 8px; color: #92400e;"><strong>Property:</strong> {property_address}</p>
+                                    <p style="margin: 0; color: #92400e;"><strong>Your Role:</strong> {role_display}</p>
+                                </div>
+                                <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
+                                    Your prompt response helps ensure a smooth closing process. Please complete the secure form at your earliest convenience.
+                                </p>
+                                <table width="100%" cellspacing="0" cellpadding="0" style="margin: 20px 0;">
+                                    <tr>
+                                        <td align="center">
+                                            <a href="{portal_url}" style="display: inline-block; background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: #ffffff; padding: 16px 40px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4);">
+                                                Complete Your Information →
+                                            </a>
+                                        </td>
+                                    </tr>
+                                </table>
+                                <p style="margin: 20px 0 0; color: #6b7280; font-size: 14px;">
+                                    If you have already completed this form, please disregard this email. If you need a new link, please contact your title company representative.
+                                </p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="background: #1e293b; padding: 20px; text-align: center;">
+                                <p style="margin: 0; color: #94a3b8; font-size: 12px;">
+                                    {BRAND_NAME} — {BRAND_TAGLINE}
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </body>
+    </html>
+    """
+
+
+def get_party_nudge_text(
+    party_name: str,
+    party_role: str,
+    property_address: str,
+    portal_url: str,
+) -> str:
+    """Generate plain text for party nudge reminder email."""
+    role_display = party_role.replace("_", " ").title()
+    greeting = party_name if party_name else "Property Transaction Party"
+    
+    return f"""
+REMINDER: Your Information is Still Needed
+
+Dear {greeting},
+
+This is a friendly reminder that we still need your information for a real estate transaction.
+
+Property: {property_address}
+Your Role: {role_display}
+
+Please complete the secure form at your earliest convenience:
+{portal_url}
+
+Your prompt response helps ensure a smooth closing process.
+
+If you have already completed this form, please disregard this email.
+
+---
+{BRAND_NAME} — {BRAND_TAGLINE}
+"""
+
+
+def send_party_nudge(
+    to_email: str,
+    party_name: str,
+    party_role: str,
+    property_address: str,
+    portal_url: str,
+    company_logo_url: Optional[str] = None,
+) -> EmailResult:
+    """Send party nudge reminder email."""
+    subject = f"Reminder: Your Information is Needed — {property_address}"
+    
+    html_content = get_party_nudge_html(
+        party_name=party_name,
+        party_role=party_role,
+        property_address=property_address,
+        portal_url=portal_url,
+        company_logo_url=company_logo_url,
+    )
+    
+    text_content = get_party_nudge_text(
+        party_name=party_name,
+        party_role=party_role,
+        property_address=property_address,
+        portal_url=portal_url,
+    )
+    
+    return send_email(to_email, subject, html_content, text_content)
+
+
+def _build_company_logo_block(company_logo_url: Optional[str] = None) -> str:
+    """Build a reusable company logo HTML block for email templates."""
+    if not company_logo_url:
+        return ""
+    return f'''
+            <div style="text-align: center; margin-bottom: 20px;">
+                <img src="{company_logo_url}" alt="Company Logo" style="max-height: 60px; max-width: 200px; object-fit: contain;" />
+            </div>'''
+
+
 def send_filing_rejected_notification(
     to_email: str,
     recipient_name: str,
@@ -1016,6 +1496,7 @@ def send_filing_rejected_notification(
     rejection_code: str,
     rejection_message: str,
     report_url: str,
+    company_logo_url: Optional[str] = None,
 ) -> EmailResult:
     """
     Notify when filing is rejected by FinCEN — URGENT.
@@ -1041,6 +1522,7 @@ def send_filing_rejected_notification(
                         </tr>
                         <tr>
                             <td style="padding: 30px;">
+                                {_build_company_logo_block(company_logo_url)}
                                 <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
                                     Hi {recipient_name},
                                 </p>
@@ -1098,6 +1580,7 @@ def send_filing_needs_review_notification(
     property_address: str,
     reason: str,
     report_url: str,
+    company_logo_url: Optional[str] = None,
 ) -> EmailResult:
     """
     Notify when filing needs manual review.
@@ -1123,6 +1606,7 @@ def send_filing_needs_review_notification(
                         </tr>
                         <tr>
                             <td style="padding: 30px;">
+                                {_build_company_logo_block(company_logo_url)}
                                 <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
                                     Hi {recipient_name},
                                 </p>
