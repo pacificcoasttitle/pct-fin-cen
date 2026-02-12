@@ -42,7 +42,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://pct-fincen-api.onrender.com";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "https://pct-fincen-api.onrender.com";
 
 // Types
 interface DocumentType {
