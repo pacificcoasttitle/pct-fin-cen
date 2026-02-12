@@ -480,7 +480,7 @@ export async function fileReport(reportId: string): Promise<FileResult> {
  * Resend party link email
  */
 export async function resendPartyLink(reportId: string, partyId: string): Promise<void> {
-  await apiFetch(`/reports/${reportId}/parties/${partyId}/resend-link`, {
+  await apiFetch(`/party/reports/${reportId}/parties/${partyId}/resend-link`, {
     method: 'POST',
   });
 }
