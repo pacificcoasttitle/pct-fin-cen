@@ -485,6 +485,15 @@ export async function resendPartyLink(reportId: string, partyId: string): Promis
   });
 }
 
+/**
+ * Bulk resend portal links to all unsubmitted parties on a report
+ */
+export async function resendAllPartyLinks(reportId: string): Promise<{ message: string; emails_sent: number; parties_skipped: number }> {
+  return apiFetch(`/reports/${reportId}/resend-party-links`, {
+    method: 'POST',
+  });
+}
+
 // ============================================
 // PARTY PORTAL API
 // ============================================

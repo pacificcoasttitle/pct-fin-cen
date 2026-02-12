@@ -1818,3 +1818,149 @@ async def download_certificate_by_token(
     except Exception as e:
         logger.error(f"Token-based PDF generation failed for report {report_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to generate PDF. Please try again.")
+
+
+# ── Bulk Resend Party Links ──────────────────────────────────────────
+
+class BulkResendResponse(BaseModel):
+    message: str
+    emails_sent: int
+    parties_skipped: int
+
+
+@router.post("/{report_id}/resend-party-links", response_model=BulkResendResponse)
+def bulk_resend_party_links(
+    report_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """
+    Resend portal links to ALL parties on a report that haven't submitted yet.
+    Used from the requests table "Resend Links" action.
+    """
+    import secrets as _secrets
+
+    report = db.query(Report).filter(Report.id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    # Only allow resending for active statuses
+    if report.status not in ("collecting", "awaiting_parties", "determination_complete"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot resend links for report with status '{report.status}'",
+        )
+
+    # Find all parties that haven't submitted
+    parties = db.query(ReportParty).filter(
+        ReportParty.report_id == report_id,
+        ReportParty.status != "submitted",
+    ).all()
+
+    now = datetime.utcnow()
+    emails_sent = 0
+    parties_skipped = 0
+
+    # Fetch company info for branded emails (party-facing)
+    company_name = None
+    company_logo_url = None
+    if report.company_id:
+        try:
+            company = db.query(Company).filter(Company.id == report.company_id).first()
+            if company:
+                company_name = company.name
+                if company.logo_url:
+                    from app.services.storage import storage_service as r2_storage
+                    company_logo_url = r2_storage.generate_download_url(
+                        key=company.logo_url,
+                        expires_in=604800,
+                    )
+        except Exception as e:
+            logger.warning(f"[BULK_RESEND] Could not fetch company info: {e}")
+
+    portal_base = os.getenv("PORTAL_BASE_URL", "https://fincenclear.com")
+
+    for party in parties:
+        # Get party email
+        party_email = None
+        if party.party_data and isinstance(party.party_data, dict):
+            party_email = party.party_data.get("email")
+        if not party_email:
+            parties_skipped += 1
+            continue
+
+        # Find existing active link
+        existing_link = db.query(PartyLink).filter(
+            PartyLink.report_party_id == party.id,
+            PartyLink.status == "active",
+            PartyLink.expires_at > now,
+        ).first()
+
+        if existing_link:
+            link_url = f"{portal_base}/p/{existing_link.token}"
+            token = existing_link.token
+        else:
+            # Generate a new link
+            token = _secrets.token_urlsafe(32)
+            expires_at = now + timedelta(days=7)
+            new_link = PartyLink(
+                report_party_id=party.id,
+                token=token,
+                status="active",
+                created_at=now,
+                expires_at=expires_at,
+            )
+            db.add(new_link)
+            db.flush()
+            link_url = f"{portal_base}/p/{token}"
+
+        # Send email
+        try:
+            property_address = report.property_address_text or "Property address pending"
+            party_name = party.display_name or ""
+            party_role = party.party_role or "party"
+
+            send_party_invite_notification(
+                db=db,
+                report_id=report.id,
+                party_id=party.id,
+                party_token=token,
+                to_email=party_email,
+                party_name=party_name,
+                party_role=party_role,
+                property_address=property_address,
+                portal_link=link_url,
+                company_name=company_name,
+                company_logo_url=company_logo_url,
+            )
+            emails_sent += 1
+        except Exception as e:
+            logger.warning(f"[BULK_RESEND] Email failed for party {party.id}: {e}")
+            parties_skipped += 1
+
+    # Audit log
+    try:
+        client_ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip() or (
+            request.client.host if request.client else None
+        )
+    except Exception:
+        client_ip = None
+
+    audit = AuditLog(
+        report_id=report_id,
+        actor_type="client",
+        action="party_links.bulk_resent",
+        details={
+            "emails_sent": emails_sent,
+            "parties_skipped": parties_skipped,
+        },
+        ip_address=client_ip,
+    )
+    db.add(audit)
+    db.commit()
+
+    return BulkResendResponse(
+        message=f"Portal links resent to {emails_sent} parties",
+        emails_sent=emails_sent,
+        parties_skipped=parties_skipped,
+    )

@@ -14,6 +14,13 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import {
   Plus,
   RefreshCw,
   Eye,
@@ -32,9 +39,13 @@ import {
   ChevronUp,
   ChevronDown,
   ChevronsUpDown,
+  MoreHorizontal,
+  Mail,
 } from "lucide-react";
+import { toast } from "sonner";
 import {
   getReportsWithParties,
+  resendAllPartyLinks,
   type ReportWithParties,
 } from "@/lib/api";
 
@@ -194,6 +205,24 @@ export default function UnifiedRequestsPage() {
     return filteredReports.filter((r) => cfg.statuses.includes(r.status));
   };
 
+  const [resendingId, setResendingId] = useState<string | null>(null);
+
+  const handleResendLinks = async (reportId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setResendingId(reportId);
+    try {
+      const result = await resendAllPartyLinks(reportId);
+      toast.success(result.message);
+      if (result.parties_skipped > 0) {
+        toast.info(`${result.parties_skipped} parties skipped (no email on file)`);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to resend links");
+    } finally {
+      setResendingId(null);
+    }
+  };
+
   const getActionButton = (report: ReportWithParties) => {
     const { status, party_summary, id } = report;
 
@@ -231,14 +260,44 @@ export default function UnifiedRequestsPage() {
           </Button>
         );
       }
+      // Dropdown with Track + Resend Links
       return (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={(e) => { e.stopPropagation(); router.push(`/app/reports/${id}/wizard?step=party-status`); }}
-        >
-          <Eye className="mr-1 h-3 w-3" /> Track
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={(e) => { e.stopPropagation(); router.push(`/app/reports/${id}/wizard?step=party-status`); }}
+          >
+            <Eye className="mr-1 h-3 w-3" /> Track
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={(e) => { e.stopPropagation(); router.push(`/app/reports/${id}/wizard?step=party-status`); }}
+              >
+                <Eye className="mr-2 h-4 w-4" />
+                View Party Status
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                disabled={resendingId === id}
+                onClick={(e) => handleResendLinks(id, e)}
+              >
+                {resendingId === id ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Mail className="mr-2 h-4 w-4" />
+                )}
+                Resend Links
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       );
     }
     if (status === "ready_to_file") {

@@ -647,29 +647,31 @@ export default function ReviewPage() {
   
   if (error || !data) {
     return (
-      <div className="container max-w-4xl py-8">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.back()}
-          className="mb-4"
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back
-        </Button>
-        
-        <Card className="border-red-200 bg-red-50">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 text-red-700 mb-4">
-              <AlertTriangle className="h-5 w-5" />
-              <span className="font-medium">{error || "Failed to load data"}</span>
-            </div>
-            <Button onClick={handleRefresh} variant="outline">
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Try Again
-            </Button>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen bg-background">
+        <div className="mx-auto max-w-4xl px-6 py-8">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.back()}
+            className="mb-4"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back
+          </Button>
+          
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2 text-red-700 mb-4">
+                <AlertTriangle className="h-5 w-5" />
+                <span className="font-medium">{error || "Failed to load data"}</span>
+              </div>
+              <Button onClick={handleRefresh} variant="outline">
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Try Again
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
@@ -679,44 +681,49 @@ export default function ReviewPage() {
   const beneficialOwners = data.parties.filter(p => p.party_role === "beneficial_owner");
   
   return (
-    <div className="container max-w-4xl py-8">
-      {/* Header */}
-      <div className="mb-8">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.back()}
-          className="mb-4"
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Wizard
-        </Button>
-        
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Review Party Submissions</h1>
-            <p className="text-muted-foreground mt-1">
-              {data.property_address || "Property address pending"}
-            </p>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handleRefresh}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh
-            </Button>
-            <Badge 
-              variant={data.summary.all_complete ? "default" : "secondary"}
-              className={cn(
-                "text-sm py-1 px-3",
-                data.summary.all_complete ? "bg-green-600" : ""
-              )}
-            >
-              {data.summary.submitted} / {data.summary.total} Submitted
-            </Badge>
+    <div className="min-h-screen bg-background">
+      {/* Sticky Header */}
+      <div className="sticky top-0 z-10 border-b bg-card shadow-sm">
+        <div className="mx-auto max-w-4xl px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => router.back()}
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Wizard
+              </Button>
+              <div>
+                <h1 className="text-lg font-bold">Review Party Submissions</h1>
+                <p className="text-muted-foreground text-sm">
+                  {data.property_address || "Property address pending"}
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={handleRefresh}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
+              </Button>
+              <Badge 
+                variant={data.summary.all_complete ? "default" : "secondary"}
+                className={cn(
+                  "text-sm py-1 px-3",
+                  data.summary.all_complete ? "bg-green-600" : ""
+                )}
+              >
+                {data.summary.submitted} / {data.summary.total} Submitted
+              </Badge>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Main Content */}
+      <div className="mx-auto max-w-4xl px-6 py-8">
       
       {/* Summary Card */}
       <Card className="mb-8">
@@ -983,6 +990,7 @@ export default function ReviewPage() {
           </Button>
         </div>
       )}
+      </div>
     </div>
   );
 }
