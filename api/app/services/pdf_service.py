@@ -306,7 +306,6 @@ async def generate_pdf(html_content: str) -> PDFResult:
                         "bottom": "0.5in",
                         "left": "0.5in",
                     },
-                    "printBackground": True,
                 },
             )
             
