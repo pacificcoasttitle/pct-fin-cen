@@ -101,22 +101,25 @@ def nudge_parties(db: Session) -> int:
         property_address = get_property_address(report)
         portal_url = f"{FRONTEND_URL}/p/{active_link.token}"
 
-        # Generate company logo URL if available
+        # Generate company logo URL and name for party-facing branding
         company_logo_url = None
+        company_name = None
         if report.company_id:
             try:
                 from app.models.company import Company
                 from app.services.storage import storage_service as r2_storage
                 company = db.query(Company).filter(Company.id == report.company_id).first()
-                if company and company.logo_url:
-                    company_logo_url = r2_storage.generate_download_url(
-                        key=company.logo_url,
-                        expires_in=604800,
-                    )
+                if company:
+                    company_name = company.name
+                    if company.logo_url:
+                        company_logo_url = r2_storage.generate_download_url(
+                            key=company.logo_url,
+                            expires_in=604800,
+                        )
             except Exception as e:
                 logger.warning(f"Could not generate logo URL: {e}")
 
-        # Send nudge
+        # Send nudge (party-facing — uses company branding)
         try:
             result = send_party_nudge(
                 to_email=party_email,
@@ -125,6 +128,7 @@ def nudge_parties(db: Session) -> int:
                 property_address=property_address,
                 portal_url=portal_url,
                 company_logo_url=company_logo_url,
+                company_name=company_name,
             )
 
             # Log notification event

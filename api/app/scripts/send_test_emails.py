@@ -91,7 +91,7 @@ def record(name, result):
 # ===================================================================
 
 def send_email_1():
-    print("1/8  Exempt Complete ...")
+    print("1/8  Exempt Complete (officer-facing -> FinClear logo) ...")
     html = get_exempt_notification_html(
         recipient_name="Jennifer Walsh",
         property_address=PROPERTY_ADDRESS,
@@ -102,7 +102,7 @@ def send_email_1():
         ],
         certificate_id="CERT-2026-00042",
         report_url=f"{MOCK_REPORT_URL}/certificate",
-        company_logo_url=COMPANY_LOGO_URL,
+        # Officer-facing: no company_logo_url — uses FinClear branding
     )
     result = send_email(
         to_email=TEST_EMAIL,
@@ -118,14 +118,14 @@ def send_email_1():
 # ===================================================================
 
 def send_email_2():
-    print("2/8  Party Invite ...")
+    print("2/8  Party Invite (party-facing -> company branding) ...")
     html = get_party_invite_html(
         party_name="John Smith",
         party_role="transferee",
         property_address=PROPERTY_ADDRESS,
         portal_link=f"{FRONTEND_URL}/p/test-token-abc123",
         company_name=COMPANY_NAME,
-        company_logo_url=COMPANY_LOGO_URL,
+        company_logo_url=COMPANY_LOGO_URL,  # None = shows company name text fallback
     )
     result = send_email(
         to_email=TEST_EMAIL,
@@ -141,7 +141,7 @@ def send_email_2():
 # ===================================================================
 
 def send_email_3():
-    print("3/8  Links Sent Confirmation ...")
+    print("3/8  Links Sent Confirmation (officer-facing -> FinClear logo) ...")
     html = get_links_sent_confirmation_html(
         recipient_name="Jennifer Walsh",
         property_address=PROPERTY_ADDRESS,
@@ -150,7 +150,7 @@ def send_email_3():
             {"name": "Jane Doe", "role": "transferor", "email": "jane@example.com"},
         ],
         report_url=f"{MOCK_REPORT_URL}/wizard?step=party-status",
-        company_logo_url=COMPANY_LOGO_URL,
+        # Officer-facing: no company_logo_url — uses FinClear branding
     )
     result = send_email(
         to_email=TEST_EMAIL,
@@ -166,7 +166,7 @@ def send_email_3():
 # ===================================================================
 
 def send_email_4():
-    print("4/8  Party Submitted ...")
+    print("4/8  Party Submitted (officer-facing -> FinClear logo) ...")
     result = send_party_submitted_notification(
         staff_email=TEST_EMAIL,
         party_name="John Smith",
@@ -174,7 +174,7 @@ def send_email_4():
         property_address=PROPERTY_ADDRESS,
         report_id=MOCK_REPORT_ID,
         all_complete=False,
-        company_logo_url=COMPANY_LOGO_URL,
+        # Officer-facing: no company_logo_url — uses FinClear branding
     )
     record("Party Submitted", result)
 
@@ -184,13 +184,14 @@ def send_email_4():
 # ===================================================================
 
 def send_email_5():
-    print("5/8  Party Nudge ...")
+    print("5/8  Party Nudge (party-facing -> company branding) ...")
     html = get_party_nudge_html(
         party_name="Jane Doe",
         party_role="transferor",
         property_address=PROPERTY_ADDRESS,
         portal_url=f"{FRONTEND_URL}/p/test-token-xyz789",
-        company_logo_url=COMPANY_LOGO_URL,
+        company_logo_url=COMPANY_LOGO_URL,  # None = shows company name text fallback
+        company_name=COMPANY_NAME,
     )
     result = send_email(
         to_email=TEST_EMAIL,
@@ -206,13 +207,13 @@ def send_email_5():
 # ===================================================================
 
 def send_email_6():
-    print("6/8  Filing Submitted ...")
+    print("6/8  Filing Submitted (officer-facing -> FinClear logo) ...")
     result = send_filing_submitted_notification(
         to_email=TEST_EMAIL,
         recipient_name="Jennifer Walsh",
         property_address=PROPERTY_ADDRESS,
         report_url=MOCK_REPORT_URL,
-        company_logo_url=COMPANY_LOGO_URL,
+        # Officer-facing: no company_logo_url — uses FinClear branding
     )
     record("Filing Submitted", result)
 
@@ -222,7 +223,7 @@ def send_email_6():
 # ===================================================================
 
 def send_email_7():
-    print("7/8  Filing Accepted ...")
+    print("7/8  Filing Accepted (officer-facing -> FinClear logo) ...")
     result = send_filing_accepted_notification(
         to_email=TEST_EMAIL,
         recipient_name="Jennifer Walsh",
@@ -230,7 +231,7 @@ def send_email_7():
         bsa_id="31000123456789",
         filed_at_str=TODAY,
         report_url=MOCK_REPORT_URL,
-        company_logo_url=COMPANY_LOGO_URL,
+        # Officer-facing: no company_logo_url — uses FinClear branding
     )
     record("Filing Accepted", result)
 
@@ -240,7 +241,7 @@ def send_email_7():
 # ===================================================================
 
 def send_email_8():
-    print("8/8  Invoice ...")
+    print("8/8  Invoice (officer-facing -> FinClear logo) ...")
     due = (datetime.utcnow() + timedelta(days=30)).strftime("%B %d, %Y")
     result = send_invoice_email(
         to_email=TEST_EMAIL,
@@ -251,7 +252,7 @@ def send_email_8():
         period_start="January 1, 2026",
         period_end="January 31, 2026",
         view_link=f"{FRONTEND_URL}/app/billing/invoices/INV-2026-001",
-        company_logo_url=COMPANY_LOGO_URL,
+        # Officer-facing: no company_logo_url — uses FinClear branding
     )
     record("Invoice", result)
 
@@ -270,7 +271,7 @@ def main():
     print(f"  From:          {SENDGRID_FROM_EMAIL}")
     print(f"  API Key:       {'***' + SENDGRID_API_KEY[-4:] if SENDGRID_API_KEY else 'NOT SET'}")
     print(f"  Frontend URL:  {FRONTEND_URL}")
-    print(f"  Company Logo:  {COMPANY_LOGO_URL or '(none -- using FinClear fallback)'}")
+    print(f"  Company Logo:  {COMPANY_LOGO_URL or '(none -- company-name text fallback for party emails)'}")
     print(f"  Time:          {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}")
     print("=" * 60)
     print()

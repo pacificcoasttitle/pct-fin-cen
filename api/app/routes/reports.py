@@ -785,21 +785,10 @@ def determine_report(
         try:
             initiator = db.query(User).filter(User.id == report.initiated_by_user_id).first()
             if initiator and initiator.email:
-                # Generate company logo pre-signed URL
-                exempt_logo_url = None
-                if report.company_id:
-                    from app.models.company import Company as CompanyModel
-                    from app.services.storage import storage_service as r2_storage
-                    exempt_company = db.query(CompanyModel).filter(CompanyModel.id == report.company_id).first()
-                    if exempt_company and exempt_company.logo_url:
-                        exempt_logo_url = r2_storage.generate_download_url(
-                            key=exempt_company.logo_url,
-                            expires_in=604800,
-                        )
-                
                 report_url = generate_certificate_download_url(str(report.id), days_valid=7)
                 determination_date = report.determination_completed_at.strftime('%B %d, %Y') if report.determination_completed_at else datetime.utcnow().strftime('%B %d, %Y')
                 
+                # Officer-facing email — uses FinClear branding (logo_mode="finclear")
                 send_exempt_notification(
                     to_email=initiator.email,
                     recipient_name=initiator.name or initiator.email,
@@ -808,7 +797,6 @@ def determine_report(
                     exemption_reasons=exemption_reasons_list or [],
                     certificate_id=certificate_id or "N/A",
                     report_url=report_url,
-                    company_logo_url=exempt_logo_url,
                 )
                 
                 # Log to notification outbox
@@ -1078,13 +1066,13 @@ def create_party_links(
                 
                 report_url = f"{FRONTEND_URL}/app/reports/{report.id}/wizard?step=party-status"
                 
+                # Officer-facing email — uses FinClear branding (logo_mode="finclear")
                 send_links_sent_confirmation(
                     to_email=initiator.email,
                     recipient_name=initiator.name or initiator.email,
                     property_address=property_address,
                     parties=parties_summary,
                     report_url=report_url,
-                    company_logo_url=company_logo_url_for_email,
                 )
                 
                 log_notification(

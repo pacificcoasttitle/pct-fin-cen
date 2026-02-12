@@ -56,20 +56,7 @@ def _send_party_submitted_notifications(
     # Get role display
     role_display = "Buyer" if party_role == "transferee" else "Seller"
     
-    # FIX 5: Fetch company logo pre-signed URL for email branding
-    company_logo_url = None
-    if report.company_id:
-        try:
-            from app.models.company import Company as CompanyModel
-            from app.services.storage import storage_service as r2_storage
-            report_company = db.query(CompanyModel).filter(CompanyModel.id == report.company_id).first()
-            if report_company and report_company.logo_url:
-                company_logo_url = r2_storage.generate_download_url(
-                    key=report_company.logo_url,
-                    expires_in=604800,  # 7 days
-                )
-        except Exception as e:
-            logger.warning(f"[PARTY_NOTIFY] Could not generate logo URL: {e}")
+    # All party-submitted notifications are officer/staff-facing → use FinClear branding (no R2 logo needed)
     
     # 1. Notify the escrow officer who initiated the report
     if config.get("notify_initiator", True) and report.initiated_by_user_id:
@@ -83,7 +70,6 @@ def _send_party_submitted_notifications(
                     property_address=property_address,
                     report_id=str(report.id),
                     all_complete=all_complete,
-                    company_logo_url=company_logo_url,
                 )
                 logger.info(f"[PARTY_NOTIFY] Sent to initiator: {initiator.email}")
             except Exception as e:
@@ -108,7 +94,6 @@ def _send_party_submitted_notifications(
                         property_address=property_address,
                         report_id=str(report.id),
                         all_complete=all_complete,
-                        company_logo_url=company_logo_url,
                     )
                     logger.info(f"[PARTY_NOTIFY] Sent to company admin: {company_admin.email}")
                 except Exception as e:
@@ -128,7 +113,6 @@ def _send_party_submitted_notifications(
                     property_address=property_address,
                     report_id=str(report.id),
                     all_complete=all_complete,
-                    company_logo_url=company_logo_url,
                 )
                 logger.info(f"[PARTY_NOTIFY] Sent to staff: {settings.STAFF_NOTIFICATION_EMAIL}")
             except Exception as e:

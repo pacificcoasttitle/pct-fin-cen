@@ -124,13 +124,15 @@ def _build_email_wrapper(
     footer_note: Optional[str] = None,
     header_accent: str = "blue",
     button_color: Optional[str] = None,
+    logo_mode: str = "finclear",
+    company_name: Optional[str] = None,
 ) -> str:
     """
     Build a complete HTML email with consistent branding.
 
     Args:
         body_content: The unique HTML body for this email type.
-        company_logo_url: Optional pre-signed URL for company logo.
+        company_logo_url: Optional pre-signed URL for company logo (only used when logo_mode="company").
         header_text: Bold header title (e.g. "Transaction Exempt").
         header_subtext: Smaller text below header.
         action_url: Optional CTA button URL.
@@ -138,6 +140,8 @@ def _build_email_wrapper(
         footer_note: Optional small footer note above the brand line.
         header_accent: "blue" | "green" | "amber" | "red" for header bg.
         button_color: Override button bg color (hex). Defaults based on accent.
+        logo_mode: "finclear" (officer/staff emails) or "company" (party-facing emails).
+        company_name: Fallback text when logo_mode="company" but no logo image uploaded.
     """
     # Accent color mapping
     accent_map = {
@@ -149,13 +153,24 @@ def _build_email_wrapper(
     accent = accent_map.get(header_accent, accent_map["blue"])
     btn_bg = button_color or accent["bg"]
 
-    # Logo block
-    if company_logo_url:
+    # Logo block — determined by logo_mode
+    if logo_mode == "company" and company_logo_url:
+        # Party-facing: show the escrow/title company's uploaded logo
         logo_html = f'''
                                 <img src="{company_logo_url}" alt="Company Logo"
                                      style="max-height:60px; max-width:200px; display:block; margin:0 auto; object-fit:contain;" />
 '''
+    elif logo_mode == "company" and not company_logo_url:
+        # Party-facing but no logo uploaded: show company name as styled text fallback
+        display_name = company_name or "Your Escrow Company"
+        logo_html = f'''
+                                <div style="text-align:center;">
+                                    <span style="font-size:20px; font-weight:700; color:#0f172a;">{display_name}</span>
+                                    <div style="font-size:12px; color:#64748b; margin-top:4px;">FinCEN Compliance Portal</div>
+                                </div>
+'''
     else:
+        # logo_mode == "finclear" (default) — officer/staff emails: show FinClear branding
         logo_html = f'''
                                 <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 auto;">
                                     <tr>
@@ -405,6 +420,8 @@ def get_party_invite_html(
         action_url=portal_link,
         action_text="Open Secure Portal",
         header_accent="blue",
+        logo_mode="company",
+        company_name=company_name,
     )
 
 
@@ -624,12 +641,12 @@ def send_party_submitted_notification(
 
     html_content = _build_email_wrapper(
         body_content=body,
-        company_logo_url=company_logo_url,
         header_text=h_text,
         header_subtext=h_sub,
         action_url=report_url,
         action_text="View Report",
         header_accent=accent,
+        logo_mode="finclear",
     )
 
     text_content = f"""
@@ -720,13 +737,13 @@ def get_invoice_email_html(
 
     return _build_email_wrapper(
         body_content=body,
-        company_logo_url=company_logo_url,
         header_text="Invoice",
         header_subtext=invoice_number,
         action_url=view_link,
         action_text="View Invoice",
         header_accent="blue",
         footer_note=f"Questions? Contact {BRAND_SUPPORT_EMAIL}",
+        logo_mode="finclear",
     )
 
 
@@ -855,12 +872,12 @@ def send_filing_submitted_notification(
 
     html_content = _build_email_wrapper(
         body_content=body,
-        company_logo_url=company_logo_url,
         header_text="Filing Submitted",
         header_subtext=property_address,
         action_url=report_url,
         action_text="View Filing Status",
         header_accent="blue",
+        logo_mode="finclear",
     )
     
     return send_email(to_email, subject, html_content)
@@ -896,13 +913,13 @@ def send_filing_accepted_notification(
 
     html_content = _build_email_wrapper(
         body_content=body,
-        company_logo_url=company_logo_url,
         header_text="Filing Complete",
         header_subtext=f"BSA ID: {bsa_id}",
         action_url=report_url,
         action_text="View Filing Details",
         header_accent="green",
         button_color="#059669",
+        logo_mode="finclear",
     )
     
     return send_email(to_email, subject, html_content)
@@ -944,13 +961,13 @@ def send_filing_rejected_notification(
 
     html_content = _build_email_wrapper(
         body_content=body,
-        company_logo_url=company_logo_url,
         header_text="Filing Rejected",
         header_subtext=property_address,
         action_url=report_url,
         action_text="Fix and Resubmit",
         header_accent="red",
         button_color="#dc2626",
+        logo_mode="finclear",
     )
     
     return send_email(to_email, subject, html_content)
@@ -982,13 +999,13 @@ def send_filing_needs_review_notification(
 
     html_content = _build_email_wrapper(
         body_content=body,
-        company_logo_url=company_logo_url,
         header_text="Review Required",
         header_subtext=property_address,
         action_url=report_url,
         action_text="Review Report",
         header_accent="amber",
         button_color="#d97706",
+        logo_mode="finclear",
     )
     
     return send_email(to_email, subject, html_content)
@@ -1037,13 +1054,13 @@ def get_exempt_notification_html(
 
     return _build_email_wrapper(
         body_content=body,
-        company_logo_url=company_logo_url,
         header_text="Transaction Exempt",
         header_subtext=property_address,
         action_url=report_url,
         action_text="Download Exemption Certificate",
         header_accent="green",
         button_color="#059669",
+        logo_mode="finclear",
     )
 
 
@@ -1171,12 +1188,12 @@ def get_links_sent_confirmation_html(
 
     return _build_email_wrapper(
         body_content=body,
-        company_logo_url=company_logo_url,
         header_text="Party Links Sent",
         header_subtext=property_address,
         action_url=report_url,
         action_text="View Status",
         header_accent="blue",
+        logo_mode="finclear",
     )
 
 
@@ -1248,6 +1265,7 @@ def get_party_nudge_html(
     property_address: str,
     portal_url: str,
     company_logo_url: Optional[str] = None,
+    company_name: Optional[str] = None,
 ) -> str:
     """Generate HTML for party nudge reminder email."""
     role_display = party_role.replace("_", " ").title()
@@ -1278,6 +1296,8 @@ def get_party_nudge_html(
         action_text="Complete Your Submission",
         header_accent="amber",
         button_color="#2563eb",
+        logo_mode="company",
+        company_name=company_name,
     )
 
 
@@ -1320,6 +1340,7 @@ def send_party_nudge(
     property_address: str,
     portal_url: str,
     company_logo_url: Optional[str] = None,
+    company_name: Optional[str] = None,
 ) -> EmailResult:
     """Send party nudge reminder email."""
     subject = f"Reminder: Your Information is Needed -- {property_address}"
@@ -1330,6 +1351,7 @@ def send_party_nudge(
         property_address=property_address,
         portal_url=portal_url,
         company_logo_url=company_logo_url,
+        company_name=company_name,
     )
     
     text_content = get_party_nudge_text(
