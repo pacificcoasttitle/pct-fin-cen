@@ -104,9 +104,7 @@ export type DeterminationStepId =
 
 export type CollectionStepId =
   | "party-setup"
-  | "party-status"
-  | "reporting-person"
-  | "review-and-file";
+  | "party-status";
 
 export type StepId = DeterminationStepId | CollectionStepId;
 

@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Report, saveWizard } from "@/lib/api";
+import { parseSessionCookie } from "@/lib/session";
 import { WizardProgress } from "./WizardProgress";
 import { WizardNavigation } from "./WizardNavigation";
 import { useWizardState } from "./hooks/useWizardState";
@@ -28,8 +29,6 @@ import {
 import {
   PartySetupStep,
   PartyStatusStep,
-  ReportingPersonStep,
-  ReviewAndFileStep,
 } from "./collection";
 
 interface WizardContainerProps {
@@ -54,6 +53,28 @@ export function WizardContainer({ report, onUpdate }: WizardContainerProps) {
     report.wizard_data as Partial<WizardState> | undefined
   );
   
+  // Auto-populate reporting person from session (once, on mount)
+  useEffect(() => {
+    if (!state.collection.reportingPerson) {
+      const session = parseSessionCookie();
+      if (session) {
+        updateCollection({
+          reportingPerson: {
+            companyName: session.companyName || "",
+            contactName: session.name || "",
+            email: session.email || "",
+            category: "closing_settlement_agent",
+            licenseNumber: "",
+            address: { street: "", city: "", state: "", zip: "", country: "US" },
+            phone: "",
+            isPCTC: null,
+          },
+        });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only on mount
+
   // Track current step index for auto-save
   const currentStepIndexRef = useRef(0);
   
@@ -101,7 +122,7 @@ export function WizardContainer({ report, onUpdate }: WizardContainerProps) {
   const [parties, setParties] = useState<any[]>([]);
   
   // Determine if we should show navigation
-  const showBottomNav = !["determination-result", "review-and-file"].includes(currentStep);
+  const showBottomNav = !["determination-result", "party-setup", "party-status"].includes(currentStep);
   
   // Render the current step
   const renderStep = () => {
@@ -200,6 +221,7 @@ export function WizardContainer({ report, onUpdate }: WizardContainerProps) {
             reportId={report.id}
             parties={parties}
             onPartiesChange={setParties}
+            reportingPerson={state.collection.reportingPerson}
           />
         );
       
@@ -210,21 +232,8 @@ export function WizardContainer({ report, onUpdate }: WizardContainerProps) {
           />
         );
       
-      case "reporting-person":
-        return (
-          <ReportingPersonStep
-            value={state.collection.reportingPerson}
-            onChange={(v) => updateCollection({ reportingPerson: v })}
-          />
-        );
-      
-      case "review-and-file":
-        return (
-          <ReviewAndFileStep
-            reportId={report.id}
-            wizardData={state}
-          />
-        );
+      // reporting-person and review-and-file are handled outside the wizard
+      // (reporting person is auto-populated, filing happens on /review page)
       
       default:
         return (

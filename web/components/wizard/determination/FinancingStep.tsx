@@ -1,9 +1,9 @@
 "use client";
 
-import { StepCard, YesNoQuestion, YesNoUnknownQuestion, ExemptionAlert } from "../shared";
+import { StepCard, YesNoUnknownQuestion, ExemptionAlert } from "../shared";
 import { YesNo, YesNoUnknown } from "../types";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { InfoIcon, AlertCircle } from "lucide-react";
+import { InfoIcon, AlertCircle, Banknote, Landmark } from "lucide-react";
 
 interface FinancingStepProps {
   isNonFinanced: YesNo;
@@ -29,14 +29,43 @@ export function FinancingStep({
       description="FinCEN reporting applies to non-financed transfers, or transfers where the lender doesn't have an AML program."
     >
       <div className="space-y-6">
-        <YesNoQuestion
-          question="Is this a non-financed (cash) transfer?"
-          description="A transfer without any loan secured by the property from a financial institution"
-          value={isNonFinanced}
-          onChange={(v) => onChange("isNonFinanced", v)}
-          yesLabel="Yes — Cash/No Lender"
-          noLabel="No — Has Lender"
-        />
+        <p className="text-sm font-medium">Is this a non-financed (cash) transfer?</p>
+        <p className="text-sm text-muted-foreground -mt-4">
+          A transfer without any loan secured by the property from a financial institution
+        </p>
+        
+        {/* 2-column card layout */}
+        <div className="grid grid-cols-2 gap-3">
+          <label
+            className={`flex items-center gap-3 border rounded-lg p-4 cursor-pointer transition hover:bg-muted/50 ${
+              isNonFinanced === "yes" ? "border-primary bg-primary/5" : ""
+            }`}
+            onClick={() => onChange("isNonFinanced", "yes")}
+          >
+            <Banknote className="h-5 w-5 text-muted-foreground shrink-0" />
+            <div>
+              <span className="font-medium text-sm">Yes — Cash/No Lender</span>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                No loan or mortgage involved
+              </p>
+            </div>
+          </label>
+          
+          <label
+            className={`flex items-center gap-3 border rounded-lg p-4 cursor-pointer transition hover:bg-muted/50 ${
+              isNonFinanced === "no" ? "border-primary bg-primary/5" : ""
+            }`}
+            onClick={() => onChange("isNonFinanced", "no")}
+          >
+            <Landmark className="h-5 w-5 text-muted-foreground shrink-0" />
+            <div>
+              <span className="font-medium text-sm">No — Has Lender</span>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Bank, credit union, or mortgage company
+              </p>
+            </div>
+          </label>
+        </div>
         
         {showLenderQuestion && (
           <div className="border-l-2 border-muted pl-4 ml-2 space-y-4">

@@ -141,8 +141,6 @@ export function useWizardNavigation(
     ) {
       steps.push("party-setup");
       steps.push("party-status");
-      steps.push("reporting-person");
-      steps.push("review-and-file");
     }
 
     return steps;
@@ -167,8 +165,6 @@ export function useWizardNavigation(
     const collectionSteps: StepId[] = [
       "party-setup",
       "party-status",
-      "reporting-person",
-      "review-and-file",
     ];
 
     if (collectionSteps.includes(currentStep)) {
@@ -200,7 +196,9 @@ export function useWizardNavigation(
   const canGoBack = currentStepIndex > 0;
   const canGoNext =
     currentStepIndex < visibleSteps.length - 1 &&
-    currentStep !== "determination-result"; // Result step has special buttons
+    currentStep !== "determination-result" && // Result step has special buttons
+    currentStep !== "party-setup" && // Party setup has its own flow (send links → done)
+    currentStep !== "party-status"; // Party status is read-only monitoring
 
   return {
     currentStep,

@@ -215,16 +215,4 @@ export const COLLECTION_STEPS: StepMeta[] = [
     description: "Monitor submissions",
     phase: "collection",
   },
-  {
-    id: "reporting-person",
-    title: "Reporting Person",
-    description: "Designate reporting person",
-    phase: "collection",
-  },
-  {
-    id: "review-and-file",
-    title: "Review & File",
-    description: "Final review and submit",
-    phase: "collection",
-  },
 ];

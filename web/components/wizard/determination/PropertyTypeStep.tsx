@@ -1,7 +1,8 @@
 "use client";
 
-import { StepCard, YesNoQuestion, ExemptionAlert } from "../shared";
+import { StepCard, ExemptionAlert, YesNoQuestion } from "../shared";
 import { YesNo } from "../types";
+import { Home, Building } from "lucide-react";
 
 interface PropertyTypeStepProps {
   isResidential: YesNo;
@@ -23,14 +24,43 @@ export function PropertyTypeStep({
       description="FinCEN reporting applies only to residential real property."
     >
       <div className="space-y-6">
-        <YesNoQuestion
-          question="Is this residential real property?"
-          description="Includes: 1-4 family homes, condos, townhomes, co-ops, or land for residential construction"
-          value={isResidential}
-          onChange={(v) => onChange("isResidential", v)}
-          yesLabel="Yes — Residential"
-          noLabel="No — Commercial/Other"
-        />
+        <p className="text-sm font-medium">Is this residential real property?</p>
+        <p className="text-sm text-muted-foreground -mt-4">
+          Includes: 1-4 family homes, condos, townhomes, co-ops, or land for residential construction
+        </p>
+        
+        {/* 2-column card layout */}
+        <div className="grid grid-cols-2 gap-3">
+          <label
+            className={`flex items-center gap-3 border rounded-lg p-4 cursor-pointer transition hover:bg-muted/50 ${
+              isResidential === "yes" ? "border-primary bg-primary/5" : ""
+            }`}
+            onClick={() => onChange("isResidential", "yes")}
+          >
+            <Home className="h-5 w-5 text-muted-foreground shrink-0" />
+            <div>
+              <span className="font-medium text-sm">Yes — Residential</span>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Single-family, condo, townhome, co-op
+              </p>
+            </div>
+          </label>
+          
+          <label
+            className={`flex items-center gap-3 border rounded-lg p-4 cursor-pointer transition hover:bg-muted/50 ${
+              isResidential === "no" ? "border-primary bg-primary/5" : ""
+            }`}
+            onClick={() => onChange("isResidential", "no")}
+          >
+            <Building className="h-5 w-5 text-muted-foreground shrink-0" />
+            <div>
+              <span className="font-medium text-sm">No — Commercial/Other</span>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Office, retail, industrial, vacant land
+              </p>
+            </div>
+          </label>
+        </div>
         
         {showIntentQuestion && (
           <div className="border-l-2 border-muted pl-4 ml-2">

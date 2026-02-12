@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { StepCard } from "../shared";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +13,8 @@ import {
   Send,
   User,
   Building2,
-  Loader2
+  Loader2,
+  ArrowLeft
 } from "lucide-react";
 import { getReportParties, resendPartyLink, type PartyStatusItem } from "@/lib/api";
 import { toast } from "sonner";
@@ -22,6 +24,7 @@ interface PartyStatusStepProps {
 }
 
 export function PartyStatusStep({ reportId }: PartyStatusStepProps) {
+  const router = useRouter();
   const [parties, setParties] = useState<PartyStatusItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -80,7 +83,7 @@ export function PartyStatusStep({ reportId }: PartyStatusStepProps) {
   return (
     <StepCard
       title="Party Status"
-      description="Monitor the status of party portal submissions."
+      description="Monitor the status of party portal submissions. This page auto-refreshes every 30 seconds."
     >
       <div className="space-y-6">
         {/* Summary */}
@@ -145,12 +148,23 @@ export function PartyStatusStep({ reportId }: PartyStatusStepProps) {
             )}
           </div>
         </div>
+
+        {/* Auto-transition message */}
+        {allSubmitted && (
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+            <p className="text-sm text-green-700">
+              <strong>All parties have submitted.</strong> This report will automatically transition to 
+              &quot;Ready to File&quot; status. You can proceed to the Review page to certify and submit.
+            </p>
+          </div>
+        )}
         
         {/* Tip */}
         {!allSubmitted && parties.length > 0 && (
           <div className="text-sm text-muted-foreground bg-muted/50 p-4 rounded-lg">
             <strong>Tip:</strong> This page auto-refreshes every 30 seconds. 
             You can also manually refresh or resend links to parties who haven&apos;t responded.
+            When all parties submit, the report will automatically move to &quot;Ready to File&quot;.
           </div>
         )}
 
@@ -161,6 +175,17 @@ export function PartyStatusStep({ reportId }: PartyStatusStepProps) {
             <p className="text-sm mt-1">Go back to Party Setup to add and send links.</p>
           </div>
         )}
+
+        {/* Back to Requests */}
+        <div className="flex justify-center pt-2">
+          <Button
+            variant="outline"
+            onClick={() => router.push("/app/requests")}
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Requests
+          </Button>
+        </div>
       </div>
     </StepCard>
   );

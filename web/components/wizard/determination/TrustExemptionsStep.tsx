@@ -1,6 +1,7 @@
 "use client";
 
-import { StepCard, CheckboxList, ExemptionAlert } from "../shared";
+import { Checkbox } from "@/components/ui/checkbox";
+import { StepCard, ExemptionAlert } from "../shared";
 import { TRUST_EXEMPTION_OPTIONS } from "../constants";
 
 interface TrustExemptionsStepProps {
@@ -33,25 +34,50 @@ export function TrustExemptionsStep({ value, onChange }: TrustExemptionsStepProp
           Does any of the following apply to this trust?
         </p>
         
-        <CheckboxList
-          options={TRUST_EXEMPTION_OPTIONS}
-          value={value.filter((v) => v !== "none")}
-          onChange={handleChange}
-          disabled={hasNone}
-        />
+        {/* 2-column grid of trust exemption options */}
+        <div className="grid grid-cols-2 gap-3">
+          {TRUST_EXEMPTION_OPTIONS.map((option) => {
+            const isChecked = value.includes(option.id);
+            return (
+              <label
+                key={option.id}
+                className={`flex items-start gap-3 border rounded-lg p-3 cursor-pointer transition hover:bg-muted/50 ${
+                  isChecked ? "border-primary bg-primary/5" : ""
+                } ${hasNone ? "opacity-50 pointer-events-none" : ""}`}
+              >
+                <Checkbox
+                  id={option.id}
+                  checked={isChecked}
+                  onCheckedChange={(checked) => handleChange(option.id, !!checked)}
+                  disabled={hasNone}
+                  className="mt-0.5"
+                />
+                <span className="font-medium text-sm">{option.label}</span>
+              </label>
+            );
+          })}
+        </div>
         
-        <div className="border-t pt-4 mt-4">
-          <CheckboxList
-            options={[{
-              id: "none",
-              label: "None of the above",
-              description: "The trust is not an exempt type"
-            }]}
-            value={hasNone ? ["none"] : []}
-            onChange={handleChange}
+        {/* Separator */}
+        <div className="border-t my-4" />
+        
+        {/* None of the above — full width, dashed border */}
+        <label
+          className={`flex items-center gap-3 border-2 border-dashed rounded-lg p-4 cursor-pointer transition hover:bg-muted/50 ${
+            hasNone ? "border-primary bg-primary/5" : ""
+          } ${hasExemption ? "opacity-50 pointer-events-none" : ""}`}
+        >
+          <Checkbox
+            id="none"
+            checked={hasNone}
+            onCheckedChange={(checked) => handleChange("none", !!checked)}
             disabled={hasExemption}
           />
-        </div>
+          <div>
+            <span className="font-medium">None of the above</span>
+            <p className="text-xs text-muted-foreground mt-0.5">The trust is not an exempt type</p>
+          </div>
+        </label>
       </div>
       
       {hasExemption && (
