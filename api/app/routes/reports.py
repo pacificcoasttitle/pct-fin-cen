@@ -7,6 +7,7 @@ Supports client-driven workflow where escrow officers (client_user) can:
 - Send party links
 - Trigger filing (manual or auto)
 """
+import os
 from datetime import date, datetime, timedelta
 from typing import Optional, Dict
 from uuid import UUID
@@ -796,7 +797,7 @@ def determine_report(
                             expires_in=604800,
                         )
                 
-                report_url = f"{FRONTEND_URL}/app/reports/{report.id}/review"
+                report_url = generate_certificate_download_url(str(report.id), days_valid=7)
                 determination_date = report.determination_completed_at.strftime('%B %d, %Y') if report.determination_completed_at else datetime.utcnow().strftime('%B %d, %Y')
                 
                 send_exempt_notification(
@@ -1703,3 +1704,129 @@ async def get_certificate_pdf(
             status_code=500, 
             detail="Failed to generate PDF. Please try again."
         )
+
+
+# ============================================================================
+# Token-based Certificate Download (no auth required — for email links)
+# ============================================================================
+
+import hashlib
+import hmac
+import time as _time
+
+def _generate_certificate_token(report_id: str, expires_at: int) -> str:
+    """Generate HMAC-SHA256 token for certificate download."""
+    settings = get_settings()
+    secret = (settings.SECRET_KEY or "finclear-default-secret").encode()
+    message = f"{report_id}:{expires_at}".encode()
+    return hmac.new(secret, message, hashlib.sha256).hexdigest()
+
+
+def generate_certificate_download_url(report_id: str, days_valid: int = 7) -> str:
+    """
+    Create a time-limited certificate download URL for use in emails.
+    No auth required — the HMAC token proves the link is legitimate.
+    """
+    expires_at = int(_time.time()) + (days_valid * 86400)
+    token = _generate_certificate_token(str(report_id), expires_at)
+    frontend_url = os.getenv("FRONTEND_URL", "https://fincenclear.com")
+    api_base = os.getenv("API_BASE_URL", frontend_url.replace("https://", "https://api."))
+    return f"{frontend_url}/api/reports/{report_id}/certificate/download?token={token}&expires={expires_at}"
+
+
+@router.get("/{report_id}/certificate/download")
+async def download_certificate_by_token(
+    report_id: UUID,
+    token: str = Query(...),
+    expires: int = Query(...),
+    db: Session = Depends(get_db),
+):
+    """Download exemption certificate PDF via a signed token (no auth required)."""
+    import logging
+    logger = logging.getLogger(__name__)
+
+    # 1. Check expiry
+    if int(_time.time()) > expires:
+        raise HTTPException(status_code=410, detail="This download link has expired. Please request a new one from your dashboard.")
+
+    # 2. Verify HMAC token
+    expected = _generate_certificate_token(str(report_id), expires)
+    if not hmac.compare_digest(token, expected):
+        raise HTTPException(status_code=403, detail="Invalid download link.")
+
+    # 3. Load report
+    report = db.query(Report).filter(Report.id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    if report.determination_result != "exempt" and report.status != "exempt":
+        raise HTTPException(status_code=400, detail="Certificate only available for exempt reports")
+
+    # 4. Generate PDF (reuse the same logic as the auth-protected endpoint)
+    certificate_id = report.exemption_certificate_id or "N/A"
+    property_address = report.property_address_text or "Address not available"
+    escrow_number = report.escrow_number
+    wizard_data = report.wizard_data or {}
+    collection = wizard_data.get("collection", {})
+    purchase_price = collection.get("purchasePrice", 0)
+
+    determination = report.determination or {}
+    buyer_name = determination.get("buyer_name", "")
+    if not buyer_name:
+        buyers = collection.get("buyers", [])
+        if buyers and isinstance(buyers, list):
+            first_buyer = buyers[0] if len(buyers) > 0 else {}
+            if isinstance(first_buyer, dict):
+                buyer_name = first_buyer.get("name", first_buyer.get("entityName", "Unknown"))
+        if not buyer_name:
+            buyer_name = "Unknown Buyer"
+
+    exemption_reasons = report.exemption_reasons or []
+    if exemption_reasons and isinstance(exemption_reasons[0], str):
+        exemption_reasons = [{"code": r, "display": r.replace("_", " ").title()} for r in exemption_reasons]
+
+    determination_timestamp = (
+        report.determination_completed_at.isoformat()
+        if report.determination_completed_at
+        else datetime.utcnow().isoformat()
+    )
+    determination_method = determination.get("method", "Automated Analysis")
+    property_addr = collection.get("propertyAddress", {})
+    county = property_addr.get("county", "")
+    apn = collection.get("apn", "")
+    legal_description = collection.get("legalDescription", "")
+    closing_date = collection.get("closingDate", "")
+
+    try:
+        from app.services.pdf_service import generate_certificate_pdf as gen_cert_pdf
+
+        result = await gen_cert_pdf(
+            certificate_id=certificate_id,
+            property_address=property_address,
+            purchase_price=float(purchase_price),
+            buyer_name=buyer_name,
+            escrow_number=escrow_number,
+            exemption_reasons=exemption_reasons,
+            determination_timestamp=determination_timestamp,
+            determination_method=determination_method,
+            county=county,
+            apn=apn,
+            legal_description=legal_description,
+            closing_date=closing_date,
+        )
+
+        if result.pdf_bytes:
+            escrow_num = escrow_number or str(report_id)[:8]
+            filename = f"exemption-certificate-{escrow_num}.pdf"
+            return Response(
+                content=result.pdf_bytes,
+                media_type="application/pdf",
+                headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+            )
+        else:
+            raise HTTPException(status_code=503, detail="PDF generation is temporarily unavailable.")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Token-based PDF generation failed for report {report_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate PDF. Please try again.")

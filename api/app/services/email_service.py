@@ -25,6 +25,21 @@ SENDGRID_ENABLED = os.getenv("SENDGRID_ENABLED", "false").lower() == "true"
 FRONTEND_URL = os.getenv("FRONTEND_URL", "https://fincenclear.com")
 LOGO_URL = f"{FRONTEND_URL}/logo.png"
 
+# ============================================================================
+# Design System — Color Palette
+# ============================================================================
+# Background:       #f8fafc  (slate-50)
+# Card:             #ffffff
+# Header text:      #0f172a  (slate-900)
+# Body text:        #334155  (slate-700)
+# Muted text:       #64748b  (slate-500)
+# Primary btn:      #2563eb  (blue-600)
+# Success accent:   #059669  (emerald-600)
+# Warning accent:   #d97706  (amber-600)
+# Error accent:     #dc2626  (red-600)
+# Divider:          #e2e8f0  (slate-200)
+# ============================================================================
+
 
 class EmailResult:
     """Result of an email send attempt."""
@@ -95,6 +110,245 @@ def send_email(
         return EmailResult(success=False, error=str(e))
 
 
+# ============================================================================
+# SHARED EMAIL WRAPPER — Consistent Design System
+# ============================================================================
+
+def _build_email_wrapper(
+    body_content: str,
+    company_logo_url: Optional[str] = None,
+    header_text: str = "",
+    header_subtext: str = "",
+    action_url: Optional[str] = None,
+    action_text: Optional[str] = None,
+    footer_note: Optional[str] = None,
+    header_accent: str = "blue",
+    button_color: Optional[str] = None,
+) -> str:
+    """
+    Build a complete HTML email with consistent branding.
+
+    Args:
+        body_content: The unique HTML body for this email type.
+        company_logo_url: Optional pre-signed URL for company logo.
+        header_text: Bold header title (e.g. "Transaction Exempt").
+        header_subtext: Smaller text below header.
+        action_url: Optional CTA button URL.
+        action_text: Optional CTA button label.
+        footer_note: Optional small footer note above the brand line.
+        header_accent: "blue" | "green" | "amber" | "red" for header bg.
+        button_color: Override button bg color (hex). Defaults based on accent.
+    """
+    # Accent color mapping
+    accent_map = {
+        "blue":  {"bg": "#2563eb", "bg2": "#1d4ed8"},
+        "green": {"bg": "#059669", "bg2": "#047857"},
+        "amber": {"bg": "#d97706", "bg2": "#b45309"},
+        "red":   {"bg": "#dc2626", "bg2": "#b91c1c"},
+    }
+    accent = accent_map.get(header_accent, accent_map["blue"])
+    btn_bg = button_color or accent["bg"]
+
+    # Logo block
+    if company_logo_url:
+        logo_html = f'''
+                                <img src="{company_logo_url}" alt="Company Logo"
+                                     style="max-height:60px; max-width:200px; display:block; margin:0 auto; object-fit:contain;" />
+'''
+    else:
+        logo_html = f'''
+                                <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 auto;">
+                                    <tr>
+                                        <td style="vertical-align:middle; padding-right:10px;">
+                                            <div style="width:36px; height:36px; background:{accent["bg"]}; border-radius:8px; text-align:center; line-height:36px;">
+                                                <span style="color:#ffffff; font-size:18px; font-weight:bold;">F</span>
+                                            </div>
+                                        </td>
+                                        <td style="vertical-align:middle;">
+                                            <span style="font-size:20px; font-weight:700; color:#0f172a; letter-spacing:-0.3px;">{BRAND_NAME}</span>
+                                        </td>
+                                    </tr>
+                                </table>
+'''
+
+    # Header subtext
+    subtext_html = ""
+    if header_subtext:
+        subtext_html = f'<p style="color:#64748b; margin:6px 0 0; font-size:14px;">{header_subtext}</p>'
+
+    # Action button
+    button_html = ""
+    if action_url and action_text:
+        button_html = f'''
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:28px 0 8px;">
+                                <tr>
+                                    <td align="center">
+                                        <a href="{action_url}"
+                                           style="display:inline-block; background-color:{btn_bg}; color:#ffffff; padding:12px 32px; border-radius:8px; font-weight:600; font-size:15px; text-decoration:none;">
+                                            {action_text}
+                                        </a>
+                                    </td>
+                                </tr>
+                            </table>
+'''
+
+    # Footer note
+    footer_note_html = ""
+    if footer_note:
+        footer_note_html = f'<p style="margin:0 0 12px; color:#94a3b8; font-size:12px;">{footer_note}</p>'
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{header_text}</title>
+</head>
+<body style="margin:0; padding:0; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height:1.6; background-color:#f8fafc;">
+
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#f8fafc;">
+        <tr>
+            <td align="center" style="padding:40px 20px;">
+
+                <!-- Main Card -->
+                <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+
+                    <!-- Logo Area -->
+                    <tr>
+                        <td style="padding:28px 40px 16px; text-align:center;">
+                            {logo_html}
+                        </td>
+                    </tr>
+
+                    <!-- Divider -->
+                    <tr>
+                        <td style="padding:0 40px;">
+                            <div style="border-top:1px solid #e2e8f0;"></div>
+                        </td>
+                    </tr>
+
+                    <!-- Header Text -->
+                    <tr>
+                        <td style="padding:20px 40px 8px; text-align:center;">
+                            <h1 style="margin:0; font-size:24px; font-weight:700; color:#0f172a;">
+                                {header_text}
+                            </h1>
+                            {subtext_html}
+                        </td>
+                    </tr>
+
+                    <!-- Body Content -->
+                    <tr>
+                        <td style="padding:16px 40px 32px;">
+                            {body_content}
+                            {button_html}
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td style="background-color:#f8fafc; border-top:1px solid #e2e8f0; padding:20px 40px; text-align:center;">
+                            {footer_note_html}
+                            <p style="margin:0; color:#64748b; font-size:12px;">
+                                Powered by {BRAND_NAME} &middot; {BRAND_TAGLINE}
+                            </p>
+                            <p style="margin:6px 0 0; color:#94a3b8; font-size:11px;">
+                                This is an automated message. Please do not reply directly.
+                            </p>
+                        </td>
+                    </tr>
+
+                </table>
+
+            </td>
+        </tr>
+    </table>
+
+</body>
+</html>"""
+
+
+# ============================================================================
+# Shared HTML helpers for body_content
+# ============================================================================
+
+def _info_card(label: str, value: str, accent: str = "#2563eb") -> str:
+    """A styled info callout (property address, status, etc.)."""
+    bg_map = {
+        "#2563eb": "#eff6ff",   # blue
+        "#059669": "#ecfdf5",   # green
+        "#d97706": "#fffbeb",   # amber
+        "#dc2626": "#fef2f2",   # red
+    }
+    text_map = {
+        "#2563eb": "#1e3a8a",
+        "#059669": "#065f46",
+        "#d97706": "#92400e",
+        "#dc2626": "#991b1b",
+    }
+    bg = bg_map.get(accent, "#eff6ff")
+    txt = text_map.get(accent, "#1e3a8a")
+    return f'''
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:16px 0;">
+                                <tr>
+                                    <td style="background-color:{bg}; border-left:4px solid {accent}; padding:16px 20px; border-radius:0 8px 8px 0;">
+                                        <p style="margin:0 0 4px; color:{txt}; font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">
+                                            {label}
+                                        </p>
+                                        <p style="margin:0; color:{txt}; font-size:17px; font-weight:600;">
+                                            {value}
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>'''
+
+
+def _detail_row(label: str, value: str, accent: str = "#065f46") -> str:
+    """A single key-value line inside a detail block."""
+    return f'<p style="margin:0 0 8px; color:{accent};"><strong>{label}:</strong> {value}</p>'
+
+
+def _detail_block(rows_html: str, accent: str = "#059669") -> str:
+    """Wraps detail rows in a styled block."""
+    bg_map = {
+        "#059669": "#ecfdf5",
+        "#2563eb": "#eff6ff",
+        "#d97706": "#fffbeb",
+        "#dc2626": "#fef2f2",
+    }
+    bg = bg_map.get(accent, "#ecfdf5")
+    return f'''
+                            <div style="background:{bg}; border-left:4px solid {accent}; padding:16px 20px; margin:16px 0; border-radius:0 8px 8px 0;">
+                                {rows_html}
+                            </div>'''
+
+
+def _text(content: str) -> str:
+    """Standard body paragraph."""
+    return f'<p style="margin:0 0 16px; color:#334155; font-size:15px; line-height:1.6;">{content}</p>'
+
+
+def _muted(content: str) -> str:
+    """Small muted paragraph."""
+    return f'<p style="margin:16px 0 0; color:#64748b; font-size:13px;">{content}</p>'
+
+
+def _warning_box(content: str) -> str:
+    """Amber warning callout."""
+    return f'''
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:16px 0;">
+                                <tr>
+                                    <td style="background-color:#fffbeb; border:1px solid #fbbf24; padding:14px 18px; border-radius:8px;">
+                                        <p style="margin:0; color:#92400e; font-size:14px;">{content}</p>
+                                    </td>
+                                </tr>
+                            </table>'''
+
+
+# ============================================================================
+# TEMPLATE 1: Party Invite  (buyer/seller portal link)
+# ============================================================================
+
 def get_party_invite_html(
     party_name: str,
     party_role: str,
@@ -107,164 +361,51 @@ def get_party_invite_html(
     
     role_display = party_role.replace("_", " ").title()
     greeting = party_name if party_name else "Property Transaction Party"
-    company_line = f" on behalf of {company_name}" if company_name else ""
-    display_company = company_name or "Your Title Company"
-    
-    # Build company logo HTML for email header
-    if company_logo_url:
-        logo_html = f'''
-                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid #e5e7eb;">
-                                <tr>
-                                    <td width="60" valign="middle">
-                                        <img src="{company_logo_url}" alt="{display_company}" width="56" height="56" style="width: 56px; height: 56px; object-fit: contain; border-radius: 8px; display: block;" />
-                                    </td>
-                                    <td valign="middle" style="padding-left: 16px;">
-                                        <p style="margin: 0; font-weight: 600; font-size: 18px; color: #111827;">{display_company}</p>
-                                        <p style="margin: 4px 0 0; font-size: 14px; color: #6b7280;">Secure Document Portal</p>
-                                    </td>
-                                </tr>
-                            </table>'''
-    else:
-        first_letter = display_company[0].upper() if display_company else "C"
-        logo_html = f'''
-                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid #e5e7eb;">
-                                <tr>
-                                    <td width="60" valign="middle">
-                                        <div style="width: 56px; height: 56px; background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); border-radius: 8px; text-align: center; line-height: 56px;">
-                                            <span style="color: white; font-size: 24px; font-weight: bold;">{first_letter}</span>
-                                        </div>
-                                    </td>
-                                    <td valign="middle" style="padding-left: 16px;">
-                                        <p style="margin: 0; font-weight: 600; font-size: 18px; color: #111827;">{display_company}</p>
-                                        <p style="margin: 4px 0 0; font-size: 14px; color: #6b7280;">Secure Document Portal</p>
-                                    </td>
-                                </tr>
-                            </table>'''
-    
-    return f"""
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Information Request</title>
-</head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; background-color: #f4f4f5;">
-    
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f4f4f5;">
-        <tr>
-            <td align="center" style="padding: 40px 20px;">
-                
-                <!-- Main Container -->
-                <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);">
-                    
-                    <!-- Header -->
-                    <tr>
-                        <td style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); padding: 40px 40px 30px; text-align: center;">
-                            <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 600;">
-                                Information Request
-                            </h1>
-                            <p style="color: rgba(255, 255, 255, 0.9); margin: 10px 0 0; font-size: 16px;">
-                                FinCEN Real Estate Reporting Requirement
-                            </p>
-                        </td>
-                    </tr>
-                    
-                    <!-- Body -->
-                    <tr>
-                        <td style="padding: 40px;">
-                            
-                            <!-- Company Logo / Name Bar -->
-                            {logo_html}
-                            
-                            <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
-                                Dear {greeting},
-                            </p>
-                            
-                            <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
-                                You are receiving this email because you are listed as the <strong style="color: #1e40af;">{role_display}</strong> in a real estate transaction{company_line}.
-                            </p>
-                            
-                            <!-- Property Card -->
-                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin: 25px 0;">
-                                <tr>
-                                    <td style="background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 20px; border-radius: 0 8px 8px 0;">
-                                        <p style="margin: 0 0 5px; color: #1e40af; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
-                                            Property Address
-                                        </p>
-                                        <p style="margin: 0; color: #1e3a8a; font-size: 18px; font-weight: 600;">
-                                            {property_address}
-                                        </p>
-                                    </td>
-                                </tr>
-                            </table>
-                            
-                            <p style="margin: 0 0 25px; color: #374151; font-size: 16px;">
-                                Under federal regulations, we are required to collect certain information from all parties involved in this transaction. This is a secure process and your information will only be used for compliance purposes.
-                            </p>
-                            
-                            <!-- CTA Button -->
-                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin: 30px 0;">
-                                <tr>
-                                    <td align="center">
-                                        <a href="{portal_link}" style="display: inline-block; background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: #ffffff; padding: 16px 40px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4);">
-                                            Complete Your Information →
-                                        </a>
-                                    </td>
-                                </tr>
-                            </table>
-                            
-                            <!-- Warning Box -->
-                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin: 25px 0;">
-                                <tr>
-                                    <td style="background-color: #fef3c7; border: 1px solid #fbbf24; padding: 16px 20px; border-radius: 8px;">
-                                        <p style="margin: 0; color: #92400e; font-size: 14px;">
-                                            <strong>Time Sensitive:</strong> Please complete this form within <strong>7 days</strong>. The secure link will expire after that time.
-                                        </p>
-                                    </td>
-                                </tr>
-                            </table>
-                            
-                            <!-- FAQ Section -->
-                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin: 30px 0 0; border-top: 1px solid #e5e7eb; padding-top: 25px;">
+    company_line = f" on behalf of <strong>{company_name}</strong>" if company_name else ""
+
+    body = (
+        _text(f"Dear {greeting},")
+        + _text(
+            f'You are receiving this email because you are listed as the '
+            f'<strong style="color:#2563eb;">{role_display}</strong> '
+            f'in a real estate transaction{company_line}.'
+        )
+        + _info_card("Property Address", property_address, "#2563eb")
+        + _text(
+            "Under federal regulations, we are required to collect certain information "
+            "from all parties involved in this transaction. This is a secure process and "
+            "your information will only be used for compliance purposes."
+        )
+        + _warning_box(
+            "<strong>Time Sensitive:</strong> Please complete this form within "
+            "<strong>7 days</strong>. The secure link will expire after that time."
+        )
+        + f'''
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:24px 0 0; border-top:1px solid #e2e8f0; padding-top:20px;">
                                 <tr>
                                     <td>
-                                        <p style="margin: 0 0 10px; color: #6b7280; font-size: 14px;">
-                                            <strong style="color: #374151;">Why am I receiving this?</strong><br>
+                                        <p style="margin:0 0 8px; color:#64748b; font-size:13px;">
+                                            <strong style="color:#334155;">Why am I receiving this?</strong><br>
                                             The Financial Crimes Enforcement Network (FinCEN) requires reporting on certain real estate transactions to prevent money laundering.
                                         </p>
-                                        <p style="margin: 15px 0 0; color: #6b7280; font-size: 14px;">
-                                            <strong style="color: #374151;">Is this legitimate?</strong><br>
+                                        <p style="margin:12px 0 0; color:#64748b; font-size:13px;">
+                                            <strong style="color:#334155;">Is this legitimate?</strong><br>
                                             Yes. This request is part of the legal compliance process for your real estate transaction. If you have concerns, please contact your title company representative.
                                         </p>
                                     </td>
                                 </tr>
-                            </table>
-                            
-                        </td>
-                    </tr>
-                    
-                    <!-- Footer -->
-                    <tr>
-                        <td style="background-color: #1e293b; padding: 25px 40px; text-align: center;">
-                            <p style="margin: 0 0 10px; color: #94a3b8; font-size: 12px;">
-                                Powered by {BRAND_NAME} • {BRAND_TAGLINE}
-                            </p>
-                            <p style="margin: 0; color: #64748b; font-size: 11px;">
-                                Please do not reply directly to this email. If you need assistance, contact your title company.
-                            </p>
-                        </td>
-                    </tr>
-                    
-                </table>
-                
-            </td>
-        </tr>
-    </table>
+                            </table>'''
+    )
     
-</body>
-</html>
-"""
+    return _build_email_wrapper(
+        body_content=body,
+        company_logo_url=company_logo_url,
+        header_text="Action Required",
+        header_subtext="Submit Your Transaction Information",
+        action_url=portal_link,
+        action_text="Open Secure Portal",
+        header_accent="blue",
+    )
 
 
 def get_party_invite_text(
@@ -279,7 +420,7 @@ def get_party_invite_text(
     greeting = party_name if party_name else "Property Transaction Party"
     
     return f"""
-INFORMATION REQUEST - FinCEN Real Estate Reporting
+ACTION REQUIRED — Submit Your Transaction Information
 
 Dear {greeting},
 
@@ -305,145 +446,7 @@ Yes. This request is part of the legal compliance process for your real estate t
 ---
 
 This is an automated message. Please do not reply directly to this email.
-"""
-
-
-def get_confirmation_html(
-    party_name: str,
-    confirmation_id: str,
-    property_address: str,
-) -> str:
-    """Generate HTML for submission confirmation email."""
-    
-    greeting = party_name if party_name else "Valued Party"
-    
-    return f"""
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Submission Confirmed</title>
-</head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; background-color: #f4f4f5;">
-    
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f4f4f5;">
-        <tr>
-            <td align="center" style="padding: 40px 20px;">
-                
-                <!-- Main Container -->
-                <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);">
-                    
-                    <!-- Header -->
-                    <tr>
-                        <td style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); padding: 40px; text-align: center;">
-                            <div style="width: 70px; height: 70px; background-color: rgba(255, 255, 255, 0.2); border-radius: 50%; margin: 0 auto 20px; line-height: 70px;">
-                                <span style="font-size: 36px;">✓</span>
-                            </div>
-                            <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 600;">
-                                Information Received
-                            </h1>
-                            <p style="color: rgba(255, 255, 255, 0.9); margin: 10px 0 0; font-size: 16px;">
-                                Thank you for your submission
-                            </p>
-                        </td>
-                    </tr>
-                    
-                    <!-- Body -->
-                    <tr>
-                        <td style="padding: 40px;">
-                            
-                            <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
-                                Dear {greeting},
-                            </p>
-                            
-                            <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
-                                We have successfully received your information for the real estate transaction at:
-                            </p>
-                            
-                            <!-- Property Card -->
-                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin: 20px 0;">
-                                <tr>
-                                    <td style="background-color: #ecfdf5; border-left: 4px solid #10b981; padding: 16px 20px; border-radius: 0 8px 8px 0;">
-                                        <p style="margin: 0; color: #065f46; font-size: 16px; font-weight: 600;">
-                                            📍 {property_address}
-                                        </p>
-                                    </td>
-                                </tr>
-                            </table>
-                            
-                            <!-- Confirmation ID Box -->
-                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin: 30px 0;">
-                                <tr>
-                                    <td style="background-color: #f0fdf4; border: 2px solid #86efac; padding: 25px; border-radius: 12px; text-align: center;">
-                                        <p style="margin: 0 0 8px; color: #166534; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">
-                                            Your Confirmation ID
-                                        </p>
-                                        <p style="margin: 0; color: #15803d; font-size: 28px; font-weight: 700; font-family: 'SF Mono', Monaco, 'Courier New', monospace; letter-spacing: 2px;">
-                                            {confirmation_id}
-                                        </p>
-                                    </td>
-                                </tr>
-                            </table>
-                            
-                            <p style="margin: 0 0 15px; color: #374151; font-size: 16px;">
-                                <strong>Please save this confirmation ID for your records.</strong>
-                            </p>
-                            
-                            <p style="margin: 0; color: #6b7280; font-size: 15px;">
-                                No further action is required from you at this time. If you have any questions about the transaction, please contact your title company representative.
-                            </p>
-                            
-                        </td>
-                    </tr>
-                    
-                    <!-- Footer -->
-                    <tr>
-                        <td style="background-color: #1e293b; padding: 25px 40px; text-align: center;">
-                            <p style="margin: 0; color: #94a3b8; font-size: 12px;">
-                                Powered by {BRAND_NAME} • {BRAND_TAGLINE}
-                            </p>
-                        </td>
-                    </tr>
-                    
-                </table>
-                
-            </td>
-        </tr>
-    </table>
-    
-</body>
-</html>
-"""
-
-
-def get_confirmation_text(
-    party_name: str,
-    confirmation_id: str,
-    property_address: str,
-) -> str:
-    """Generate plain text for submission confirmation email."""
-    
-    greeting = party_name if party_name else "Valued Party"
-    
-    return f"""
-SUBMISSION CONFIRMED
-
-Dear {greeting},
-
-We have successfully received your information for the real estate transaction at:
-
-{property_address}
-
-YOUR CONFIRMATION ID: {confirmation_id}
-
-Please save this confirmation ID for your records.
-
-No further action is required from you at this time. If you have any questions about the transaction, please contact your title company representative.
-
----
-
-Powered by {BRAND_NAME} • {BRAND_TAGLINE}
+Powered by {BRAND_NAME} - {BRAND_TAGLINE}
 """
 
 
@@ -458,18 +461,6 @@ def send_party_invite(
 ) -> EmailResult:
     """
     Send party invitation email.
-    
-    Args:
-        to_email: Recipient email address
-        party_name: Name of the party (buyer/seller/etc)
-        party_role: Role in transaction (buyer, seller, beneficial_owner)
-        property_address: Full property address string
-        portal_link: Complete URL to party portal
-        company_name: Optional title company name
-        company_logo_url: Optional URL to company logo image
-    
-    Returns:
-        EmailResult with success status and message_id
     """
     subject = "Action Required: Information Needed for Real Estate Transaction"
     
@@ -492,6 +483,176 @@ def send_party_invite(
     return send_email(to_email, subject, html_content, text_content)
 
 
+# ============================================================================
+# TEMPLATE 2: Submission Confirmation  (to the party who just submitted)
+# ============================================================================
+
+def get_confirmation_html(
+    party_name: str,
+    confirmation_id: str,
+    property_address: str,
+) -> str:
+    """Generate HTML for submission confirmation email."""
+    
+    greeting = party_name if party_name else "Valued Party"
+    
+    body = (
+        _text(f"Dear {greeting},")
+        + _text("We have successfully received your information for the real estate transaction at:")
+        + _info_card("Property Address", property_address, "#059669")
+        + f'''
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:20px 0;">
+                                <tr>
+                                    <td style="background-color:#ecfdf5; border:2px solid #86efac; padding:24px; border-radius:12px; text-align:center;">
+                                        <p style="margin:0 0 6px; color:#166534; font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:1px;">
+                                            Your Confirmation ID
+                                        </p>
+                                        <p style="margin:0; color:#15803d; font-size:26px; font-weight:700; font-family:'SF Mono', Monaco, 'Courier New', monospace; letter-spacing:2px;">
+                                            {confirmation_id}
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>'''
+        + _text("<strong>Please save this confirmation ID for your records.</strong>")
+        + _muted("No further action is required from you at this time. If you have any questions about the transaction, please contact your title company representative.")
+    )
+
+    return _build_email_wrapper(
+        body_content=body,
+        header_text="Information Received",
+        header_subtext="Thank you for your submission",
+        header_accent="green",
+    )
+
+
+def get_confirmation_text(
+    party_name: str,
+    confirmation_id: str,
+    property_address: str,
+) -> str:
+    """Generate plain text for submission confirmation email."""
+    
+    greeting = party_name if party_name else "Valued Party"
+    
+    return f"""
+INFORMATION RECEIVED
+
+Dear {greeting},
+
+We have successfully received your information for the real estate transaction at:
+
+{property_address}
+
+YOUR CONFIRMATION ID: {confirmation_id}
+
+Please save this confirmation ID for your records.
+
+No further action is required from you at this time. If you have any questions about the transaction, please contact your title company representative.
+
+---
+
+Powered by {BRAND_NAME} - {BRAND_TAGLINE}
+"""
+
+
+def send_party_confirmation(
+    to_email: str,
+    party_name: str,
+    confirmation_id: str,
+    property_address: str,
+) -> EmailResult:
+    """
+    Send submission confirmation email.
+    """
+    subject = "Confirmed: Your Information Has Been Received"
+    
+    html_content = get_confirmation_html(
+        party_name=party_name,
+        confirmation_id=confirmation_id,
+        property_address=property_address,
+    )
+    
+    text_content = get_confirmation_text(
+        party_name=party_name,
+        confirmation_id=confirmation_id,
+        property_address=property_address,
+    )
+    
+    return send_email(to_email, subject, html_content, text_content)
+
+
+# ============================================================================
+# TEMPLATE 3: Party Submitted  (notify escrow officer)
+# ============================================================================
+
+def send_party_submitted_notification(
+    staff_email: str,
+    party_name: str,
+    party_role: str,
+    property_address: str,
+    report_id: str,
+    all_complete: bool = False,
+    company_logo_url: Optional[str] = None,
+) -> EmailResult:
+    """
+    Notify staff when a party submits their portal form.
+    """
+    role_display = "Buyer" if party_role == "transferee" else "Seller"
+    
+    if all_complete:
+        subject = f"All Parties Complete -- Ready for Review: {property_address}"
+        h_text = "All Parties Complete"
+        h_sub = property_address
+        accent = "green"
+    else:
+        subject = f"Party Submitted: {party_name} ({role_display})"
+        h_text = "Party Submission Received"
+        h_sub = f"{party_name} -- {role_display}"
+        accent = "blue"
+
+    status_line = ""
+    if all_complete:
+        status_line = _text('<strong style="color:#059669;">All parties have now submitted. This report is ready for review and filing.</strong>')
+
+    body = (
+        _text(f"<strong>{party_name}</strong> ({role_display}) has submitted their information for:")
+        + _info_card("Property Address", property_address, "#059669" if all_complete else "#2563eb")
+        + status_line
+    )
+
+    report_url = f"{FRONTEND_URL}/app/staff/requests/{report_id}"
+
+    html_content = _build_email_wrapper(
+        body_content=body,
+        company_logo_url=company_logo_url,
+        header_text=h_text,
+        header_subtext=h_sub,
+        action_url=report_url,
+        action_text="View Report",
+        header_accent=accent,
+    )
+
+    text_content = f"""
+Party Submitted: {party_name}
+
+{party_name} ({role_display}) has submitted their information for:
+{property_address}
+
+{"ALL PARTIES COMPLETE -- Ready for review and filing." if all_complete else ""}
+
+View the report: {report_url}
+
+---
+{BRAND_NAME} - {BRAND_TAGLINE}
+"""
+    
+    return send_email(staff_email, subject, html_content, text_content)
+
+
+# ============================================================================
+# TEMPLATE 4: Invoice
+# ============================================================================
+
 def get_invoice_email_html(
     company_name: str,
     invoice_number: str,
@@ -503,137 +664,70 @@ def get_invoice_email_html(
     company_logo_url: Optional[str] = None,
 ) -> str:
     """Generate HTML for invoice email."""
-    logo_block = _build_company_logo_block(company_logo_url)
-    
-    return f"""
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Invoice {invoice_number}</title>
-</head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; background-color: #f4f4f5;">
-    
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f4f4f5;">
-        <tr>
-            <td align="center" style="padding: 40px 20px;">
-                
-                <!-- Main Container -->
-                <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);">
-                    
-                    <!-- Header -->
-                    <tr>
-                        <td style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); padding: 40px 40px 30px; text-align: center;">
-                            <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 600;">
-                                Invoice Ready
-                            </h1>
-                            <p style="color: rgba(255, 255, 255, 0.9); margin: 10px 0 0; font-size: 16px;">
-                                {invoice_number}
-                            </p>
-                        </td>
-                    </tr>
-                    
-                    <!-- Body -->
-                    <tr>
-                        <td style="padding: 40px;">
-                            {logo_block}
-                            <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
-                                Dear {company_name},
-                            </p>
-                            
-                            <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
-                                Your invoice for FinCEN filing services is now available.
-                            </p>
-                            
-                            <!-- Invoice Summary Card -->
-                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin: 25px 0;">
+
+    body = (
+        _text(f"Dear {company_name},")
+        + _text("Your invoice for FinCEN filing services is now available.")
+        + f'''
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:16px 0;">
                                 <tr>
-                                    <td style="background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 20px; border-radius: 0 8px 8px 0;">
+                                    <td style="background-color:#eff6ff; border-left:4px solid #2563eb; padding:20px; border-radius:0 8px 8px 0;">
                                         <table width="100%" cellspacing="0" cellpadding="0">
                                             <tr>
-                                                <td style="padding: 8px 0;">
-                                                    <span style="color: #6b7280; font-size: 14px;">Invoice Number:</span>
-                                                    <span style="color: #1e3a8a; font-size: 14px; font-weight: 600; float: right; font-family: monospace;">{invoice_number}</span>
+                                                <td style="padding:6px 0;">
+                                                    <span style="color:#64748b; font-size:14px;">Invoice Number:</span>
+                                                    <span style="color:#1e3a8a; font-size:14px; font-weight:600; float:right; font-family:monospace;">{invoice_number}</span>
                                                 </td>
                                             </tr>
                                             <tr>
-                                                <td style="padding: 8px 0;">
-                                                    <span style="color: #6b7280; font-size: 14px;">Billing Period:</span>
-                                                    <span style="color: #1e3a8a; font-size: 14px; font-weight: 500; float: right;">{period_start} - {period_end}</span>
+                                                <td style="padding:6px 0;">
+                                                    <span style="color:#64748b; font-size:14px;">Billing Period:</span>
+                                                    <span style="color:#1e3a8a; font-size:14px; font-weight:500; float:right;">{period_start} - {period_end}</span>
                                                 </td>
                                             </tr>
                                             <tr>
-                                                <td style="padding: 8px 0; border-top: 1px solid #bfdbfe;">
-                                                    <span style="color: #6b7280; font-size: 14px;">Due Date:</span>
-                                                    <span style="color: #1e3a8a; font-size: 14px; font-weight: 600; float: right;">{due_date}</span>
+                                                <td style="padding:6px 0; border-top:1px solid #bfdbfe;">
+                                                    <span style="color:#64748b; font-size:14px;">Due Date:</span>
+                                                    <span style="color:#1e3a8a; font-size:14px; font-weight:600; float:right;">{due_date}</span>
                                                 </td>
                                             </tr>
                                             <tr>
-                                                <td style="padding: 12px 0; border-top: 2px solid #3b82f6;">
-                                                    <span style="color: #1e3a8a; font-size: 16px; font-weight: 600;">Amount Due:</span>
-                                                    <span style="color: #1e40af; font-size: 24px; font-weight: 700; float: right;">${total_dollars:,.2f}</span>
+                                                <td style="padding:10px 0; border-top:2px solid #2563eb;">
+                                                    <span style="color:#1e3a8a; font-size:16px; font-weight:600;">Amount Due:</span>
+                                                    <span style="color:#2563eb; font-size:24px; font-weight:700; float:right;">${total_dollars:,.2f}</span>
                                                 </td>
                                             </tr>
                                         </table>
                                     </td>
                                 </tr>
-                            </table>
-                            
-                            <!-- CTA Button -->
-                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin: 30px 0;">
+                            </table>'''
+        + f'''
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:16px 0;">
                                 <tr>
-                                    <td align="center">
-                                        <a href="{view_link}" style="display: inline-block; background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: #ffffff; padding: 16px 40px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4);">
-                                            View Invoice →
-                                        </a>
-                                    </td>
-                                </tr>
-                            </table>
-                            
-                            <!-- Payment Info Box -->
-                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin: 25px 0;">
-                                <tr>
-                                    <td style="background-color: #f0fdf4; border: 1px solid #86efac; padding: 16px 20px; border-radius: 8px;">
-                                        <p style="margin: 0 0 8px; color: #166534; font-size: 14px; font-weight: 600;">
+                                    <td style="background-color:#ecfdf5; border:1px solid #86efac; padding:14px 18px; border-radius:8px;">
+                                        <p style="margin:0 0 6px; color:#166534; font-size:14px; font-weight:600;">
                                             Payment Options:
                                         </p>
-                                        <p style="margin: 0; color: #15803d; font-size: 14px;">
-                                            ACH Transfer • Wire Transfer • Check<br>
-                                            <span style="font-size: 12px; color: #4ade80;">Please reference invoice number with your payment.</span>
+                                        <p style="margin:0; color:#15803d; font-size:13px;">
+                                            ACH Transfer &bull; Wire Transfer &bull; Check<br>
+                                            <span style="font-size:12px; color:#64748b;">Please reference invoice number with your payment.</span>
                                         </p>
                                     </td>
                                 </tr>
-                            </table>
-                            
-                            <p style="margin: 25px 0 0; color: #6b7280; font-size: 14px;">
-                                If you have any questions about this invoice, please contact our billing team.
-                            </p>
-                            
-                        </td>
-                    </tr>
-                    
-                    <!-- Footer -->
-                    <tr>
-                        <td style="background-color: #1e293b; padding: 25px 40px; text-align: center;">
-                            <p style="margin: 0 0 10px; color: #94a3b8; font-size: 12px;">
-                                Powered by {BRAND_NAME} • {BRAND_TAGLINE}
-                            </p>
-                            <p style="margin: 0; color: #64748b; font-size: 11px;">
-                                Questions? Contact billing@pctitle.com
-                            </p>
-                        </td>
-                    </tr>
-                    
-                </table>
-                
-            </td>
-        </tr>
-    </table>
-    
-</body>
-</html>
-"""
+                            </table>'''
+        + _muted("If you have any questions about this invoice, please contact our billing team.")
+    )
+
+    return _build_email_wrapper(
+        body_content=body,
+        company_logo_url=company_logo_url,
+        header_text="Invoice",
+        header_subtext=invoice_number,
+        action_url=view_link,
+        action_text="View Invoice",
+        header_accent="blue",
+        footer_note=f"Questions? Contact {BRAND_SUPPORT_EMAIL}",
+    )
 
 
 def get_invoice_email_text(
@@ -648,7 +742,7 @@ def get_invoice_email_text(
     """Generate plain text for invoice email."""
     
     return f"""
-INVOICE READY - {invoice_number}
+INVOICE — {invoice_number}
 
 Dear {company_name},
 
@@ -667,17 +761,17 @@ View your invoice online: {view_link}
 ---
 PAYMENT OPTIONS
 ---
-• ACH Transfer
-• Wire Transfer
-• Check
+- ACH Transfer
+- Wire Transfer
+- Check
 
 Please reference invoice number {invoice_number} with your payment.
 
 ---
 
-Questions? Contact billing@pctitle.com
+Questions? Contact {BRAND_SUPPORT_EMAIL}
 
-Powered by {BRAND_NAME} • {BRAND_TAGLINE}
+Powered by {BRAND_NAME} - {BRAND_TAGLINE}
 """
 
 
@@ -694,19 +788,6 @@ def send_invoice_email(
 ) -> EmailResult:
     """
     Send invoice email to company billing contact.
-    
-    Args:
-        to_email: Recipient email address
-        company_name: Company name
-        invoice_number: Invoice number (e.g., INV-2026-02-0001)
-        total_dollars: Total amount in dollars
-        due_date: Formatted due date string
-        period_start: Formatted period start date
-        period_end: Formatted period end date
-        view_link: Link to view invoice online
-    
-    Returns:
-        EmailResult with success status and message_id
     """
     subject = f"Invoice {invoice_number} - ${total_dollars:,.2f} Due {due_date}"
     
@@ -734,129 +815,6 @@ def send_invoice_email(
     return send_email(to_email, subject, html_content, text_content)
 
 
-def send_party_confirmation(
-    to_email: str,
-    party_name: str,
-    confirmation_id: str,
-    property_address: str,
-) -> EmailResult:
-    """
-    Send submission confirmation email.
-    
-    Args:
-        to_email: Recipient email address
-        party_name: Name of the party
-        confirmation_id: Generated confirmation ID
-        property_address: Full property address string
-    
-    Returns:
-        EmailResult with success status and message_id
-    """
-    subject = "Confirmed: Your Information Has Been Received"
-    
-    html_content = get_confirmation_html(
-        party_name=party_name,
-        confirmation_id=confirmation_id,
-        property_address=property_address,
-    )
-    
-    text_content = get_confirmation_text(
-        party_name=party_name,
-        confirmation_id=confirmation_id,
-        property_address=property_address,
-    )
-    
-    return send_email(to_email, subject, html_content, text_content)
-
-
-def send_party_submitted_notification(
-    staff_email: str,
-    party_name: str,
-    party_role: str,
-    property_address: str,
-    report_id: str,
-    all_complete: bool = False,
-    company_logo_url: Optional[str] = None,
-) -> EmailResult:
-    """
-    Notify staff when a party submits their portal form.
-    
-    Args:
-        staff_email: Staff member's email address
-        party_name: Name of the party who submitted
-        party_role: Role (transferee/transferor)
-        property_address: Property address for context
-        report_id: Report ID for linking to admin UI
-        all_complete: If true, ALL parties for this report are now submitted
-    
-    Returns:
-        EmailResult with success status and message_id
-    """
-    role_display = "Buyer" if party_role == "transferee" else "Seller"
-    
-    if all_complete:
-        subject = f"✅ All Parties Complete — Ready for Review: {property_address}"
-    else:
-        subject = f"Party Submitted: {party_name} ({role_display})"
-    
-    # HTML email content
-    html_content = f'''
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    </head>
-    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.5; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 30px; border-radius: 12px 12px 0 0;">
-            <h1 style="color: #fff; margin: 0; font-size: 24px;">
-                {"✅ All Parties Complete" if all_complete else "Party Submitted"}
-            </h1>
-        </div>
-        
-        <div style="background: #fff; padding: 30px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px;">
-            {_build_company_logo_block(company_logo_url)}
-            <p style="font-size: 16px; margin-bottom: 20px;">
-                <strong>{party_name}</strong> ({role_display}) has submitted their information for:
-            </p>
-            
-            <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-                <p style="margin: 0; font-weight: 600;">{property_address}</p>
-            </div>
-            
-            {"<p style='color: #059669; font-weight: 600;'>🎉 All parties have now submitted. This report is ready for review and filing.</p>" if all_complete else ""}
-            
-            <a href="https://fincenclear.com/app/staff/requests/{report_id}" 
-               style="display: inline-block; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #fff; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; margin-top: 10px;">
-                View Report →
-            </a>
-        </div>
-        
-        <div style="text-align: center; padding: 20px; color: #64748b; font-size: 12px;">
-            <p>FinClear Solutions — Automated notification</p>
-        </div>
-    </body>
-    </html>
-    '''
-    
-    # Plain text version
-    text_content = f'''
-Party Submitted: {party_name}
-
-{party_name} ({role_display}) has submitted their information for:
-{property_address}
-
-{"✅ ALL PARTIES COMPLETE — Ready for review and filing." if all_complete else ""}
-
-View the report: https://fincenclear.com/app/staff/requests/{report_id}
-
----
-FinClear Solutions — Automated notification
-    '''
-    
-    return send_email(staff_email, subject, html_content, text_content)
-
-
 # ============================================================================
 # FILING STATUS NOTIFICATIONS (Client-Driven Flow)
 # ============================================================================
@@ -873,68 +831,37 @@ def send_filing_submitted_notification(
     """
     from datetime import datetime
     submitted_at = datetime.utcnow()
-    
+
     subject = f"Filing Submitted to FinCEN: {property_address}"
-    
-    html_content = f"""
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    </head>
-    <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f4f4f5;">
-        <table width="100%" cellspacing="0" cellpadding="0" style="background-color: #f4f4f5;">
-            <tr>
-                <td align="center" style="padding: 40px 20px;">
-                    <table width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden;">
-                        <tr>
-                            <td style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); padding: 30px; text-align: center;">
-                                <h1 style="color: #ffffff; margin: 0; font-size: 24px;">Filing Submitted to FinCEN</h1>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 30px;">
-                                {_build_company_logo_block(company_logo_url)}
-                                <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
-                                    Hi {recipient_name},
-                                </p>
-                                <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
-                                    Your FinCEN Real Estate Report has been submitted for processing.
-                                </p>
-                                <div style="background: #f0f9ff; border-left: 4px solid #3b82f6; padding: 16px; margin: 20px 0; border-radius: 0 8px 8px 0;">
-                                    <p style="margin: 0 0 8px; color: #1e3a8a;"><strong>Property:</strong> {property_address}</p>
-                                    <p style="margin: 0 0 8px; color: #1e3a8a;"><strong>Submitted:</strong> {submitted_at.strftime('%B %d, %Y at %I:%M %p')} UTC</p>
-                                    <p style="margin: 0; color: #1e3a8a;"><strong>Status:</strong> Awaiting FinCEN Response</p>
-                                </div>
-                                <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
-                                    You'll receive another email once FinCEN processes your filing (typically within 24-48 hours).
-                                </p>
-                                <table width="100%" cellspacing="0" cellpadding="0" style="margin: 20px 0;">
-                                    <tr>
-                                        <td align="center">
-                                            <a href="{report_url}" style="display: inline-block; background: #2563eb; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600;">
-                                                View Report Status →
-                                            </a>
-                                        </td>
-                                    </tr>
-                                </table>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td style="background: #1e293b; padding: 20px; text-align: center;">
-                                <p style="margin: 0; color: #94a3b8; font-size: 12px;">
-                                    {BRAND_NAME} — {BRAND_TAGLINE}
-                                </p>
-                            </td>
-                        </tr>
-                    </table>
-                </td>
-            </tr>
-        </table>
-    </body>
-    </html>
-    """
+
+    details = (
+        _detail_row("Property", property_address)
+        + _detail_row("Submitted", submitted_at.strftime('%B %d, %Y at %I:%M %p') + " UTC")
+        + _detail_row("Status", "Awaiting FinCEN Response").rstrip("</p>").rstrip()
+    )
+    # Fix last row to not have trailing margin
+    details = (
+        _detail_row("Property", property_address, "#1e3a8a")
+        + _detail_row("Submitted", submitted_at.strftime('%B %d, %Y at %I:%M %p') + " UTC", "#1e3a8a")
+        + f'<p style="margin:0; color:#1e3a8a;"><strong>Status:</strong> Awaiting FinCEN Response</p>'
+    )
+
+    body = (
+        _text(f"Hi {recipient_name},")
+        + _text("Your FinCEN Real Estate Report has been submitted for processing.")
+        + _detail_block(details, "#2563eb")
+        + _text("You'll receive another email once FinCEN processes your filing (typically within 24-48 hours).")
+    )
+
+    html_content = _build_email_wrapper(
+        body_content=body,
+        company_logo_url=company_logo_url,
+        header_text="Filing Submitted",
+        header_subtext=property_address,
+        action_url=report_url,
+        action_text="View Filing Status",
+        header_accent="blue",
+    )
     
     return send_email(to_email, subject, html_content)
 
@@ -951,76 +878,124 @@ def send_filing_accepted_notification(
     """
     Notify when filing is accepted by FinCEN with BSA ID.
     """
-    subject = f"✅ FinCEN Filing Complete: {property_address}"
+    subject = f"FinCEN Filing Complete: {property_address}"
+
+    details = (
+        _detail_row("Property", property_address)
+        + f'<p style="margin:0 0 8px; color:#065f46;"><strong>BSA ID:</strong> <code style="background:#d1fae5; padding:2px 8px; border-radius:4px; font-family:monospace; font-size:15px;">{bsa_id}</code></p>'
+        + _detail_row("Filed", filed_at_str)
+    )
+
+    body = (
+        _text(f"Hi {recipient_name},")
+        + _text("Great news! Your FinCEN Real Estate Report has been <strong>accepted</strong>.")
+        + _detail_block(details, "#059669")
+        + _text('<strong style="color:#d97706;">Save this BSA ID for your records.</strong> This is your official FinCEN receipt number.')
+        + _muted("This filing will be stored securely for 5 years per FinCEN requirements.")
+    )
+
+    html_content = _build_email_wrapper(
+        body_content=body,
+        company_logo_url=company_logo_url,
+        header_text="Filing Complete",
+        header_subtext=f"BSA ID: {bsa_id}",
+        action_url=report_url,
+        action_text="View Filing Details",
+        header_accent="green",
+        button_color="#059669",
+    )
     
-    html_content = f"""
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    </head>
-    <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f4f4f5;">
-        <table width="100%" cellspacing="0" cellpadding="0" style="background-color: #f4f4f5;">
-            <tr>
-                <td align="center" style="padding: 40px 20px;">
-                    <table width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden;">
-                        <tr>
-                            <td style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); padding: 30px; text-align: center;">
-                                <h1 style="color: #ffffff; margin: 0; font-size: 24px;">✅ FinCEN Filing Complete</h1>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 30px;">
-                                {_build_company_logo_block(company_logo_url)}
-                                <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
-                                    Hi {recipient_name},
-                                </p>
-                                <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
-                                    Great news! Your FinCEN Real Estate Report has been accepted.
-                                </p>
-                                <div style="background: #ecfdf5; border-left: 4px solid #10b981; padding: 16px; margin: 20px 0; border-radius: 0 8px 8px 0;">
-                                    <p style="margin: 0 0 8px; color: #065f46;"><strong>Property:</strong> {property_address}</p>
-                                    <p style="margin: 0 0 8px; color: #065f46;"><strong>BSA ID:</strong> <code style="background: #d1fae5; padding: 2px 8px; border-radius: 4px; font-family: monospace;">{bsa_id}</code></p>
-                                    <p style="margin: 0; color: #065f46;"><strong>Filed:</strong> {filed_at_str}</p>
-                                </div>
-                                <p style="margin: 0 0 20px; color: #374151; font-size: 16px; font-weight: 600;">
-                                    ⚠️ Save this BSA ID for your records. This is your official FinCEN receipt number.
-                                </p>
-                                <table width="100%" cellspacing="0" cellpadding="0" style="margin: 20px 0;">
-                                    <tr>
-                                        <td align="center">
-                                            <a href="{report_url}" style="display: inline-block; background: #059669; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600;">
-                                                View Filing Details →
-                                            </a>
-                                        </td>
-                                    </tr>
-                                </table>
-                                <p style="margin: 20px 0 0; color: #6b7280; font-size: 14px;">
-                                    This filing will be stored securely for 5 years per FinCEN requirements.
-                                </p>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td style="background: #1e293b; padding: 20px; text-align: center;">
-                                <p style="margin: 0; color: #94a3b8; font-size: 12px;">
-                                    {BRAND_NAME} — {BRAND_TAGLINE}
-                                </p>
-                            </td>
-                        </tr>
-                    </table>
-                </td>
-            </tr>
-        </table>
-    </body>
-    </html>
+    return send_email(to_email, subject, html_content)
+
+
+def send_filing_rejected_notification(
+    to_email: str,
+    recipient_name: str,
+    property_address: str,
+    rejection_code: str,
+    rejection_message: str,
+    report_url: str,
+    company_logo_url: Optional[str] = None,
+) -> EmailResult:
     """
+    Notify when filing is rejected by FinCEN -- URGENT.
+    """
+    subject = f"Action Required: FinCEN Filing Rejected -- {property_address}"
+
+    details = (
+        _detail_row("Property", property_address, "#991b1b")
+        + f'<p style="margin:0 0 8px; color:#991b1b;"><strong>Error Code:</strong> <code style="background:#fee2e2; padding:2px 8px; border-radius:4px;">{rejection_code}</code></p>'
+        + f'<p style="margin:0; color:#991b1b;"><strong>Reason:</strong> {rejection_message}</p>'
+    )
+
+    body = (
+        _text(f"Hi {recipient_name},")
+        + _text("Your FinCEN Real Estate Report was <strong>rejected</strong> and requires attention.")
+        + _detail_block(details, "#dc2626")
+        + _text("<strong>What to do:</strong>")
+        + f'''
+                            <ol style="margin:0 0 16px; color:#334155; font-size:15px; padding-left:20px;">
+                                <li style="margin-bottom:6px;">Review the error details above</li>
+                                <li style="margin-bottom:6px;">Correct the information in the report</li>
+                                <li>Re-submit the filing</li>
+                            </ol>'''
+        + _muted(f"Need help? Contact {BRAND_SUPPORT_EMAIL}")
+    )
+
+    html_content = _build_email_wrapper(
+        body_content=body,
+        company_logo_url=company_logo_url,
+        header_text="Filing Rejected",
+        header_subtext=property_address,
+        action_url=report_url,
+        action_text="Fix and Resubmit",
+        header_accent="red",
+        button_color="#dc2626",
+    )
+    
+    return send_email(to_email, subject, html_content)
+
+
+def send_filing_needs_review_notification(
+    to_email: str,
+    recipient_name: str,
+    property_address: str,
+    reason: str,
+    report_url: str,
+    company_logo_url: Optional[str] = None,
+) -> EmailResult:
+    """
+    Notify when filing needs manual review.
+    """
+    subject = f"Review Required: FinCEN Filing -- {property_address}"
+
+    details = (
+        _detail_row("Property", property_address, "#92400e")
+        + f'<p style="margin:0; color:#92400e;"><strong>Reason:</strong> {reason}</p>'
+    )
+
+    body = (
+        _text(f"Hi {recipient_name},")
+        + _text("Your FinCEN Real Estate Report requires review before it can be filed.")
+        + _detail_block(details, "#d97706")
+    )
+
+    html_content = _build_email_wrapper(
+        body_content=body,
+        company_logo_url=company_logo_url,
+        header_text="Review Required",
+        header_subtext=property_address,
+        action_url=report_url,
+        action_text="Review Report",
+        header_accent="amber",
+        button_color="#d97706",
+    )
     
     return send_email(to_email, subject, html_content)
 
 
 # ============================================================================
-# FIX 1: EXEMPT DETERMINATION NOTIFICATION
+# EXEMPT DETERMINATION NOTIFICATION
 # ============================================================================
 
 def get_exempt_notification_html(
@@ -1033,83 +1008,43 @@ def get_exempt_notification_html(
     company_logo_url: Optional[str] = None,
 ) -> str:
     """Generate HTML for exempt determination notification email."""
-    logo_block = _build_company_logo_block(company_logo_url)
     
     reasons_html = ""
     if exemption_reasons:
         items = "".join(
-            f'<li style="margin-bottom: 6px; color: #065f46;">{r}</li>'
+            f'<li style="margin-bottom:4px; color:#065f46;">{r}</li>'
             for r in exemption_reasons if r
         )
-        reasons_html = f'<ul style="margin: 10px 0; padding-left: 20px;">{items}</ul>'
+        reasons_html = f'<ul style="margin:8px 0 0; padding-left:20px;">{items}</ul>'
     else:
-        reasons_html = '<p style="margin: 10px 0; color: #065f46;">Transaction qualifies for exemption under FinCEN regulations.</p>'
-    
-    return f"""
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    </head>
-    <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f4f4f5;">
-        <table width="100%" cellspacing="0" cellpadding="0" style="background-color: #f4f4f5;">
-            <tr>
-                <td align="center" style="padding: 40px 20px;">
-                    <table width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden;">
-                        <tr>
-                            <td style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); padding: 30px; text-align: center;">
-                                <h1 style="color: #ffffff; margin: 0; font-size: 24px;">✅ Transaction Exempt</h1>
-                                <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0; font-size: 14px;">No FinCEN Filing Required</p>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 30px;">
-                                {logo_block}
-                                <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
-                                    Hi {recipient_name},
-                                </p>
-                                <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
-                                    The real estate transaction below has been determined <strong>EXEMPT</strong> from FinCEN reporting requirements.
-                                </p>
-                                <div style="background: #ecfdf5; border-left: 4px solid #10b981; padding: 16px; margin: 20px 0; border-radius: 0 8px 8px 0;">
-                                    <p style="margin: 0 0 8px; color: #065f46;"><strong>Property:</strong> {property_address}</p>
-                                    <p style="margin: 0 0 8px; color: #065f46;"><strong>Determination Date:</strong> {determination_date}</p>
-                                    <p style="margin: 0 0 8px; color: #065f46;"><strong>Certificate ID:</strong> <code style="background: #d1fae5; padding: 2px 8px; border-radius: 4px; font-family: monospace;">{certificate_id}</code></p>
-                                    <p style="margin: 0; color: #065f46;"><strong>Exemption Reason(s):</strong></p>
-                                    {reasons_html}
-                                </div>
-                                <p style="margin: 20px 0; color: #374151; font-size: 16px;">
-                                    <strong>No further action is required for this transaction.</strong>
-                                </p>
-                                <table width="100%" cellspacing="0" cellpadding="0" style="margin: 20px 0;">
-                                    <tr>
-                                        <td align="center">
-                                            <a href="{report_url}" style="display: inline-block; background: #059669; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600;">
-                                                View Exemption Certificate →
-                                            </a>
-                                        </td>
-                                    </tr>
-                                </table>
-                                <p style="margin: 20px 0 0; color: #6b7280; font-size: 14px;">
-                                    This exemption certificate is stored securely and can be accessed at any time from your dashboard.
-                                </p>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td style="background: #1e293b; padding: 20px; text-align: center;">
-                                <p style="margin: 0; color: #94a3b8; font-size: 12px;">
-                                    {BRAND_NAME} — {BRAND_TAGLINE}
-                                </p>
-                            </td>
-                        </tr>
-                    </table>
-                </td>
-            </tr>
-        </table>
-    </body>
-    </html>
-    """
+        reasons_html = '<p style="margin:8px 0 0; color:#065f46;">Transaction qualifies for exemption under FinCEN regulations.</p>'
+
+    details = (
+        _detail_row("Property", property_address)
+        + _detail_row("Determination Date", determination_date)
+        + f'<p style="margin:0 0 8px; color:#065f46;"><strong>Certificate ID:</strong> <code style="background:#d1fae5; padding:2px 8px; border-radius:4px; font-family:monospace;">{certificate_id}</code></p>'
+        + f'<p style="margin:0; color:#065f46;"><strong>Exemption Reason(s):</strong></p>'
+        + reasons_html
+    )
+
+    body = (
+        _text(f"Hi {recipient_name},")
+        + _text('The real estate transaction below has been determined <strong style="color:#059669;">EXEMPT</strong> from FinCEN reporting requirements.')
+        + _detail_block(details, "#059669")
+        + _text("<strong>No further action is required for this transaction.</strong>")
+        + _muted("This exemption certificate is stored securely and can be accessed at any time from your dashboard.")
+    )
+
+    return _build_email_wrapper(
+        body_content=body,
+        company_logo_url=company_logo_url,
+        header_text="Transaction Exempt",
+        header_subtext=property_address,
+        action_url=report_url,
+        action_text="Download Exemption Certificate",
+        header_accent="green",
+        button_color="#059669",
+    )
 
 
 def get_exempt_notification_text(
@@ -1124,7 +1059,7 @@ def get_exempt_notification_text(
     reasons_text = "\n".join(f"  - {r}" for r in exemption_reasons if r) if exemption_reasons else "  - Transaction qualifies for exemption under FinCEN regulations."
     
     return f"""
-TRANSACTION EXEMPT — No FinCEN Filing Required
+TRANSACTION EXEMPT -- No FinCEN Filing Required
 
 Hi {recipient_name},
 
@@ -1142,7 +1077,7 @@ No further action is required for this transaction.
 View Exemption Certificate: {report_url}
 
 ---
-{BRAND_NAME} — {BRAND_TAGLINE}
+{BRAND_NAME} - {BRAND_TAGLINE}
 """
 
 
@@ -1157,7 +1092,7 @@ def send_exempt_notification(
     company_logo_url: Optional[str] = None,
 ) -> EmailResult:
     """Send exempt determination notification to escrow officer."""
-    subject = f"✅ Exempt Determination — {property_address}"
+    subject = f"Exempt Determination -- {property_address}"
     
     html_content = get_exempt_notification_html(
         recipient_name=recipient_name,
@@ -1182,7 +1117,7 @@ def send_exempt_notification(
 
 
 # ============================================================================
-# FIX 2: LINKS SENT CONFIRMATION TO ESCROW OFFICER
+# LINKS SENT CONFIRMATION TO ESCROW OFFICER
 # ============================================================================
 
 def get_links_sent_confirmation_html(
@@ -1193,91 +1128,56 @@ def get_links_sent_confirmation_html(
     company_logo_url: Optional[str] = None,
 ) -> str:
     """Generate HTML for links-sent confirmation email to escrow officer."""
-    logo_block = _build_company_logo_block(company_logo_url)
     
     # Build party list table rows
     party_rows = ""
     for p in parties:
-        role_display = "Buyer" if p.get("role") == "transferee" else "Seller" if p.get("role") == "transferor" else p.get("role", "Party").replace("_", " ").title()
+        role_display = (
+            "Buyer" if p.get("role") == "transferee"
+            else "Seller" if p.get("role") == "transferor"
+            else p.get("role", "Party").replace("_", " ").title()
+        )
         email_display = p.get("email", "No email")
         name_display = p.get("name", "Unnamed")
-        email_sent_badge = '<span style="color: #059669; font-weight: 600;">✓ Sent</span>' if p.get("email") else '<span style="color: #d97706;">⚠ No email</span>'
+        sent_badge = (
+            '<span style="color:#059669; font-weight:600;">Sent</span>'
+            if p.get("email")
+            else '<span style="color:#d97706;">No email</span>'
+        )
         party_rows += f"""
                                     <tr>
-                                        <td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb;">{name_display}</td>
-                                        <td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb;">{role_display}</td>
-                                        <td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb;">{email_display}</td>
-                                        <td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; text-align: center;">{email_sent_badge}</td>
+                                        <td style="padding:10px 12px; border-bottom:1px solid #e2e8f0;">{name_display}</td>
+                                        <td style="padding:10px 12px; border-bottom:1px solid #e2e8f0;">{role_display}</td>
+                                        <td style="padding:10px 12px; border-bottom:1px solid #e2e8f0;">{email_display}</td>
+                                        <td style="padding:10px 12px; border-bottom:1px solid #e2e8f0; text-align:center;">{sent_badge}</td>
                                     </tr>"""
-    
-    return f"""
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    </head>
-    <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f4f4f5;">
-        <table width="100%" cellspacing="0" cellpadding="0" style="background-color: #f4f4f5;">
-            <tr>
-                <td align="center" style="padding: 40px 20px;">
-                    <table width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden;">
-                        <tr>
-                            <td style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); padding: 30px; text-align: center;">
-                                <h1 style="color: #ffffff; margin: 0; font-size: 24px;">📧 Party Links Sent</h1>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 30px;">
-                                {logo_block}
-                                <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
-                                    Hi {recipient_name},
-                                </p>
-                                <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
-                                    Portal invitation links have been sent to the following parties for:
-                                </p>
-                                <div style="background: #f0f9ff; border-left: 4px solid #3b82f6; padding: 16px; margin: 20px 0; border-radius: 0 8px 8px 0;">
-                                    <p style="margin: 0; color: #1e3a8a; font-weight: 600;">{property_address}</p>
-                                </div>
-                                
-                                <table width="100%" cellspacing="0" cellpadding="0" style="margin: 20px 0; font-size: 14px; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
-                                    <tr style="background: #f8fafc;">
-                                        <th style="padding: 10px 12px; text-align: left; color: #475569; font-weight: 600; border-bottom: 2px solid #e5e7eb;">Name</th>
-                                        <th style="padding: 10px 12px; text-align: left; color: #475569; font-weight: 600; border-bottom: 2px solid #e5e7eb;">Role</th>
-                                        <th style="padding: 10px 12px; text-align: left; color: #475569; font-weight: 600; border-bottom: 2px solid #e5e7eb;">Email</th>
-                                        <th style="padding: 10px 12px; text-align: center; color: #475569; font-weight: 600; border-bottom: 2px solid #e5e7eb;">Status</th>
-                                    </tr>
-                                    {party_rows}
-                                </table>
-                                
-                                <p style="margin: 20px 0; color: #374151; font-size: 16px;">
-                                    You will be notified when each party submits their information. You can also monitor progress from your dashboard.
-                                </p>
-                                <table width="100%" cellspacing="0" cellpadding="0" style="margin: 20px 0;">
-                                    <tr>
-                                        <td align="center">
-                                            <a href="{report_url}" style="display: inline-block; background: #2563eb; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600;">
-                                                View Party Status →
-                                            </a>
-                                        </td>
-                                    </tr>
-                                </table>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td style="background: #1e293b; padding: 20px; text-align: center;">
-                                <p style="margin: 0; color: #94a3b8; font-size: 12px;">
-                                    {BRAND_NAME} — {BRAND_TAGLINE}
-                                </p>
-                            </td>
-                        </tr>
-                    </table>
-                </td>
-            </tr>
-        </table>
-    </body>
-    </html>
-    """
+
+    body = (
+        _text(f"Hi {recipient_name},")
+        + _text("Portal invitation links have been sent to the following parties for:")
+        + _info_card("Property Address", property_address, "#2563eb")
+        + f'''
+                            <table width="100%" cellspacing="0" cellpadding="0" style="margin:16px 0; font-size:13px; border:1px solid #e2e8f0; border-radius:8px; overflow:hidden;">
+                                <tr style="background:#f8fafc;">
+                                    <th style="padding:10px 12px; text-align:left; color:#334155; font-weight:600; border-bottom:2px solid #e2e8f0;">Name</th>
+                                    <th style="padding:10px 12px; text-align:left; color:#334155; font-weight:600; border-bottom:2px solid #e2e8f0;">Role</th>
+                                    <th style="padding:10px 12px; text-align:left; color:#334155; font-weight:600; border-bottom:2px solid #e2e8f0;">Email</th>
+                                    <th style="padding:10px 12px; text-align:center; color:#334155; font-weight:600; border-bottom:2px solid #e2e8f0;">Status</th>
+                                </tr>
+                                {party_rows}
+                            </table>'''
+        + _text("You will be notified when each party submits their information. You can also monitor progress from your dashboard.")
+    )
+
+    return _build_email_wrapper(
+        body_content=body,
+        company_logo_url=company_logo_url,
+        header_text="Party Links Sent",
+        header_subtext=property_address,
+        action_url=report_url,
+        action_text="View Status",
+        header_accent="blue",
+    )
 
 
 def get_links_sent_confirmation_text(
@@ -1290,10 +1190,10 @@ def get_links_sent_confirmation_text(
     party_lines = ""
     for p in parties:
         role = "Buyer" if p.get("role") == "transferee" else "Seller" if p.get("role") == "transferor" else p.get("role", "Party")
-        party_lines += f"  - {p.get('name', 'Unnamed')} ({role}) — {p.get('email', 'No email')}\n"
+        party_lines += f"  - {p.get('name', 'Unnamed')} ({role}) -- {p.get('email', 'No email')}\n"
     
     return f"""
-PARTY LINKS SENT — {property_address}
+PARTY LINKS SENT -- {property_address}
 
 Hi {recipient_name},
 
@@ -1305,7 +1205,7 @@ You will be notified when each party submits their information.
 View party status: {report_url}
 
 ---
-{BRAND_NAME} — {BRAND_TAGLINE}
+{BRAND_NAME} - {BRAND_TAGLINE}
 """
 
 
@@ -1318,7 +1218,7 @@ def send_links_sent_confirmation(
     company_logo_url: Optional[str] = None,
 ) -> EmailResult:
     """Send links-sent confirmation to escrow officer."""
-    subject = f"📧 Party Links Sent — {property_address}"
+    subject = f"Party Links Sent -- {property_address}"
     
     html_content = get_links_sent_confirmation_html(
         recipient_name=recipient_name,
@@ -1339,7 +1239,7 @@ def send_links_sent_confirmation(
 
 
 # ============================================================================
-# FIX 3: PARTY NUDGE (7-DAY REMINDER)
+# PARTY NUDGE (7-DAY REMINDER)
 # ============================================================================
 
 def get_party_nudge_html(
@@ -1350,72 +1250,35 @@ def get_party_nudge_html(
     company_logo_url: Optional[str] = None,
 ) -> str:
     """Generate HTML for party nudge reminder email."""
-    logo_block = _build_company_logo_block(company_logo_url)
     role_display = party_role.replace("_", " ").title()
     greeting = party_name if party_name else "Property Transaction Party"
-    
-    return f"""
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    </head>
-    <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f4f4f5;">
-        <table width="100%" cellspacing="0" cellpadding="0" style="background-color: #f4f4f5;">
-            <tr>
-                <td align="center" style="padding: 40px 20px;">
-                    <table width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden;">
-                        <tr>
-                            <td style="background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%); padding: 30px; text-align: center;">
-                                <h1 style="color: #ffffff; margin: 0; font-size: 24px;">⏰ Friendly Reminder</h1>
-                                <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0; font-size: 14px;">Your Information is Still Needed</p>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 30px;">
-                                {logo_block}
-                                <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
-                                    Dear {greeting},
-                                </p>
-                                <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
-                                    This is a friendly reminder that we still need your information for a real estate transaction. You were previously sent a secure portal link, but we haven't received your submission yet.
-                                </p>
-                                <div style="background: #fffbeb; border-left: 4px solid #f59e0b; padding: 16px; margin: 20px 0; border-radius: 0 8px 8px 0;">
-                                    <p style="margin: 0 0 8px; color: #92400e;"><strong>Property:</strong> {property_address}</p>
-                                    <p style="margin: 0; color: #92400e;"><strong>Your Role:</strong> {role_display}</p>
-                                </div>
-                                <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
-                                    Your prompt response helps ensure a smooth closing process. Please complete the secure form at your earliest convenience.
-                                </p>
-                                <table width="100%" cellspacing="0" cellpadding="0" style="margin: 20px 0;">
-                                    <tr>
-                                        <td align="center">
-                                            <a href="{portal_url}" style="display: inline-block; background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: #ffffff; padding: 16px 40px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4);">
-                                                Complete Your Information →
-                                            </a>
-                                        </td>
-                                    </tr>
-                                </table>
-                                <p style="margin: 20px 0 0; color: #6b7280; font-size: 14px;">
-                                    If you have already completed this form, please disregard this email. If you need a new link, please contact your title company representative.
-                                </p>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td style="background: #1e293b; padding: 20px; text-align: center;">
-                                <p style="margin: 0; color: #94a3b8; font-size: 12px;">
-                                    {BRAND_NAME} — {BRAND_TAGLINE}
-                                </p>
-                            </td>
-                        </tr>
-                    </table>
-                </td>
-            </tr>
-        </table>
-    </body>
-    </html>
-    """
+
+    details = (
+        _detail_row("Property", property_address, "#92400e")
+        + f'<p style="margin:0; color:#92400e;"><strong>Your Role:</strong> {role_display}</p>'
+    )
+
+    body = (
+        _text(f"Dear {greeting},")
+        + _text(
+            "This is a friendly reminder that we still need your information for a real estate transaction. "
+            "You were previously sent a secure portal link, but we haven't received your submission yet."
+        )
+        + _detail_block(details, "#d97706")
+        + _text("Your prompt response helps ensure a smooth closing process. Please complete the secure form at your earliest convenience.")
+        + _muted("If you have already completed this form, please disregard this email. If you need a new link, please contact your title company representative.")
+    )
+
+    return _build_email_wrapper(
+        body_content=body,
+        company_logo_url=company_logo_url,
+        header_text="Friendly Reminder",
+        header_subtext="Your Information is Still Needed",
+        action_url=portal_url,
+        action_text="Complete Your Submission",
+        header_accent="amber",
+        button_color="#2563eb",
+    )
 
 
 def get_party_nudge_text(
@@ -1446,7 +1309,7 @@ Your prompt response helps ensure a smooth closing process.
 If you have already completed this form, please disregard this email.
 
 ---
-{BRAND_NAME} — {BRAND_TAGLINE}
+{BRAND_NAME} - {BRAND_TAGLINE}
 """
 
 
@@ -1459,7 +1322,7 @@ def send_party_nudge(
     company_logo_url: Optional[str] = None,
 ) -> EmailResult:
     """Send party nudge reminder email."""
-    subject = f"Reminder: Your Information is Needed — {property_address}"
+    subject = f"Reminder: Your Information is Needed -- {property_address}"
     
     html_content = get_party_nudge_html(
         party_name=party_name,
@@ -1479,8 +1342,16 @@ def send_party_nudge(
     return send_email(to_email, subject, html_content, text_content)
 
 
+# ============================================================================
+# Legacy helper — kept for backward compatibility
+# ============================================================================
+
 def _build_company_logo_block(company_logo_url: Optional[str] = None) -> str:
-    """Build a reusable company logo HTML block for email templates."""
+    """Build a reusable company logo HTML block for email templates.
+    
+    NOTE: This is kept for backward compatibility only. All templates now
+    use _build_email_wrapper() which handles logo display natively.
+    """
     if not company_logo_url:
         return ""
     return f'''
@@ -1488,159 +1359,3 @@ def _build_company_logo_block(company_logo_url: Optional[str] = None) -> str:
                 <img src="{company_logo_url}" alt="Company Logo" style="max-height: 60px; max-width: 200px; object-fit: contain;" />
             </div>'''
 
-
-def send_filing_rejected_notification(
-    to_email: str,
-    recipient_name: str,
-    property_address: str,
-    rejection_code: str,
-    rejection_message: str,
-    report_url: str,
-    company_logo_url: Optional[str] = None,
-) -> EmailResult:
-    """
-    Notify when filing is rejected by FinCEN — URGENT.
-    """
-    subject = f"⚠️ Action Required: FinCEN Filing Rejected — {property_address}"
-    
-    html_content = f"""
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    </head>
-    <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f4f4f5;">
-        <table width="100%" cellspacing="0" cellpadding="0" style="background-color: #f4f4f5;">
-            <tr>
-                <td align="center" style="padding: 40px 20px;">
-                    <table width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden;">
-                        <tr>
-                            <td style="background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%); padding: 30px; text-align: center;">
-                                <h1 style="color: #ffffff; margin: 0; font-size: 24px;">⚠️ Filing Rejected</h1>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 30px;">
-                                {_build_company_logo_block(company_logo_url)}
-                                <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
-                                    Hi {recipient_name},
-                                </p>
-                                <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
-                                    Your FinCEN Real Estate Report was rejected and requires attention.
-                                </p>
-                                <div style="background: #fef2f2; border-left: 4px solid #ef4444; padding: 16px; margin: 20px 0; border-radius: 0 8px 8px 0;">
-                                    <p style="margin: 0 0 8px; color: #991b1b;"><strong>Property:</strong> {property_address}</p>
-                                    <p style="margin: 0 0 8px; color: #991b1b;"><strong>Error Code:</strong> <code style="background: #fee2e2; padding: 2px 8px; border-radius: 4px;">{rejection_code}</code></p>
-                                    <p style="margin: 0; color: #991b1b;"><strong>Reason:</strong> {rejection_message}</p>
-                                </div>
-                                <p style="margin: 20px 0; color: #374151; font-size: 16px; font-weight: 600;">
-                                    What to do:
-                                </p>
-                                <ol style="margin: 0 0 20px; color: #374151; font-size: 15px; padding-left: 20px;">
-                                    <li style="margin-bottom: 8px;">Review the error details above</li>
-                                    <li style="margin-bottom: 8px;">Correct the information in the report</li>
-                                    <li>Re-submit the filing</li>
-                                </ol>
-                                <table width="100%" cellspacing="0" cellpadding="0" style="margin: 20px 0;">
-                                    <tr>
-                                        <td align="center">
-                                            <a href="{report_url}" style="display: inline-block; background: #dc2626; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600;">
-                                                Fix and Resubmit →
-                                            </a>
-                                        </td>
-                                    </tr>
-                                </table>
-                                <p style="margin: 20px 0 0; color: #6b7280; font-size: 14px;">
-                                    Need help? Contact {BRAND_SUPPORT_EMAIL}
-                                </p>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td style="background: #1e293b; padding: 20px; text-align: center;">
-                                <p style="margin: 0; color: #94a3b8; font-size: 12px;">
-                                    {BRAND_NAME} — {BRAND_TAGLINE}
-                                </p>
-                            </td>
-                        </tr>
-                    </table>
-                </td>
-            </tr>
-        </table>
-    </body>
-    </html>
-    """
-    
-    return send_email(to_email, subject, html_content)
-
-
-def send_filing_needs_review_notification(
-    to_email: str,
-    recipient_name: str,
-    property_address: str,
-    reason: str,
-    report_url: str,
-    company_logo_url: Optional[str] = None,
-) -> EmailResult:
-    """
-    Notify when filing needs manual review.
-    """
-    subject = f"Review Required: FinCEN Filing — {property_address}"
-    
-    html_content = f"""
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    </head>
-    <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f4f4f5;">
-        <table width="100%" cellspacing="0" cellpadding="0" style="background-color: #f4f4f5;">
-            <tr>
-                <td align="center" style="padding: 40px 20px;">
-                    <table width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden;">
-                        <tr>
-                            <td style="background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%); padding: 30px; text-align: center;">
-                                <h1 style="color: #ffffff; margin: 0; font-size: 24px;">Review Required</h1>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 30px;">
-                                {_build_company_logo_block(company_logo_url)}
-                                <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
-                                    Hi {recipient_name},
-                                </p>
-                                <p style="margin: 0 0 20px; color: #374151; font-size: 16px;">
-                                    Your FinCEN Real Estate Report requires review before it can be filed.
-                                </p>
-                                <div style="background: #fffbeb; border-left: 4px solid #f59e0b; padding: 16px; margin: 20px 0; border-radius: 0 8px 8px 0;">
-                                    <p style="margin: 0 0 8px; color: #92400e;"><strong>Property:</strong> {property_address}</p>
-                                    <p style="margin: 0; color: #92400e;"><strong>Reason:</strong> {reason}</p>
-                                </div>
-                                <table width="100%" cellspacing="0" cellpadding="0" style="margin: 20px 0;">
-                                    <tr>
-                                        <td align="center">
-                                            <a href="{report_url}" style="display: inline-block; background: #d97706; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600;">
-                                                Review Report →
-                                            </a>
-                                        </td>
-                                    </tr>
-                                </table>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td style="background: #1e293b; padding: 20px; text-align: center;">
-                                <p style="margin: 0; color: #94a3b8; font-size: 12px;">
-                                    {BRAND_NAME} — {BRAND_TAGLINE}
-                                </p>
-                            </td>
-                        </tr>
-                    </table>
-                </td>
-            </tr>
-        </table>
-    </body>
-    </html>
-    """
-    
-    return send_email(to_email, subject, html_content)
