@@ -133,24 +133,25 @@ export function CertificationStep({
 
           {/* Single Certification Checkbox */}
           <div className="space-y-4 pt-2">
-            <label className="flex items-start gap-3 cursor-pointer">
+            <div className="flex items-start gap-3">
               <Checkbox
+                id="cert-acknowledge"
                 checked={data.certified || false}
                 onCheckedChange={(checked) => {
-                  update("certified", checked as boolean);
-                  if (checked) update("certification_date", today);
+                  update("certified", checked === true);
+                  if (checked === true) update("certification_date", today);
                 }}
                 className="mt-1"
                 disabled={disabled}
               />
-              <span className="text-sm text-gray-700 leading-relaxed">
+              <label htmlFor="cert-acknowledge" className="text-sm text-gray-700 leading-relaxed cursor-pointer select-none">
                 I certify that all information I have provided is <strong>true, accurate, and complete</strong> to
                 the best of my knowledge. I understand that I am responsible for the accuracy of this information.
                 I am authorized to provide this information as the {roleDisplay} or as an authorized
                 representative. I consent to the submission of this information to the Financial Crimes
                 Enforcement Network (FinCEN) as required by federal regulations.
-              </span>
-            </label>
+              </label>
+            </div>
           </div>
 
           {/* Electronic Signature */}

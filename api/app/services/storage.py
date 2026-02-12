@@ -96,23 +96,22 @@ class R2StorageService:
             # Build hierarchical path for organization
             key = f"{company_id}/{report_id}/parties/{party_id}/{document_type}/{unique_filename}"
             
-            # Generate pre-signed POST URL for form-based upload
-            presigned = self.client.generate_presigned_post(
-                Bucket=self.bucket,
-                Key=key,
-                Fields={
-                    'Content-Type': content_type,
+            # Generate pre-signed PUT URL for direct upload
+            # Note: Cloudflare R2 does NOT support POST-based multipart form uploads
+            # (generate_presigned_post). We must use PUT-based pre-signed URLs.
+            presigned_url = self.client.generate_presigned_url(
+                'put_object',
+                Params={
+                    'Bucket': self.bucket,
+                    'Key': key,
+                    'ContentType': content_type,
                 },
-                Conditions=[
-                    {'Content-Type': content_type},
-                    ['content-length-range', 1, settings.MAX_FILE_SIZE_MB * 1024 * 1024],
-                ],
                 ExpiresIn=expires_in
             )
             
             return {
-                'upload_url': presigned['url'],
-                'fields': presigned['fields'],
+                'upload_url': presigned_url,
+                'fields': {},  # No fields needed for PUT-based upload
                 'key': key,
                 'expires_at': (datetime.utcnow() + timedelta(seconds=expires_in)).isoformat()
             }

@@ -14,7 +14,8 @@ import {
   User,
   Building2,
   Loader2,
-  ArrowLeft
+  ArrowLeft,
+  Check
 } from "lucide-react";
 import { getReportParties, resendPartyLink, type PartyStatusItem } from "@/lib/api";
 import { toast } from "sonner";
@@ -54,12 +55,28 @@ export function PartyStatusStep({ reportId }: PartyStatusStepProps) {
     fetchParties();
   };
   
-  const handleResend = async (partyId: string) => {
+  const [resendingPartyId, setResendingPartyId] = useState<string | null>(null);
+  const [resentPartyIds, setResentPartyIds] = useState<Set<string>>(new Set());
+  
+  const handleResend = async (partyId: string, partyEmail?: string) => {
+    setResendingPartyId(partyId);
     try {
       await resendPartyLink(reportId, partyId);
-      toast.success("Link resent successfully");
+      const emailDisplay = partyEmail ? ` to ${partyEmail}` : "";
+      toast.success(`Portal link resent${emailDisplay}`);
+      // Show inline "Sent" confirmation
+      setResentPartyIds(prev => new Set(prev).add(partyId));
+      setTimeout(() => {
+        setResentPartyIds(prev => {
+          const next = new Set(prev);
+          next.delete(partyId);
+          return next;
+        });
+      }, 4000);
     } catch (error) {
       toast.error("Failed to resend link");
+    } finally {
+      setResendingPartyId(null);
     }
   };
   
@@ -123,7 +140,9 @@ export function PartyStatusStep({ reportId }: PartyStatusStepProps) {
               <PartyStatusCard 
                 key={party.id} 
                 party={party}
-                onResend={() => handleResend(party.id)}
+                onResend={() => handleResend(party.id, party.email)}
+                isResending={resendingPartyId === party.id}
+                wasResent={resentPartyIds.has(party.id)}
               />
             ))}
             {buyers.length === 0 && (
@@ -140,7 +159,9 @@ export function PartyStatusStep({ reportId }: PartyStatusStepProps) {
               <PartyStatusCard 
                 key={party.id} 
                 party={party}
-                onResend={() => handleResend(party.id)}
+                onResend={() => handleResend(party.id, party.email)}
+                isResending={resendingPartyId === party.id}
+                wasResent={resentPartyIds.has(party.id)}
               />
             ))}
             {sellers.length === 0 && (
@@ -194,10 +215,14 @@ export function PartyStatusStep({ reportId }: PartyStatusStepProps) {
 // Party Status Card
 function PartyStatusCard({ 
   party, 
-  onResend 
+  onResend,
+  isResending,
+  wasResent,
 }: { 
   party: PartyStatusItem; 
   onResend: () => void;
+  isResending: boolean;
+  wasResent: boolean;
 }) {
   const isSubmitted = party.status === "submitted";
   
@@ -232,14 +257,31 @@ function PartyStatusCard({
                 <Clock className="h-3 w-3 mr-1" />
                 Pending
               </Badge>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onResend}
-              >
-                <Send className="h-3 w-3 mr-1" />
-                Resend
-              </Button>
+              {wasResent ? (
+                <span className="flex items-center gap-1 text-xs text-green-600 font-medium px-2 animate-in fade-in duration-200">
+                  <Check className="h-3 w-3" />
+                  Sent
+                </span>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onResend}
+                  disabled={isResending}
+                >
+                  {isResending ? (
+                    <>
+                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="h-3 w-3 mr-1" />
+                      Resend
+                    </>
+                  )}
+                </Button>
+              )}
             </>
           )}
         </div>

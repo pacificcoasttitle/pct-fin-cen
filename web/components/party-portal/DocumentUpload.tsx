@@ -286,7 +286,7 @@ export function DocumentUpload({
         throw new Error(errorData.detail || "Failed to get upload URL");
       }
 
-      const { document_id, upload_url, fields } = await urlResponse.json();
+      const { document_id, upload_url } = await urlResponse.json();
 
       setUploadingFiles(prev =>
         prev.map(uf =>
@@ -294,21 +294,17 @@ export function DocumentUpload({
         )
       );
 
-      // Step 2: Upload directly to R2
-      const formData = new FormData();
-      // Add all pre-signed fields first
-      Object.entries(fields).forEach(([key, value]) => {
-        formData.append(key, value as string);
-      });
-      // Add file last (important for S3/R2)
-      formData.append("file", file);
-
+      // Step 2: Upload directly to R2 using pre-signed PUT URL
+      // Cloudflare R2 requires PUT-based uploads (not POST multipart form)
       const uploadResponse = await fetch(upload_url, {
-        method: "POST",
-        body: formData,
+        method: "PUT",
+        body: file,
+        headers: {
+          "Content-Type": file.type,
+        },
       });
 
-      if (!uploadResponse.ok && uploadResponse.status !== 204) {
+      if (!uploadResponse.ok && uploadResponse.status !== 200) {
         throw new Error(`Upload failed with status ${uploadResponse.status}`);
       }
 
