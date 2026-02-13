@@ -618,32 +618,39 @@ def _add_transferor_parties(
     next_seq,
     debug: dict,
 ) -> None:
-    """Add Party 69 (Transferor) for each seller."""
+    """Add Party 69 (Transferor) for each seller.
+    
+    Uses transferor_parties (report.parties) as PRIMARY source.
+    Falls back to collection.sellers ONLY when no party objects exist.
+    This prevents duplicate Party 69 elements.
+    """
     added_count = 0
     
-    # First try parties
-    for party_obj in transferor_parties:
-        party_data = party_obj.party_data if hasattr(party_obj, 'party_data') else {}
-        _add_single_transferor(activity, party_data, next_seq, debug)
-        added_count += 1
+    # PRIMARY: Use party objects from report.parties
+    if transferor_parties:
+        for party_obj in transferor_parties:
+            party_data = party_obj.party_data if hasattr(party_obj, 'party_data') else {}
+            _add_single_transferor(activity, party_data, next_seq, debug)
+            added_count += 1
     
-    # Then try collection.sellers
-    for seller in sellers:
-        if added_count >= 10:  # Limit sellers
-            break
-        
-        seller_type = seller.get("type", "individual")
-        
-        if seller_type == "individual" and seller.get("individual"):
-            _add_single_transferor(activity, {"individual": seller["individual"]}, next_seq, debug)
-        elif seller_type == "entity" and seller.get("entity"):
-            _add_single_transferor(activity, {"entity": seller["entity"]}, next_seq, debug)
-        elif seller_type == "trust" and seller.get("trust"):
-            _add_single_transferor(activity, {"trust": seller["trust"]}, next_seq, debug)
-        else:
-            _add_single_transferor(activity, seller, next_seq, debug)
-        
-        added_count += 1
+    # FALLBACK: Use collection.sellers only if no party objects
+    elif sellers:
+        for seller in sellers:
+            if added_count >= 10:  # Limit sellers
+                break
+            
+            seller_type = seller.get("type", "individual")
+            
+            if seller_type == "individual" and seller.get("individual"):
+                _add_single_transferor(activity, {"individual": seller["individual"]}, next_seq, debug)
+            elif seller_type == "entity" and seller.get("entity"):
+                _add_single_transferor(activity, {"entity": seller["entity"]}, next_seq, debug)
+            elif seller_type == "trust" and seller.get("trust"):
+                _add_single_transferor(activity, {"trust": seller["trust"]}, next_seq, debug)
+            else:
+                _add_single_transferor(activity, seller, next_seq, debug)
+            
+            added_count += 1
     
     # Ensure at least one transferor
     if added_count == 0:
@@ -659,7 +666,12 @@ def _add_transferor_parties(
 
 
 def _add_single_transferor(activity: Element, data: dict, next_seq, debug: dict) -> None:
-    """Add a single transferor party."""
+    """Add a single transferor party.
+    
+    Handles two data formats:
+    1. Synced format: {"individual": {...}, "entity": {...}, "trust": {...}}
+    2. Raw party_data: {"entity_type": "individual", "first_name": "...", ...}
+    """
     party = SubElement(activity, "fc2:Party")
     party.set("SeqNum", next_seq())
     SubElement(party, "fc2:ActivityPartyTypeCode").text = "69"
@@ -668,17 +680,52 @@ def _add_single_transferor(activity: Element, data: dict, next_seq, debug: dict)
     entity = data.get("entity", {})
     trust = data.get("trust", {})
     
+    # Handle raw party_data format (snake_case, flat structure from portal)
+    if not individual and not entity and not trust:
+        raw_type = data.get("entity_type", "individual")
+        if raw_type == "individual" and (data.get("first_name") or data.get("last_name")):
+            individual = {
+                "firstName": data.get("first_name", ""),
+                "lastName": data.get("last_name", ""),
+                "middleName": data.get("middle_name", ""),
+                "dateOfBirth": data.get("date_of_birth", ""),
+                "ssn": data.get("ssn", ""),
+                "address": data.get("address", {}),
+            }
+        elif raw_type in ("entity", "llc", "corporation", "partnership") and data.get("entity_name"):
+            entity = {
+                "legalName": data.get("entity_name", ""),
+                "tin": data.get("ein", ""),
+                "address": data.get("address", {}),
+            }
+        elif raw_type == "trust" and data.get("trust_name"):
+            trust = {
+                "legalName": data.get("trust_name", ""),
+                "tin": data.get("trust_ein", ""),
+                "address": data.get("address", {}),
+            }
+    
     if trust:
         SubElement(party, "fc2:TransferPartyTrustIndicator").text = "Y"
         party_name = SubElement(party, "fc2:PartyName")
         party_name.set("SeqNum", next_seq())
         SubElement(party_name, "fc2:RawPartyFullName").text = (trust.get("legalName", "") or "Unknown Trust")[:150]
         _add_address(party, trust.get("address", {}), next_seq)
+        
+        # Trust identification
+        tin = trust.get("tin", "")
+        if tin:
+            _add_party_identification(party, "2", digits_only(tin), next_seq)
     elif entity:
         party_name = SubElement(party, "fc2:PartyName")
         party_name.set("SeqNum", next_seq())
         SubElement(party_name, "fc2:RawPartyFullName").text = (entity.get("legalName", "") or "Unknown Entity")[:150]
         _add_address(party, entity.get("address", {}), next_seq)
+        
+        # Entity identification
+        tin = entity.get("tin", "") or entity.get("ein", "")
+        if tin:
+            _add_party_identification(party, "2", digits_only(tin), next_seq)
     elif individual:
         party_name = SubElement(party, "fc2:PartyName")
         party_name.set("SeqNum", next_seq())
@@ -688,7 +735,17 @@ def _add_single_transferor(activity: Element, data: dict, next_seq, debug: dict)
             SubElement(party_name, "fc2:RawEntityIndividualLastName").text = last[:150]
         if first:
             SubElement(party_name, "fc2:RawIndividualFirstName").text = first[:35]
+        middle = individual.get("middleName", "")
+        if middle:
+            SubElement(party_name, "fc2:RawIndividualMiddleName").text = middle[:25]
         _add_address(party, individual.get("address", {}), next_seq)
+        
+        # Individual identification (SSN)
+        ssn = individual.get("ssn", "")
+        if ssn:
+            ssn_digits = digits_only(ssn)
+            if len(ssn_digits) == 9:
+                _add_party_identification(party, "1", ssn_digits, next_seq)
     else:
         # Fallback
         party_name = SubElement(party, "fc2:PartyName")
