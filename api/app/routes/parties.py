@@ -539,7 +539,7 @@ def resend_party_link(
     
     # Find existing link
     existing_link = db.query(PartyLink).filter(
-        PartyLink.party_id == party.id
+        PartyLink.report_party_id == party.id
     ).order_by(PartyLink.created_at.desc()).first()
     
     report = party.report

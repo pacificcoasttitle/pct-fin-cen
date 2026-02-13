@@ -258,7 +258,7 @@ def confirm_upload(
         db=db,
         document_id=document_id,
         event_type=EVENT_DOCUMENT_UPLOADED,
-        party_id=str(document.party_id) if document.party_id else None,
+        party_id=str(document.report_party_id) if document.report_party_id else None,
         report_id=report_id,
         details={
             "size_bytes": document.size_bytes,
@@ -313,7 +313,7 @@ def get_download_url(
         db=db,
         document_id=document_id,
         event_type=EVENT_DOCUMENT_DOWNLOADED,
-        party_id=str(document.party_id) if document.party_id else None,
+        party_id=str(document.report_party_id) if document.report_party_id else None,
         report_id=report_id,
         details={
             "filename": document.file_name,
@@ -363,7 +363,7 @@ def list_party_documents(
         
         doc_responses.append(DocumentResponse(
             id=str(doc.id),
-            party_id=str(doc.party_id),
+            party_id=str(doc.report_party_id),
             document_type=doc.document_type,
             file_name=doc.file_name,
             mime_type=doc.mime_type,
@@ -416,7 +416,7 @@ def list_report_documents(
         
         doc_responses.append(DocumentResponse(
             id=str(doc.id),
-            party_id=str(doc.party_id),
+            party_id=str(doc.report_party_id),
             document_type=doc.document_type,
             file_name=doc.file_name,
             mime_type=doc.mime_type,
@@ -447,7 +447,7 @@ def delete_document(
         raise HTTPException(status_code=404, detail="Document not found")
     
     # Capture info for audit before deletion
-    party_id = str(document.party_id) if document.party_id else None
+    party_id = str(document.report_party_id) if document.report_party_id else None
     party = document.party
     report_id = str(party.report_id) if party and party.report_id else None
     doc_type = document.document_type
@@ -506,7 +506,7 @@ def verify_document(
         db=db,
         document_id=document_id,
         event_type=EVENT_DOCUMENT_VERIFIED,
-        party_id=str(document.party_id) if document.party_id else None,
+        party_id=str(document.report_party_id) if document.report_party_id else None,
         report_id=report_id,
         details={
             "document_type": document.document_type,
@@ -576,7 +576,7 @@ def list_all_documents(
         
         doc_responses.append({
             "id": str(doc.id),
-            "party_id": str(doc.party_id) if doc.party_id else None,
+            "party_id": str(doc.report_party_id) if doc.report_party_id else None,
             "party_name": party.display_name if party else None,
             "party_role": party.party_role if party else None,
             "report_id": str(report.id) if report else None,
