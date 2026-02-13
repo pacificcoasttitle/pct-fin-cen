@@ -10,12 +10,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { User, Building2, Calendar, CreditCard } from "lucide-react";
 import {
   type PartySubmissionData,
   ENTITY_TYPES,
   TRUST_TYPES,
   CITIZENSHIP_OPTIONS,
+  ID_TYPES,
   US_STATES,
 } from "../types";
 
@@ -126,25 +128,85 @@ export function PersonalInfoStep({ entityType, partyRole, data, onChange, disabl
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="pi-ssn" className="flex items-center gap-2">
-                <CreditCard className="w-4 h-4" />
-                SSN / Tax ID
-              </Label>
-              <Input
-                id="pi-ssn"
-                type="password"
-                value={data.ssn || ""}
-                onChange={(e) => update("ssn", e.target.value)}
-                placeholder="XXX-XX-XXXX"
-                maxLength={11}
-                disabled={disabled}
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Encrypted and securely stored.
-              </p>
+          {/* ─── Identification Section ─── */}
+          <div className="pt-4 border-t">
+            <h4 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
+              <CreditCard className="w-4 h-4" />
+              Identification
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="pi-idType">ID Type *</Label>
+                <Select
+                  value={data.id_type || ""}
+                  onValueChange={(val) => update("id_type", val)}
+                  disabled={disabled}
+                >
+                  <SelectTrigger id="pi-idType">
+                    <SelectValue placeholder="Select ID type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ID_TYPES.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="pi-idNumber">ID Number *</Label>
+                <Input
+                  id="pi-idNumber"
+                  type="password"
+                  value={data.id_number || data.ssn || ""}
+                  onChange={(e) => {
+                    update("id_number", e.target.value);
+                    // Also populate ssn for backward compat
+                    if (data.id_type === "ssn" || !data.id_type) {
+                      update("ssn", e.target.value);
+                    }
+                  }}
+                  placeholder={data.id_type === "ssn" || !data.id_type ? "###-##-####" : "ID Number"}
+                  disabled={disabled}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Encrypted and securely stored.
+                </p>
+              </div>
             </div>
+
+            {/* Jurisdiction — only for foreign passport or state ID */}
+            {(data.id_type === "passport_foreign" || data.id_type === "state_id") && (
+              <div className="mt-4">
+                <Label htmlFor="pi-idJurisdiction">Issuing Jurisdiction *</Label>
+                {data.id_type === "state_id" ? (
+                  <Select
+                    value={data.id_jurisdiction || ""}
+                    onValueChange={(val) => update("id_jurisdiction", val)}
+                    disabled={disabled}
+                  >
+                    <SelectTrigger id="pi-idJurisdiction">
+                      <SelectValue placeholder="Select issuing state" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {US_STATES.map((state) => (
+                        <SelectItem key={state.value} value={state.value}>{state.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    id="pi-idJurisdiction"
+                    value={data.id_jurisdiction || ""}
+                    onChange={(e) => update("id_jurisdiction", e.target.value)}
+                    placeholder="Country of issuance"
+                    disabled={disabled}
+                  />
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="pi-phone">Phone</Label>
               <Input
@@ -156,20 +218,19 @@ export function PersonalInfoStep({ entityType, partyRole, data, onChange, disabl
                 disabled={disabled}
               />
             </div>
-          </div>
-
-          <div>
-            <Label htmlFor="pi-email">Email</Label>
-            <Input
-              id="pi-email"
-              type="email"
-              value={email || data.email || ""}
-              disabled
-              className="bg-muted"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              This is the email on file for this transaction.
-            </p>
+            <div>
+              <Label htmlFor="pi-email">Email</Label>
+              <Input
+                id="pi-email"
+                type="email"
+                value={email || data.email || ""}
+                disabled
+                className="bg-muted"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                This is the email on file for this transaction.
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -388,6 +449,29 @@ export function PersonalInfoStep({ entityType, partyRole, data, onChange, disabl
             placeholder="XX-XXXXXXX"
             disabled={disabled}
           />
+        </div>
+
+        {/* Revocable / Irrevocable Toggle */}
+        <div className="pt-4 border-t">
+          <Label className="mb-3 block">Is this trust revocable? *</Label>
+          <RadioGroup
+            value={data.is_revocable === true ? "yes" : data.is_revocable === false ? "no" : ""}
+            onValueChange={(val) => update("is_revocable", val === "yes")}
+            className="flex gap-6"
+            disabled={disabled}
+          >
+            <div className="flex items-center gap-2">
+              <RadioGroupItem value="yes" id="revocable-yes" />
+              <Label htmlFor="revocable-yes" className="font-normal cursor-pointer">Yes (Revocable)</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <RadioGroupItem value="no" id="revocable-no" />
+              <Label htmlFor="revocable-no" className="font-normal cursor-pointer">No (Irrevocable)</Label>
+            </div>
+          </RadioGroup>
+          <p className="text-xs text-gray-500 mt-2">
+            FinCEN requires this information for trust transactions.
+          </p>
         </div>
 
         {/* Trustee Information */}

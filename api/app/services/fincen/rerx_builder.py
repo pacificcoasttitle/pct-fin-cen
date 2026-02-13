@@ -484,11 +484,66 @@ def _add_transferee_party(
                 _add_associated_person(activity, party, trustee["individual"], "68", next_seq, debug)
     
     else:
-        # Individual buyer - still needs party 67
+        # Individual buyer - map from buyerIndividual or transferee party data
+        buyer_individual = collection.get("buyerIndividual", {})
+        
+        # Try to get data from transferee_parties first, then from collection
+        if transferee_parties:
+            tp = transferee_parties[0]
+            tp_data = tp.party_data if hasattr(tp, 'party_data') and tp.party_data else {}
+            # Merge: party_data overrides, but buyerIndividual fills gaps
+            first_name = tp_data.get("first_name", "") or buyer_individual.get("firstName", "")
+            last_name = tp_data.get("last_name", "") or buyer_individual.get("lastName", "")
+            middle_name = tp_data.get("middle_name", "") or buyer_individual.get("middleName", "")
+            dob = tp_data.get("date_of_birth", "") or buyer_individual.get("dateOfBirth", "")
+            ssn = tp_data.get("ssn", "") or tp_data.get("id_number", "") or buyer_individual.get("ssn", "")
+            id_type_val = tp_data.get("id_type", "") or buyer_individual.get("idType", "")
+            address = tp_data.get("address", {}) or buyer_individual.get("address", {})
+        else:
+            first_name = buyer_individual.get("firstName", "")
+            last_name = buyer_individual.get("lastName", "")
+            middle_name = buyer_individual.get("middleName", "")
+            dob = buyer_individual.get("dateOfBirth", "")
+            ssn = buyer_individual.get("ssn", "") or buyer_individual.get("idNumber", "")
+            id_type_val = buyer_individual.get("idType", "")
+            address = buyer_individual.get("address", {})
+        
+        # Name
         party_name = SubElement(party, "fc2:PartyName")
         party_name.set("SeqNum", next_seq())
-        SubElement(party_name, "fc2:RawPartyFullName").text = "Unknown Transferee"
-        _add_party_identification(party, "42", "", next_seq)
+        
+        if last_name:
+            SubElement(party_name, "fc2:RawEntityIndividualLastName").text = last_name[:150]
+        if first_name:
+            SubElement(party_name, "fc2:RawIndividualFirstName").text = first_name[:35]
+        if middle_name:
+            SubElement(party_name, "fc2:RawIndividualMiddleName").text = middle_name[:25]
+        
+        # Fallback if no name at all
+        if not first_name and not last_name:
+            SubElement(party_name, "fc2:RawPartyFullName").text = "Unknown Transferee"
+        
+        # DOB
+        if dob:
+            try:
+                dob_dt = datetime.strptime(dob, "%Y-%m-%d")
+                SubElement(party, "fc2:IndividualBirthDateText").text = dob_dt.strftime("%Y%m%d")
+            except ValueError:
+                pass
+        
+        # Address
+        if address:
+            _add_address(party, address, next_seq)
+        
+        # Identification
+        if ssn:
+            ssn_digits = digits_only(ssn)
+            if id_type_val in ("ssn", "1", "") and len(ssn_digits) == 9:
+                _add_party_identification(party, "1", ssn_digits, next_seq)  # SSN/ITIN
+            else:
+                _add_party_identification(party, "1", ssn_digits, next_seq)
+        else:
+            _add_party_identification(party, "42", "", next_seq)  # No identification
     
     debug["computed_values"]["transferee_type"] = buyer_type
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback, useRef } from "react"
+import { useEffect, useState, useCallback, useRef, useMemo } from "react"
 import { useParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import {
@@ -19,13 +19,102 @@ import { toast } from "sonner"
 import { getParty, saveParty, submitParty, type PartyData } from "@/lib/api"
 import { type PartySubmissionData } from "@/components/party-portal/types"
 
-// New stepper components
+// Stepper UI
 import { VerticalStepper, type Step } from "@/components/party-portal/VerticalStepper"
 import { BrandedHeader } from "@/components/party-portal/BrandedHeader"
+
+// Step components
 import { PersonalInfoStep } from "@/components/party-portal/steps/PersonalInfoStep"
 import { AddressStep } from "@/components/party-portal/steps/AddressStep"
 import { DocumentsStep } from "@/components/party-portal/steps/DocumentsStep"
 import { CertificationStep } from "@/components/party-portal/steps/CertificationStep"
+import { BeneficialOwnersStep } from "@/components/party-portal/steps/BeneficialOwnersStep"
+import { TrusteesStep } from "@/components/party-portal/steps/TrusteesStep"
+import { PaymentSourcesStep } from "@/components/party-portal/steps/PaymentSourcesStep"
+
+// ─── Step definition type ───
+interface StepDef {
+  id: string
+  title: string
+  description: string
+}
+
+/**
+ * Compute dynamic steps based on party_role and entity_type.
+ *
+ * | Party Type              | Steps                                                    |
+ * |-------------------------|----------------------------------------------------------|
+ * | Individual Buyer        | Info → Address → Payment → Docs → Certify                |
+ * | Entity Buyer            | Info → Address → BOs → Payment → Docs → Certify          |
+ * | Trust Buyer             | Info → Address → Trustees → Payment → Docs → Certify     |
+ * | Individual Seller       | Info → Address → Docs → Certify                          |
+ * | Entity Seller           | Info → Address → Docs → Certify                          |
+ * | Trust Seller            | Info → Address → Docs → Certify                          |
+ */
+function buildStepDefinitions(
+  partyRole: string,
+  entityType: string,
+): StepDef[] {
+  const isBuyer = partyRole === "transferee"
+
+  // Common steps for all
+  const personalTitle =
+    entityType === "individual" ? "Personal Information"
+      : entityType === "entity" ? "Entity Information"
+        : "Trust Information"
+
+  const personalDesc =
+    entityType === "individual" ? "Name, DOB, ID, contact info"
+      : entityType === "entity" ? "Company name, EIN, representative"
+        : "Trust name, type, trustee info"
+
+  const steps: StepDef[] = [
+    { id: "personal", title: personalTitle, description: personalDesc },
+    {
+      id: "address",
+      title: "Address Details",
+      description:
+        entityType === "individual"
+          ? "Mailing address"
+          : entityType === "entity"
+            ? "Principal business address"
+            : "Trust address",
+    },
+  ]
+
+  // Buyer-only steps (inserted between Address and Documents)
+  if (isBuyer) {
+    if (entityType === "entity") {
+      steps.push({
+        id: "beneficial_owners",
+        title: "Beneficial Owners",
+        description: "Owners with 25%+ or control",
+      })
+    }
+
+    if (entityType === "trust") {
+      steps.push({
+        id: "trustees",
+        title: "Trust Parties",
+        description: "Trustees, settlors, beneficiaries",
+      })
+    }
+
+    steps.push({
+      id: "payment",
+      title: "Payment Details",
+      description: "Fund sources for this purchase",
+    })
+  }
+
+  // Common final steps
+  steps.push(
+    { id: "documents", title: "Identification", description: "Upload ID verification" },
+    { id: "certify", title: "Review & Certify", description: "Confirm and submit" },
+  )
+
+  return steps
+}
 
 export default function PartyPortalPage() {
   const params = useParams()
@@ -51,6 +140,30 @@ export default function PartyPortalPage() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null)
   const initialDataRef = useRef<string>("")
+
+  // Derived values
+  const entityType = (partyData?.entity_type || "individual") as "individual" | "entity" | "trust"
+  const partyRole = (partyData?.party_role || "transferor") as "transferee" | "transferor" | "beneficial_owner"
+
+  // Compute dynamic steps
+  const stepDefs = useMemo(
+    () => buildStepDefinitions(partyRole, entityType),
+    [partyRole, entityType],
+  )
+
+  const totalSteps = stepDefs.length
+  const lastStepIndex = totalSteps - 1
+  const isCertifyStep = stepDefs[currentStep]?.id === "certify"
+
+  // Build visual step array for the VerticalStepper
+  const steps: Step[] = useMemo(() => {
+    return stepDefs.map((def, i) => ({
+      id: def.id,
+      title: def.title,
+      description: def.description,
+      status: currentStep > i ? "complete" : currentStep === i ? "current" : "pending",
+    }))
+  }, [stepDefs, currentStep])
 
   // Load party data
   useEffect(() => {
@@ -156,8 +269,7 @@ export default function PartyPortalPage() {
       initialDataRef.current = JSON.stringify(formData)
       setAutoSaveStatus("saved")
       setTimeout(() => setAutoSaveStatus("idle"), 2000)
-      setCurrentStep((prev) => Math.min(prev + 1, 3))
-      // Scroll to top on mobile
+      setCurrentStep((prev) => Math.min(prev + 1, lastStepIndex))
       window.scrollTo({ top: 0, behavior: "smooth" })
     } catch (err) {
       toast.error("Failed to save progress")
@@ -177,9 +289,7 @@ export default function PartyPortalPage() {
     try {
       setSubmitting(true)
       setError(null)
-      // Save first
       await saveParty(token, formData)
-      // Then submit
       const result = await submitParty(token)
       setSubmitted(true)
       setSubmittedAt(result.submitted_at)
@@ -202,45 +312,79 @@ export default function PartyPortalPage() {
     }
   }
 
-  // Build steps array
-  const getSteps = (): Step[] => {
-    const entityType = partyData?.entity_type || "individual"
-    const personalTitle =
-      entityType === "individual" ? "Personal Information"
-        : entityType === "entity" ? "Entity Information"
-          : "Trust Information"
+  // ─── Render the current step's component ───
+  const renderCurrentStep = () => {
+    if (!partyData) return null
+    const stepId = stepDefs[currentStep]?.id
 
-    const personalDesc =
-      entityType === "individual" ? "Name, DOB, contact info"
-        : entityType === "entity" ? "Company name, EIN, rep"
-          : "Trust name, trustee info"
-
-    return [
-      {
-        id: "personal",
-        title: personalTitle,
-        description: personalDesc,
-        status: currentStep > 0 ? "complete" : currentStep === 0 ? "current" : "pending",
-      },
-      {
-        id: "address",
-        title: "Address Details",
-        description: "Mailing / business address",
-        status: currentStep > 1 ? "complete" : currentStep === 1 ? "current" : "pending",
-      },
-      {
-        id: "documents",
-        title: "Identification",
-        description: "Upload ID verification",
-        status: currentStep > 2 ? "complete" : currentStep === 2 ? "current" : "pending",
-      },
-      {
-        id: "certify",
-        title: "Review & Certify",
-        description: "Confirm and submit",
-        status: currentStep === 3 ? "current" : "pending",
-      },
-    ]
+    switch (stepId) {
+      case "personal":
+        return (
+          <PersonalInfoStep
+            entityType={entityType}
+            partyRole={partyRole}
+            data={formData}
+            onChange={handleFormChange}
+            disabled={submitted}
+            email={partyData.email || undefined}
+          />
+        )
+      case "address":
+        return (
+          <AddressStep
+            entityType={entityType}
+            data={formData}
+            onChange={handleFormChange}
+            disabled={submitted}
+          />
+        )
+      case "beneficial_owners":
+        return (
+          <BeneficialOwnersStep
+            data={formData}
+            onChange={handleFormChange}
+            disabled={submitted}
+          />
+        )
+      case "trustees":
+        return (
+          <TrusteesStep
+            data={formData}
+            onChange={handleFormChange}
+            disabled={submitted}
+          />
+        )
+      case "payment":
+        return (
+          <PaymentSourcesStep
+            data={formData}
+            onChange={handleFormChange}
+            disabled={submitted}
+          />
+        )
+      case "documents":
+        return (
+          <DocumentsStep
+            entityType={entityType}
+            partyId={partyData.party_id}
+            disabled={submitted}
+          />
+        )
+      case "certify":
+        return (
+          <CertificationStep
+            entityType={entityType}
+            partyRole={partyRole}
+            data={formData}
+            onChange={handleFormChange}
+            onSubmit={handleSubmit}
+            isSubmitting={submitting}
+            disabled={submitted}
+          />
+        )
+      default:
+        return null
+    }
   }
 
   // ─── Loading state ───
@@ -327,7 +471,6 @@ export default function PartyPortalPage() {
                   Your information has been submitted successfully. The escrow team will be in touch if anything else is needed.
                 </p>
 
-                {/* Confirmation ID */}
                 {confirmationId && (
                   <div className="inline-block bg-green-100 border-2 border-green-200 rounded-xl px-8 py-4 mb-6">
                     <p className="text-xs text-green-600 font-medium uppercase mb-1 tracking-wider">
@@ -358,57 +501,6 @@ export default function PartyPortalPage() {
 
   // ─── Main form with stepper ───
   if (!partyData) return null
-
-  const steps = getSteps()
-  const entityType = (partyData.entity_type || "individual") as "individual" | "entity" | "trust"
-  const partyRole = (partyData.party_role || "transferor") as "transferee" | "transferor" | "beneficial_owner"
-
-  const renderCurrentStep = () => {
-    switch (currentStep) {
-      case 0:
-        return (
-          <PersonalInfoStep
-            entityType={entityType}
-            partyRole={partyRole}
-            data={formData}
-            onChange={handleFormChange}
-            disabled={submitted}
-            email={partyData.email || undefined}
-          />
-        )
-      case 1:
-        return (
-          <AddressStep
-            entityType={entityType}
-            data={formData}
-            onChange={handleFormChange}
-            disabled={submitted}
-          />
-        )
-      case 2:
-        return (
-          <DocumentsStep
-            entityType={entityType}
-            partyId={partyData.party_id}
-            disabled={submitted}
-          />
-        )
-      case 3:
-        return (
-          <CertificationStep
-            entityType={entityType}
-            partyRole={partyRole}
-            data={formData}
-            onChange={handleFormChange}
-            onSubmit={handleSubmit}
-            isSubmitting={submitting}
-            disabled={submitted}
-          />
-        )
-      default:
-        return null
-    }
-  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -461,25 +553,30 @@ export default function PartyPortalPage() {
         </div>
 
         {/* Autosave status indicator */}
-        <div className="flex items-center justify-end gap-2 mb-4 min-h-[24px]">
-          {autoSaveStatus === "saving" && (
-            <span className="flex items-center gap-1 text-xs text-gray-500 animate-pulse">
-              <Loader2 className="w-3 h-3 animate-spin" />
-              Saving...
-            </span>
-          )}
-          {autoSaveStatus === "saved" && (
-            <span className="flex items-center gap-1 text-xs text-teal-600">
-              <CheckCircle2 className="w-3 h-3" />
-              Progress saved
-            </span>
-          )}
-          {autoSaveStatus === "error" && (
-            <span className="flex items-center gap-1 text-xs text-red-500">
-              <AlertTriangle className="w-3 h-3" />
-              Save failed — will retry
-            </span>
-          )}
+        <div className="flex items-center justify-between mb-4 min-h-[24px]">
+          <span className="text-xs text-gray-400">
+            Step {currentStep + 1} of {totalSteps}
+          </span>
+          <div className="flex items-center gap-2">
+            {autoSaveStatus === "saving" && (
+              <span className="flex items-center gap-1 text-xs text-gray-500 animate-pulse">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                Saving...
+              </span>
+            )}
+            {autoSaveStatus === "saved" && (
+              <span className="flex items-center gap-1 text-xs text-teal-600">
+                <CheckCircle2 className="w-3 h-3" />
+                Progress saved
+              </span>
+            )}
+            {autoSaveStatus === "error" && (
+              <span className="flex items-center gap-1 text-xs text-red-500">
+                <AlertTriangle className="w-3 h-3" />
+                Save failed — will retry
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Error Alert */}
@@ -503,7 +600,7 @@ export default function PartyPortalPage() {
             {renderCurrentStep()}
 
             {/* Navigation — hide on certification step (has its own submit button) */}
-            {currentStep < 3 && (
+            {!isCertifyStep && (
               <div className="flex justify-between mt-8 pt-6 border-t">
                 <Button
                   variant="outline"
