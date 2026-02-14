@@ -138,8 +138,11 @@ export function CertificationStep({
                 id="cert-acknowledge"
                 checked={data.certified || false}
                 onCheckedChange={(checked) => {
-                  update("certified", checked === true);
-                  if (checked === true) update("certification_date", today);
+                  if (checked === true) {
+                    onChange({ ...data, certified: true, certification_date: today });
+                  } else {
+                    onChange({ ...data, certified: false });
+                  }
                 }}
                 className="mt-1"
                 disabled={disabled}
