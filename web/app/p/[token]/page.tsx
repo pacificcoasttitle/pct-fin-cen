@@ -378,6 +378,7 @@ export default function PartyPortalPage() {
             data={formData}
             onChange={handleFormChange}
             onSubmit={handleSubmit}
+            onBack={handlePrevious}
             isSubmitting={submitting}
             disabled={submitted}
           />

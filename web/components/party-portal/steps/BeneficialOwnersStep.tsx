@@ -35,7 +35,7 @@ export function BeneficialOwnersStep({ data, onChange, disabled }: BeneficialOwn
 
   // Compute total ownership percentage
   const totalPercentage = beneficialOwners.reduce(
-    (sum, bo) => sum + (bo.ownership_percentage || 0),
+    (sum, bo) => sum + (Number(bo.ownership_percentage) || 0),
     0
   );
 

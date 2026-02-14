@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, CheckCircle, Shield, FileText, Send, Loader2 } from "lucide-react";
+import { AlertTriangle, CheckCircle, Shield, FileText, Send, Loader2, ArrowLeft } from "lucide-react";
 import { type PartySubmissionData, type AddressData } from "../types";
 
 interface CertificationStepProps {
@@ -15,6 +15,7 @@ interface CertificationStepProps {
   data: Partial<PartySubmissionData>;
   onChange: (data: Partial<PartySubmissionData>) => void;
   onSubmit: () => void;
+  onBack?: () => void;
   isSubmitting: boolean;
   disabled?: boolean;
 }
@@ -25,6 +26,7 @@ export function CertificationStep({
   data,
   onChange,
   onSubmit,
+  onBack,
   isSubmitting,
   disabled,
 }: CertificationStepProps) {
@@ -196,12 +198,25 @@ export function CertificationStep({
         </CardContent>
       </Card>
 
-      {/* Submit Button */}
-      <Button
-        onClick={onSubmit}
-        disabled={!allChecked || isSubmitting || disabled}
-        className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 py-6 text-lg rounded-xl shadow-lg shadow-green-500/25"
-      >
+      {/* Navigation */}
+      <div className="flex gap-3">
+        {onBack && (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onBack}
+            disabled={isSubmitting || disabled}
+            className="h-14 px-6 rounded-xl border-2 font-medium"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Previous
+          </Button>
+        )}
+        <Button
+          onClick={onSubmit}
+          disabled={!allChecked || isSubmitting || disabled}
+          className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 py-6 text-lg rounded-xl shadow-lg shadow-green-500/25"
+        >
         {isSubmitting ? (
           <>
             <Loader2 className="w-5 h-5 mr-2 animate-spin" />
@@ -213,7 +228,8 @@ export function CertificationStep({
             I Certify This Information Is Accurate — Submit
           </>
         )}
-      </Button>
+        </Button>
+      </div>
 
       {!allChecked && (
         <p className="text-center text-sm text-amber-600">

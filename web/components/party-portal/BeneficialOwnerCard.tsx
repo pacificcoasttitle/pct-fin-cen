@@ -142,7 +142,7 @@ export function BeneficialOwnerCard({
                   <Input
                     value={data.middle_name || ""}
                     onChange={(e) => update("middle_name", e.target.value)}
-                    placeholder="Robert"
+                    placeholder="(optional)"
                     disabled={disabled}
                   />
                 </div>
